@@ -38,7 +38,7 @@ The roadmap is a sequence of development goals, not a commitment to implement ev
 12. Render the world and moving placeholder entities using PixiJS. **Implemented**
 13. Verify multiple browser clients observe the same authoritative world. **Verified**
 14. Implement basic snapshot save/restore with SQLite. **Implemented**
-15. Add headless simulation tests and a 1,000-entity performance test. **Partially implemented / pending**
+15. Add headless simulation tests and a 1,000-entity performance test. **Implemented**
 
 ### Current implementation
 
@@ -63,8 +63,6 @@ The project currently has:
 
 - Introduce a basic tile map representation.
 - Verify simulation continues independently of browser connections.
-- Expand headless tests for simulation behaviour and recovery.
-- Add a 1,000-entity performance test.
 - Establish minimal simulation logging and inspection.
 - Define a standard external command contract and test it without Twitch integration.
 - Introduce typed domain-event contracts for a small number of initial events.
@@ -83,8 +81,8 @@ The project currently has:
 - [x] Reconnection receives current state and resumes updates.
 - [x] Entity creation and removal are represented correctly in client updates.
 - [x] A basic snapshot can be restored after restart.
-- [ ] Headless tests cover the foundational simulation behaviour.
-- [ ] A 1,000-entity test completes within an acceptable performance budget.
+- [x] Headless tests cover the foundational simulation behaviour.
+- [x] A 1,000-entity test completes within an acceptable performance budget.
 - [ ] Standard external command contracts are defined and tested.
 - [ ] Initial domain-event contracts are defined.
 

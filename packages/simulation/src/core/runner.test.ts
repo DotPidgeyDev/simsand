@@ -34,6 +34,12 @@ describe('simulation runner', () => {
     expect(clock.elapsedSeconds).toBeCloseTo(0.1);
   });
 
+  it('rejects a non-positive fixed timestep', () => {
+    expect(() => createSimulationClock(0)).toThrow(
+      'Fixed timestep must be greater than zero',
+    );
+  });
+
   it('does not advance while paused', () => {
     const world = createSimulationWorld();
     const clock = createSimulationClock();

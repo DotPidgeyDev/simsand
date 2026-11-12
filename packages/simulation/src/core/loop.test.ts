@@ -52,6 +52,41 @@ describe('simulation loop', () => {
     expect(loop.running).toBe(false);
   });
 
+  it('limits catch-up after a stall and drops the excess time', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    let nowMs = 0;
+    vi.spyOn(performance, 'now').mockImplementation(() => nowMs);
+
+    const clock = createSimulationClock();
+    const loop = createSimulationLoop(createSimulationRunner(createSimulationWorld(), clock));
+
+    startSimulationLoop(loop, { maxCatchUpTicks: 5 });
+
+    nowMs = 2050;
+    vi.advanceTimersByTime(10);
+
+    expect(clock.tick).toBe(5);
+    expect(loop.accumulatorSeconds).toBeCloseTo(0.05);
+
+    nowMs = 2060;
+    vi.advanceTimersByTime(10);
+
+    expect(clock.tick).toBe(5);
+
+    stopSimulationLoop(loop);
+    vi.restoreAllMocks();
+  });
+
+  it('rejects invalid loop options', () => {
+    const loop = createSimulationLoop(
+      createSimulationRunner(createSimulationWorld(), createSimulationClock()),
+    );
+
+    expect(() => startSimulationLoop(loop, { maxCatchUpTicks: 0 })).toThrow(
+      'Invalid simulation loop options',
+    );
+  });
+
   it('does not start twice', () => {
     vi.useFakeTimers();
 

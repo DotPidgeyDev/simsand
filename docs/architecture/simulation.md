@@ -434,7 +434,7 @@ Automatic recovery and persistence-backed restoration are not currently implemen
 
 ## 11. Initial testing
 
-**Status: Partially implemented**
+**Status: Implemented — foundational coverage**
 
 The simulation is designed to be tested independently of the browser and server.
 
@@ -442,28 +442,34 @@ Vitest is used for simulation tests.
 
 Current test coverage includes foundational behaviour such as:
 
-- Seeded population generation.
-- Fixed clock progression.
+- Seeded population generation: same seed gives the same world, IDs are unique, positions and velocities are in range, and two runs from one seed stay identical over 500 ticks.
+- Fixed clock progression and timestep validation.
 - Pause and resume.
 - Movement and world bounds.
-- Simulation loop execution.
-- Simulation loop stopping.
-- Snapshot generation.
-- Delta generation.
+- Simulation loop execution, stopping, option validation, and bounded catch-up after a stall.
+- Snapshot and delta generation, including created and removed entities.
+- Stable-ID mapping and entity removal, including reused bitECS handles.
+- Persisted-world capture and restoration, including identical continuation after restore.
+- On the server: the snapshot cache and the SQLite world store's recovery rules.
 
 Future testing should include:
 
-- Stable-ID mapping.
-- Entity creation and destruction.
 - System ordering.
 - Command validation.
-- Snapshot serialization and restoration.
 - Domain store consistency.
-- Invariants such as valid positions and unique persistent IDs.
 
-Add a headless test with 1,000 entities before optimizing.
+### Performance test
 
-Performance should be measured against representative simulation workloads rather than assumed from the initial population size.
+`packages/simulation/src/performance.test.ts` runs 1,000 entities for 1,000 ticks, building a snapshot and delta every second tick as the worker does. It also checks positions stay in bounds and IDs stay unique.
+
+| Measurement (1,000 entities) | Budget | Measured (Apple Silicon) |
+|---|---:|---:|
+| Average tick, including amortised snapshot and delta | 10 ms | about 0.2 ms |
+| Persisted-world capture, JSON round trip and restore | 100 ms | about 2.5 ms |
+
+The tick budget is 10% of the 100 ms tick, leaving room for future systems. At 5,000 entities a tick measured about 0.26 ms and a snapshot plus delta about 1.4 ms.
+
+Measure representative workloads again as systems are added, rather than assuming from these numbers.
 
 ---
 
@@ -499,7 +505,7 @@ Performance should be measured against representative simulation workloads rathe
 | Persistent snapshots | Implemented (SQLite) |
 | Snapshot restoration | Implemented |
 | Deterministic replay | Not implemented |
-| 1,000-entity performance test | Not yet verified |
+| 1,000-entity performance test | Implemented — within budget |
 
 ---
 
