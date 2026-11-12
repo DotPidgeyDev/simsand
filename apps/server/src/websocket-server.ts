@@ -59,6 +59,12 @@ constructor(port = 8766) {
   }
 
   close(): Promise<void> {
+    // The server only finishes closing once every connection has ended, and
+    // browser clients otherwise stay connected indefinitely.
+    for (const client of this.server.clients) {
+      client.terminate();
+    }
+
     return new Promise((resolve, reject) => {
       this.server.close((error) => {
         if (error) reject(error);

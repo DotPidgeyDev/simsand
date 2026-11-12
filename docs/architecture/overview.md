@@ -258,7 +258,7 @@ Persistence will eventually store:
 
 Persistence must not require writing every movement update to disk.
 
-SQLite with WAL is the initial planned storage solution.
+SQLite with WAL is the initial storage solution. Basic snapshot save and restore is implemented; durable domain events are not.
 
 ---
 
@@ -278,7 +278,7 @@ SQLite with WAL is the initial planned storage solution.
 | Renderer | PixiJS | Implemented |
 | Admin UI | Vue 3 | Planned |
 | Transport | WebSockets (`ws`) | Implemented |
-| Database | SQLite with WAL | Planned |
+| Database | SQLite with WAL (`node:sqlite`) | Implemented — snapshots only |
 | Validation | Zod | Planned |
 | Tests | Vitest | Implemented |
 | Map editor | LDtk | Selected |
@@ -477,13 +477,11 @@ The first milestone is complete when:
 
 The foundational simulation, worker, WebSocket communication and PixiJS rendering are implemented.
 
-The browser can display 20 independently moving entities. Two browser clients receive the same authoritative world: a later connection is given the current cached snapshot, and both clients then receive the same deltas. A client that loses its connection reconnects with backoff and resynchronizes from a fresh snapshot.
+The browser can display 20 independently moving entities. Two browser clients receive the same authoritative world: a later connection is given the current cached snapshot, and both clients then receive the same deltas. A client that loses its connection reconnects with backoff and resynchronizes from a fresh snapshot. The world is saved to SQLite and resumes from the latest valid snapshot after a restart.
 
 Remaining work includes:
 
 - Verifying continued simulation without connected clients.
-- Implementing SQLite persistence.
-- Saving and restoring basic world snapshots.
 - Completing workspace-wide build and test validation.
 
 Do not delay the visible vertical slice to build every future system.

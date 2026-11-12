@@ -35,6 +35,11 @@ export type {
   SimulationLoopOptions,
 } from './core/loop.js';
 
+export {
+  capturePersistedWorld,
+  restorePersistedWorld,
+} from './core/persistence.js';
+
 export { createWorldSnapshot } from './systems/snapshot.js';
 export { createWorldDelta } from './systems/delta.js';
 

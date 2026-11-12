@@ -80,13 +80,15 @@ The message contracts are defined in `packages/shared`.
 | `world.pause` | Pause simulation advancement |
 | `world.resume` | Resume simulation advancement |
 | `world.snapshot.request` | Request a full world snapshot |
+| `world.persist.request` | Request the complete state needed to save the world, tagged with a `requestId` |
 
 The `world.start` message optionally includes:
 
 - `seed`
 - `population`
+- `restore`: a `PersistedWorld` to resume instead of generating a new one
 
-The worker uses these values to initialize the initial world and population.
+Without `restore`, the worker uses `seed` and `population` to generate a new world.
 
 ### Worker to server
 
@@ -95,6 +97,7 @@ The worker uses these values to initialize the initial world and population.
 | `world.ready` | Indicates that the simulation has initialized |
 | `world.snapshot` | Full world state |
 | `world.delta` | Incremental entity updates |
+| `world.persisted` | The `PersistedWorld` for a `world.persist.request`, with the same `requestId` |
 | `world.error` | Simulation error information |
 
 The current message types are represented as TypeScript discriminated unions.
@@ -108,6 +111,7 @@ The shared package currently defines the following concepts:
 - `EntitySnapshot`
 - `WorldSnapshot`
 - `WorldDelta`
+- `PersistedWorld` and `PersistedEntity`
 
 The exact definitions are maintained in:
 

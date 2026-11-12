@@ -63,7 +63,10 @@ The current worker lifecycle supports:
 - Snapshot requests.
 - Termination.
 
-Automatic recovery, worker supervision and restoring persisted state are not yet implemented.
+- Persisted-world capture between ticks (`world.persist.request`).
+- Restoring from a persisted world passed in `world.start`.
+
+Automatic recovery and worker supervision are not yet implemented.
 
 ---
 
@@ -89,7 +92,7 @@ The underlying bitECS entity handle is separate from this identifier. The simula
 
 bitECS reuses handles after removal, so handles must never leave the simulation or be persisted. Snapshots, deltas and other external contracts use stable IDs only.
 
-Rules for persisting stable IDs and rebuilding the map during restoration are part of the SQLite persistence work.
+Persisted worlds store stable IDs only. `restorePersistedWorld` recreates each character through `createCharacter`, which rebuilds the map with fresh handles.
 
 ### Components
 
@@ -493,8 +496,8 @@ Performance should be measured against representative simulation workloads rathe
 | Domain events | Not implemented |
 | Entity removal tracking | Implemented |
 | Stable-ID-to-handle mapping | Implemented (in memory) |
-| Persistent snapshots | Not implemented |
-| Snapshot restoration | Not implemented |
+| Persistent snapshots | Implemented (SQLite) |
+| Snapshot restoration | Implemented |
 | Deterministic replay | Not implemented |
 | 1,000-entity performance test | Not yet verified |
 

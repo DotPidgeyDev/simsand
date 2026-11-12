@@ -1,7 +1,7 @@
 # Persistence Architecture
 
-**Status:** Foundational draft\
-**Version:** 1.0
+**Status:** Active implementation — basic snapshot save/restore\
+**Version:** 1.1
 
 ## 1. Purpose
 
@@ -139,6 +139,9 @@ The current tentative preference is continuous progression with
 adjustable time scale and potentially reduced simulation detail while
 offline.
 
+Until this is decided, the implementation resumes at the saved tick
+with no catch-up: time the process was stopped is not simulated.
+
 Before implementing offline progression, decide:
 
 -   Whether simulation advances while the process is stopped.
@@ -182,3 +185,38 @@ instances.
 For the first vertical slice, persist world metadata, seed, tick and
 basic entity positions. Add the complete snapshot and durable-event
 model incrementally as simulation systems become real.
+
+## 13. Current implementation
+
+**Status: Implemented — basic snapshot save/restore**
+
+-   **Storage:** Node's built-in `node:sqlite` module, so there is no
+    native dependency to build. It logs an `ExperimentalWarning` at
+    startup. The database is `apps/server/data/simsand.sqlite` (git
+    ignored), overridable with `SIMSAND_DB_PATH`. It runs in WAL mode.
+-   **Schema:** a single `world_snapshots` table holding the format
+    version, tick, creation time and a JSON payload. The schema version
+    is stored in `PRAGMA user_version`. A database from a newer schema
+    is refused.
+-   **Snapshot format:** `PersistedWorld` in `packages/shared`, version
+    1: seed, tick, elapsed time, fixed timestep and every entity's
+    stable ID, position, velocity and appearance. It is separate from
+    the render-oriented `WorldSnapshot`, which lacks velocity.
+-   **Capture:** the server sends `world.persist.request`; the worker
+    answers between ticks with a consistent `PersistedWorld`. The server
+    then writes it. The request times out after 2 seconds.
+-   **Write strategy:** a baseline save once the world is ready, a save
+    every 30 seconds (`SIMSAND_SAVE_INTERVAL_MS`), and a save on SIGINT
+    or SIGTERM before the process exits. Each save is one transaction
+    that also prunes all but the two newest snapshots. Save failures
+    are logged as errors.
+-   **Recovery:** on startup the server loads the newest snapshot that
+    parses and validates, skipping and logging invalid ones. The worker
+    rebuilds the ECS world and the stable-ID map from it. A new world is
+    created only when no snapshot has ever been saved. If snapshots
+    exist but none are valid, startup fails rather than replacing the
+    world.
+
+Not yet implemented: durable domain events, world IDs for more than one
+world, backups, and migrations beyond the initial schema. A process that
+is killed without a signal loses up to one save interval of progress.

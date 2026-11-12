@@ -10,6 +10,8 @@ import {
   stopSimulationLoop,
   createWorldSnapshot,
   createWorldDelta,
+  capturePersistedWorld,
+  restorePersistedWorld,
 } from '@simsand/simulation';
 
 import type {
@@ -24,6 +26,7 @@ if (!parentPort) {
 
 let loop: ReturnType<typeof createSimulationLoop> | undefined;
 let snapshot: WorldSnapshot | undefined;
+let seed = 12345;
 
 let previousSnapshot: WorldSnapshot | undefined;
 let deltaTimer: ReturnType<typeof setInterval> | undefined;
@@ -52,15 +55,20 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
       case 'world.start': {
         if (loop) break;
 
-        const world = createSimulationWorld();
+        const restore = message.data?.restore;
+        let world: ReturnType<typeof createSimulationWorld>;
+        let clock: ReturnType<typeof createSimulationClock>;
 
-        const entities = createPopulation(
-          world,
-          message.data?.population ?? 20,
-          message.data?.seed ?? 12345,
-        );
+        if (restore) {
+          ({ world, clock } = restorePersistedWorld(restore));
+          seed = restore.seed;
+        } else {
+          seed = message.data?.seed ?? 12345;
+          world = createSimulationWorld();
+          clock = createSimulationClock();
+          createPopulation(world, message.data?.population ?? 20, seed);
+        }
 
-        const clock = createSimulationClock();
         const runner = createSimulationRunner(world, clock);
 
         loop = createSimulationLoop(runner);
@@ -94,7 +102,8 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
           data: {
             tick: clock.tick,
             elapsedSeconds: clock.elapsedSeconds,
-            population: entities.length,
+            population: world.entityIds.size,
+            restored: restore !== undefined,
           },
         });
 
@@ -122,6 +131,24 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
         });
 
         break;
+
+      case 'world.persist.request': {
+        if (!loop) {
+          throw new Error('Simulation has not started');
+        }
+
+        const { world, clock } = loop.runner;
+
+        send({
+          type: 'world.persisted',
+          data: {
+            requestId: message.data.requestId,
+            world: capturePersistedWorld(world, clock, seed),
+          },
+        });
+
+        break;
+      }
     }
   } catch (error) {
     send({

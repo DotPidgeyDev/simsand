@@ -69,7 +69,7 @@ The browser is currently a visual representation of the simulation. It does not 
 | Communication | WebSockets (`ws`) |
 | Testing | Vitest |
 | Runtime validation | Zod (planned) |
-| Persistence | SQLite with WAL (planned) |
+| Persistence | SQLite with WAL (`node:sqlite`) |
 | Admin interface | Vue 3 (planned) |
 
 ---
@@ -194,6 +194,8 @@ http://localhost:5173
 Open that URL in your browser.
 
 You should see the world grid with 20 coloured squares moving around independently.
+
+The server saves the world to `apps/server/data/simsand.sqlite` every 30 seconds and when stopped with Ctrl-C, then resumes from that save on the next start. Delete the `apps/server/data` directory to start a new world.
 
 ---
 
