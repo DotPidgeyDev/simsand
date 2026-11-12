@@ -1,10 +1,7 @@
 import { SimulationWorker } from './simulation-worker.js';
 import { BrowserWebSocketServer } from './websocket-server.js';
-import { WorldSnapshot } from '@simsand/shared';
 
 const browserServer = new BrowserWebSocketServer(8766);
-
-let latestSnapshot: WorldSnapshot | undefined;
 
 const simulation = new SimulationWorker((message) => {
   switch (message.type) {
@@ -14,7 +11,6 @@ const simulation = new SimulationWorker((message) => {
       break;
 
     case 'world.snapshot':
-      latestSnapshot = message.data;
       browserServer.setLatestSnapshot(message.data);
       browserServer.broadcast({
         type: 'world.snapshot',
@@ -24,6 +20,7 @@ const simulation = new SimulationWorker((message) => {
     break;
 
     case 'world.delta':
+      browserServer.applyDelta(message.data);
       browserServer.broadcast({
         type: 'world.delta',
         data: message.data,

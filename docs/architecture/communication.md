@@ -269,9 +269,17 @@ The simulation continues independently of browser connections.
 
 ### Initial snapshots
 
-The server caches the latest full snapshot received from the simulation worker.
+The server caches the latest full snapshot received from the simulation worker, then folds each broadcast delta into that cache. Deltas carry absolute entity positions, so the cache stays aligned with the worker without a new full snapshot on every tick.
 
-Newly connected clients receive this snapshot rather than waiting for the next full snapshot request or attempting to reconstruct the world from deltas alone.
+A client that connects later receives this current snapshot, then the same subsequent deltas as every other client. It does not have to reconstruct the world from the startup snapshot plus a partial delta history.
+
+### Reconnection
+
+When the connection closes, the browser client reconnects automatically. Retries start at 500 ms and double up to a 5 second cap. The delay resets after a successful connection.
+
+On each new connection the client ignores deltas until the server's snapshot arrives. It then replaces its whole entity set with that snapshot, so sprites for entities that no longer exist are removed, and resumes applying deltas.
+
+Restarting the server currently starts a new world from the seed, because persistence is not yet implemented.
 
 ### Incremental updates
 
@@ -295,7 +303,6 @@ The following remain future improvements:
 - Client-originated commands.
 - Protocol version negotiation.
 - Sequence numbers and missed-update detection.
-- Automatic reconnection.
 - Entity removal messages.
 - Explicit resynchronization requests.
 - Event notifications separate from state deltas.
@@ -410,10 +417,8 @@ The browser receives the initial snapshot and subsequent deltas and uses them to
 
 The remaining communication work includes:
 
-- Verifying simultaneous browser clients.
 - Testing continued simulation without connected clients.
 - Entity removal tracking.
-- Reconnection and resynchronization.
 - Runtime validation.
 - Protocol versioning.
 - Gameplay command processing.

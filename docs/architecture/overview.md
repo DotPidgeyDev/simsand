@@ -437,7 +437,7 @@ The worker owns the ECS state and clock.
 
 The server receives updates from the worker and broadcasts them to connected browser clients.
 
-The server caches the most recently received full snapshot, allowing newly connected clients to initialize their renderer before receiving incremental updates.
+The server caches the most recently received full snapshot and folds each delta into that cache, so a newly connected client initializes from the current world before receiving incremental updates.
 
 Persistent IDs and durable event handling remain future work.
 
@@ -477,11 +477,10 @@ The first milestone is complete when:
 
 The foundational simulation, worker, WebSocket communication and PixiJS rendering are implemented.
 
-The browser can display 20 independently moving entities, and the server can provide an initial snapshot to newly connected clients.
+The browser can display 20 independently moving entities. Two browser clients receive the same authoritative world: a later connection is given the current cached snapshot, and both clients then receive the same deltas. A client that loses its connection reconnects with backoff and resynchronizes from a fresh snapshot.
 
 Remaining work includes:
 
-- Verifying multiple simultaneous browser clients.
 - Verifying continued simulation without connected clients.
 - Implementing SQLite persistence.
 - Saving and restoring basic world snapshots.

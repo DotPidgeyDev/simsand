@@ -82,8 +82,22 @@ export async function createRenderer(container: HTMLElement) {
     }
   }
 
+  function replaceEntities(snapshots: EntitySnapshot[]): void {
+    const ids = new Set(snapshots.map((entity) => entity.id));
+
+    for (const [id, graphic] of entities) {
+      if (!ids.has(id)) {
+        graphic.destroy();
+        entities.delete(id);
+      }
+    }
+
+    updateEntities(snapshots);
+  }
+
   return {
     updateEntities,
+    replaceEntities,
     destroy: () => app.destroy(true),
   };
 }

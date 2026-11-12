@@ -36,7 +36,7 @@ The roadmap is a sequence of development goals, not a commitment to implement ev
 10. Define typed worker lifecycle, snapshot, delta and error messages. **Implemented**
 11. Expose a WebSocket endpoint that sends an initial snapshot and subsequent deltas. **Implemented**
 12. Render the world and moving placeholder entities using PixiJS. **Implemented**
-13. Verify multiple browser clients observe the same authoritative world. **Pending verification**
+13. Verify multiple browser clients observe the same authoritative world. **Verified**
 14. Implement basic snapshot save/restore with SQLite. **Not started**
 15. Add headless simulation tests and a 1,000-entity performance test. **Partially implemented / pending**
 
@@ -64,9 +64,7 @@ The project currently has:
 - Introduce a basic tile map representation.
 - Establish persistent entity identity separately from runtime ECS handles.
 - Add entity removal to snapshot/delta synchronization.
-- Verify multiple browser clients observe the same state.
 - Verify simulation continues independently of browser connections.
-- Add WebSocket reconnection and state resynchronization.
 - Introduce SQLite persistence with basic snapshot save/restore.
 - Expand headless tests for simulation behaviour and recovery.
 - Add a 1,000-entity performance test.
@@ -84,8 +82,8 @@ The project currently has:
 - [x] Simulation runs without a browser connected.
 - [x] Browser receives an initial snapshot and subsequent deltas.
 - [x] Browser renders the moving entities.
-- [ ] Two browser tabs observe the same authoritative world.
-- [ ] Reconnection receives current state and resumes updates.
+- [x] Two browser tabs observe the same authoritative world.
+- [x] Reconnection receives current state and resumes updates.
 - [ ] Entity creation and removal are represented correctly in client updates.
 - [ ] A basic snapshot can be restored after restart.
 - [ ] Headless tests cover the foundational simulation behaviour.

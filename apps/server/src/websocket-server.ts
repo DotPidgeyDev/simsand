@@ -2,6 +2,8 @@ import { WebSocket, WebSocketServer } from 'ws';
 
 import type { WorldSnapshot, WorldDelta } from '@simsand/shared';
 
+import { applyDeltaToSnapshot } from './snapshot-cache.js';
+
 export type ClientMessage =
   | { type: 'world.snapshot'; data: WorldSnapshot }
   | { type: 'world.delta'; data: WorldDelta };
@@ -46,6 +48,14 @@ constructor(port = 8766) {
   setLatestSnapshot(snapshot: WorldSnapshot): void {
     this.latestSnapshot = snapshot;
     console.log('Caching snapshot with entities:', snapshot.entities.length);
+  }
+
+  applyDelta(delta: WorldDelta): void {
+    if (!this.latestSnapshot) {
+      return;
+    }
+
+    this.latestSnapshot = applyDeltaToSnapshot(this.latestSnapshot, delta);
   }
 
   close(): Promise<void> {

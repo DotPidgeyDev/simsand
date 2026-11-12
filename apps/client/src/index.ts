@@ -12,8 +12,8 @@ const renderer = await createRenderer(container);
 connectToSimulation((message) => {
   switch (message.type) {
     case 'world.snapshot':
-      console.log('Initial world snapshot received');
-      renderer.updateEntities(message.data.entities);
+      console.log('World snapshot received at tick', message.data.tick);
+      renderer.replaceEntities(message.data.entities);
       break;
 
     case 'world.delta':
