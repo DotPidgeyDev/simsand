@@ -157,15 +157,14 @@ The Node.js server currently:
 - Caches the latest world snapshot.
 - Sends the cached snapshot to newly connected clients.
 - Continues running independently of browser connections.
+- Saves and restores world snapshots in SQLite.
+- Validates external commands (schema, protocol version and source permissions) and routes accepted commands to the simulation through `CommandGateway`.
 
 Planned responsibilities:
 
-- Fastify HTTP endpoints.
+- Fastify HTTP endpoints, including a public command entry point.
 - Livestream platform integrations.
-- External command validation.
-- Permissions and rate limiting.
-- Routing accepted commands to the simulation.
-- Persistence coordination.
+- Identity-based permissions, rate limiting and deduplication.
 
 ### Simulation worker
 
@@ -183,7 +182,7 @@ The dedicated Node.js worker thread:
 
 The worker is the only authoritative owner of live simulation state.
 
-Future responsibilities include command validation, applying domain commands, generating domain events and coordinating consistent persistence snapshots.
+It also applies or rejects validated commands against current state, emits domain events for applied commands, and captures complete state for persistence.
 
 ### Simulation package
 
@@ -200,6 +199,8 @@ Contains engine-independent simulation code:
 - Simulation runner and loop.
 - Snapshot generation.
 - Delta generation.
+- Command execution (`character.create`, `character.remove`) and domain-event generation.
+- Persisted-world capture and restore.
 
 The package uses bitECS 0.4 and must remain independent of PixiJS, Vue, browser APIs and server-specific modules.
 
@@ -216,10 +217,12 @@ Contains public contracts shared across application and worker boundaries:
 - World deltas.
 - Server-to-worker message types.
 - Worker-to-server message types.
+- Persisted-world format.
+- Command requests, command results and domain events.
 
 It must not expose internal ECS storage details.
 
-Future additions include command types, domain event envelopes, identifiers and Zod validation schemas.
+The Zod schemas for command input live in the server, since only the server accepts untrusted commands.
 
 ### Browser client
 
@@ -246,7 +249,7 @@ Future functionality includes:
 
 ### Persistence
 
-**Status: Planned — not implemented**
+**Status: Partially implemented — snapshots**
 
 Persistence will eventually store:
 
@@ -279,7 +282,7 @@ SQLite with WAL is the initial storage solution. Basic snapshot save and restore
 | Admin UI | Vue 3 | Planned |
 | Transport | WebSockets (`ws`) | Implemented |
 | Database | SQLite with WAL (`node:sqlite`) | Implemented — snapshots only |
-| Validation | Zod | Planned |
+| Validation | Zod | Implemented — command input |
 | Tests | Vitest | Implemented |
 | Map editor | LDtk | Selected |
 | Pixel-art tooling | Aseprite | Selected |

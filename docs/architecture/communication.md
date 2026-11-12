@@ -12,9 +12,9 @@ The communication architecture separates simulation execution from networking an
 
 The simulation worker owns authoritative gameplay state. The application server coordinates communication, while browser clients receive world state and render it.
 
-The current implementation supports worker lifecycle messages, world snapshots, incremental deltas and browser WebSocket connections.
+The current implementation supports worker lifecycle messages, world snapshots, incremental deltas, browser WebSocket connections, and a validated command contract that produces domain events.
 
-Gameplay commands, domain events, HTTP APIs and streaming-platform integrations remain future work.
+A public entry point for commands (HTTP API or platform adapter) and streaming-platform integrations remain future work.
 
 ---
 
@@ -26,7 +26,7 @@ Gameplay commands, domain events, HTTP APIs and streaming-platform integrations 
 | Browser ↔ server | WebSockets (`ws`) | Initial state and incremental updates | Implemented |
 | Browser ↔ server APIs | HTTP | Configuration and non-streaming operations | Planned |
 | Platform ↔ server | Platform-specific SDK/API or connection | Receive chat and platform events | Planned |
-| Server ↔ persistence | In-process persistence boundary | Save and restore durable world state | Planned |
+| Server ↔ persistence | `node:sqlite` in the server process | Save and restore durable world state | Implemented — snapshots |
 
 The browser never communicates directly with the worker.
 
@@ -59,8 +59,8 @@ The current protocol supports:
 - Full world snapshots.
 - Incremental world deltas.
 - Simulation errors.
-
-Gameplay commands and domain events have not yet been implemented.
+- Commands (`character.create`, `character.remove`) with an applied or rejected result.
+- Domain events (`character.created`, `character.removed`) attached to applied results.
 
 ---
 
@@ -81,6 +81,7 @@ The message contracts are defined in `packages/shared`.
 | `world.resume` | Resume simulation advancement |
 | `world.snapshot.request` | Request a full world snapshot |
 | `world.persist.request` | Request the complete state needed to save the world, tagged with a `requestId` |
+| `world.command` | A validated `SimulationCommand` for the simulation to apply or reject |
 
 The `world.start` message optionally includes:
 
@@ -98,6 +99,7 @@ Without `restore`, the worker uses `seed` and `population` to generate a new wor
 | `world.snapshot` | Full world state |
 | `world.delta` | Incremental entity updates |
 | `world.persisted` | The `PersistedWorld` for a `world.persist.request`, with the same `requestId` |
+| `world.command.result` | The `CommandResult` for a `world.command`, matched by `commandId` |
 | `world.error` | Simulation error information |
 
 The current message types are represented as TypeScript discriminated unions.
@@ -112,6 +114,8 @@ The shared package currently defines the following concepts:
 - `WorldSnapshot`
 - `WorldDelta`
 - `PersistedWorld` and `PersistedEntity`
+- `CommandRequest`, `SimulationCommand` and `CommandResult`
+- `DomainEvent`
 
 The exact definitions are maintained in:
 
@@ -149,15 +153,15 @@ A versioned envelope should be introduced when the communication protocol become
 
 Use timestamps for diagnostics and transport context, not as the authoritative simulation clock.
 
-TypeScript types alone do not validate runtime data. Runtime validation should be introduced at process and network boundaries when external or untrusted messages are accepted.
+TypeScript types alone do not validate runtime data. External command input is validated at runtime (section 6). Other boundaries should add validation when they start accepting untrusted messages.
 
 ---
 
 ## 6. External command lifecycle
 
-**Status: Planned**
+**Status: Partially implemented — contract and gateway, no public entry point yet**
 
-External callers will eventually submit commands through the application server.
+External callers will submit commands through the application server.
 
 The intended lifecycle is:
 
@@ -189,13 +193,46 @@ The server performs transport, identity, syntax, permission and abuse checks.
 
 The simulation performs gameplay validation and determines the actual outcome.
 
-The current implementation does not yet support external gameplay commands.
+### Current implementation
+
+`CommandGateway` (`apps/server/src/command-gateway.ts`) is the server-side entry point. Its `submit(input, issuer)` takes untrusted input plus an issuer identity that the server has already established:
+
+```json
+{
+  "protocolVersion": 1,
+  "command": {
+    "type": "character.create",
+    "params": { "characterId": "visitor-0001", "x": 32, "y": 32 }
+  }
+}
+```
+
+The gateway checks, in order:
+
+1. `protocolVersion` equals `COMMAND_PROTOCOL_VERSION` (currently 1). Otherwise `unsupported_version`.
+2. The command matches a strict Zod schema. Unknown fields, unknown types, malformed IDs and out-of-range values are rejected as `invalid_command`.
+3. The issuer's source is permitted to issue the command type. Otherwise `forbidden`.
+
+It then adds a `commandId`, the issuer and `submittedAt`, and sends the command to the worker. The worker handles it between ticks and either applies it or rejects it with a gameplay reason (`character_exists`, `character_not_found`, `out_of_bounds`). If the worker is unavailable or does not reply within 2 seconds, the result is `simulation_unavailable`.
+
+The first command types are:
+
+| Command | Parameters | Allowed sources |
+|---|---|---|
+| `character.create` | `characterId`, `x`, `y`, optional `velocityX`, `velocityY`, `color` | admin, streamer, system |
+| `character.remove` | `characterId` | admin, streamer, system |
+
+Viewers have no command permissions until viewer identity is implemented.
+
+Nothing exposes the gateway to the network yet. The HTTP API, admin tooling and platform adapters will call it once they exist. Rate limits and deduplication are not implemented.
 
 ---
 
 ## 7. Command properties
 
-**Status: Planned**
+**Status: Partially implemented**
+
+`SimulationCommand` currently carries the command ID, issuer source and ID, target stable entity ID, typed parameters and submission timestamp. Expiry, voting windows and deduplication keys are not yet implemented.
 
 Commands should eventually support:
 
@@ -216,7 +253,7 @@ The server must derive authorization from authenticated platform or application 
 
 ## 8. Domain events
 
-**Status: Planned**
+**Status: Partially implemented — initial contracts**
 
 Events are emitted after an authoritative outcome occurs.
 
@@ -245,7 +282,11 @@ An event should identify:
 
 Only selected events need durable storage. Transient movement updates should not become an unbounded event log.
 
-Domain events are not currently implemented.
+### Current implementation
+
+`DomainEvent` in `packages/shared` defines `character.created` and `character.removed`. Each event has an `eventId`, `type`, `version` (`DOMAIN_EVENT_VERSION`, currently 1), `tick`, `elapsedSeconds`, `causedByCommandId` when a command caused it, and a typed `payload`.
+
+The simulation emits these events only when a command is applied, and returns them in the applied `CommandResult`. The gateway hands them to an optional `onEvents` callback. Events are not yet persisted, broadcast to browsers or consumed by any feature.
 
 ---
 
@@ -283,7 +324,7 @@ When the connection closes, the browser client reconnects automatically. Retries
 
 On each new connection the client ignores deltas until the server's snapshot arrives. It then replaces its whole entity set with that snapshot, so sprites for entities that no longer exist are removed, and resumes applying deltas.
 
-Restarting the server currently starts a new world from the seed, because persistence is not yet implemented.
+Restarting the server restores the last saved world, and reconnecting clients receive its snapshot.
 
 ### Incremental updates
 
@@ -351,7 +392,7 @@ No streaming-platform adapters are currently implemented.
 
 The current implementation uses shared TypeScript contracts to keep worker and browser message structures consistent.
 
-Runtime validation and protocol versioning have not yet been introduced.
+External command input is validated with Zod and carries a `protocolVersion`. Domain events carry a `version`. Persisted worlds are checked against their schema version on load. Worker and browser messages are still trusted without runtime validation.
 
 Future requirements:
 
@@ -422,10 +463,10 @@ The browser receives the initial snapshot and subsequent deltas and uses them to
 The remaining communication work includes:
 
 - Testing continued simulation without connected clients.
-- Runtime validation.
-- Protocol versioning.
-- Gameplay command processing.
-- Domain events.
+- Runtime validation for browser messages.
+- A versioned envelope for worker and browser messages.
+- A public entry point for commands.
+- Durable storage and delivery of domain events.
 - Livestream platform adapters.
 
 The initial communication milestone does not require implementing Twitch or other platform integrations.

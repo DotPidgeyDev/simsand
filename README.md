@@ -68,7 +68,7 @@ The browser is currently a visual representation of the simulation. It does not 
 | Development server | Vite |
 | Communication | WebSockets (`ws`) |
 | Testing | Vitest |
-| Runtime validation | Zod (planned) |
+| Runtime validation | Zod (command input) |
 | Persistence | SQLite with WAL (`node:sqlite`) |
 | Admin interface | Vue 3 (planned) |
 

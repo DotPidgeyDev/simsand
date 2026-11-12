@@ -314,9 +314,9 @@ The initial goal is reproducible generation, not a guarantee of bit-for-bit dete
 
 ## 8. Commands and state authority
 
-**Status: Planned — not implemented**
+**Status: Partially implemented — initial character commands**
 
-External callers will eventually submit typed commands.
+External callers submit typed commands through the server's command gateway (see the communication architecture).
 
 The worker will validate each request against current authoritative state and either reject it with a reason or apply it.
 
@@ -326,14 +326,16 @@ The simulation may reject it because the character is dead, busy, unable to reac
 
 Only the worker changes authoritative state.
 
-The current worker message protocol supports lifecycle and snapshot requests:
+The worker receives already-validated commands as `world.command` messages and handles each one between ticks with `executeCommand(world, clock, command)` from `packages/simulation/src/commands`. It replies with a `world.command.result`.
 
-- `world.start`
-- `world.pause`
-- `world.resume`
-- `world.snapshot.request`
+The current gameplay checks are:
 
-Gameplay command processing and validation have not yet been introduced.
+| Command | Rejected when | Event on success |
+|---|---|---|
+| `character.create` | The ID already exists (`character_exists`) or the position is outside the 64 × 64 world (`out_of_bounds`) | `character.created` |
+| `character.remove` | No character has the ID (`character_not_found`) | `character.removed` |
+
+Events are stamped with the current tick and elapsed simulation seconds. Commands are not yet queued or recorded for replay.
 
 ---
 
@@ -399,7 +401,7 @@ World Visualization
 
 The server distributes updates but does not reinterpret them as authority to modify world state.
 
-Important domain events are not yet implemented.
+Domain events are returned with command results rather than in snapshots or deltas. A command's state change still reaches browsers through the next delta.
 
 ---
 
@@ -498,8 +500,8 @@ Measure representative workloads again as systems are added, rather than assumin
 | General-purpose system scheduler | Not implemented |
 | Domain stores | Not implemented |
 | Time scaling | Not implemented |
-| Gameplay command processing | Not implemented |
-| Domain events | Not implemented |
+| Gameplay command processing | Implemented — character create/remove |
+| Domain events | Implemented — initial contracts, not persisted |
 | Entity removal tracking | Implemented |
 | Stable-ID-to-handle mapping | Implemented (in memory) |
 | Persistent snapshots | Implemented (SQLite) |

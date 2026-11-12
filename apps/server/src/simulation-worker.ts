@@ -1,8 +1,10 @@
 import { Worker } from 'node:worker_threads';
 
 import type {
+  CommandResult,
   PersistedWorld,
   ServerToWorkerMessage,
+  SimulationCommand,
   WorkerToServerMessage,
 } from '@simsand/shared';
 
@@ -11,7 +13,7 @@ export class SimulationWorker {
 
   private nextPersistRequestId = 1;
 
-  private pendingPersists = new Map<number, (world: PersistedWorld) => void>();
+  private pendingReplies = new Map<string, (value: unknown) => void>();
 
   constructor(
     private readonly onMessage: (
@@ -39,8 +41,12 @@ export class SimulationWorker {
 
     this.worker.on('message', (message: WorkerToServerMessage) => {
       if (message.type === 'world.persisted') {
-        this.pendingPersists.get(message.data.requestId)?.(message.data.world);
-        this.pendingPersists.delete(message.data.requestId);
+        this.resolveReply(`persist:${message.data.requestId}`, message.data.world);
+        return;
+      }
+
+      if (message.type === 'world.command.result') {
+        this.resolveReply(`command:${message.data.commandId}`, message.data);
         return;
       }
 
@@ -85,25 +91,21 @@ export class SimulationWorker {
   capturePersistedWorld(timeoutMs = 2000): Promise<PersistedWorld> {
     const requestId = this.nextPersistRequestId++;
 
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingPersists.delete(requestId);
-        reject(new Error(`Simulation worker did not provide a world snapshot within ${timeoutMs}ms`));
-      }, timeoutMs);
+    return this.request<PersistedWorld>(
+      `persist:${requestId}`,
+      { type: 'world.persist.request', data: { requestId } },
+      timeoutMs,
+      'a world snapshot',
+    );
+  }
 
-      this.pendingPersists.set(requestId, (world) => {
-        clearTimeout(timer);
-        resolve(world);
-      });
-
-      try {
-        this.send({ type: 'world.persist.request', data: { requestId } });
-      } catch (error) {
-        clearTimeout(timer);
-        this.pendingPersists.delete(requestId);
-        reject(error);
-      }
-    });
+  executeCommand(command: SimulationCommand, timeoutMs = 2000): Promise<CommandResult> {
+    return this.request<CommandResult>(
+      `command:${command.commandId}`,
+      { type: 'world.command', data: command },
+      timeoutMs,
+      `a result for command ${command.commandId}`,
+    );
   }
 
   async stop(): Promise<void> {
@@ -113,6 +115,38 @@ export class SimulationWorker {
 
     this.worker = undefined;
     await worker.terminate();
+  }
+
+  private request<T>(
+    key: string,
+    message: ServerToWorkerMessage,
+    timeoutMs: number,
+    description: string,
+  ): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingReplies.delete(key);
+        reject(new Error(`Simulation worker did not provide ${description} within ${timeoutMs}ms`));
+      }, timeoutMs);
+
+      this.pendingReplies.set(key, (value) => {
+        clearTimeout(timer);
+        resolve(value as T);
+      });
+
+      try {
+        this.send(message);
+      } catch (error) {
+        clearTimeout(timer);
+        this.pendingReplies.delete(key);
+        reject(error);
+      }
+    });
+  }
+
+  private resolveReply(key: string, value: unknown): void {
+    this.pendingReplies.get(key)?.(value);
+    this.pendingReplies.delete(key);
   }
 
   private send(message: ServerToWorkerMessage): void {

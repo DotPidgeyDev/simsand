@@ -64,8 +64,6 @@ The project currently has:
 - Introduce a basic tile map representation.
 - Verify simulation continues independently of browser connections.
 - Establish minimal simulation logging and inspection.
-- Define a standard external command contract and test it without Twitch integration.
-- Introduce typed domain-event contracts for a small number of initial events.
 
 ### Definition of done
 
@@ -83,8 +81,8 @@ The project currently has:
 - [x] A basic snapshot can be restored after restart.
 - [x] Headless tests cover the foundational simulation behaviour.
 - [x] A 1,000-entity test completes within an acceptable performance budget.
-- [ ] Standard external command contracts are defined and tested.
-- [ ] Initial domain-event contracts are defined.
+- [x] Standard external command contracts are defined and tested.
+- [x] Initial domain-event contracts are defined.
 
 The milestone is complete when the foundational simulation can run independently, recover its state, and serve multiple browser clients without compromising authoritative state ownership.
 

@@ -12,6 +12,7 @@ import {
   createWorldDelta,
   capturePersistedWorld,
   restorePersistedWorld,
+  executeCommand,
 } from '@simsand/simulation';
 
 import type {
@@ -145,6 +146,30 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
             requestId: message.data.requestId,
             world: capturePersistedWorld(world, clock, seed),
           },
+        });
+
+        break;
+      }
+
+      case 'world.command': {
+        if (!loop) {
+          send({
+            type: 'world.command.result',
+            data: {
+              commandId: message.data.commandId,
+              status: 'rejected',
+              reason: 'simulation_unavailable',
+              message: 'Simulation has not started',
+            },
+          });
+          break;
+        }
+
+        const { world, clock } = loop.runner;
+
+        send({
+          type: 'world.command.result',
+          data: executeCommand(world, clock, message.data),
         });
 
         break;
