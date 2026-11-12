@@ -1,0 +1,17 @@
+{
+  "name": "@simsand/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "vite": "^8.3.7"
+  },
+  "dependencies": {
+    "@simsand/shared": "workspace:*",
+    "pixi.js": "^8.22.0"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@simsand/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@simsand/shared": "workspace:*",
+    "@simsand/simulation": "workspace:*",
+    "ws": "^8.22.2"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "dev": "tsx src/index.ts"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.2",
+    "tsx": "^4.23.15"
+  }
+}

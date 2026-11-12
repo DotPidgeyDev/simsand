@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simsand</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 24px;
+        background: #1b211c;
+        color: white;
+        font-family: sans-serif;
+      }
+
+      #world {
+        width: 100%;
+        max-width: 1024px;
+        margin-top: 20px;
+      }
+
+      canvas {
+        display: block;
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Simsand</h1>
+    <div id="world"></div>
+    <script type="module" src="/src/index.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,77 @@
+import { describe, expect, it } from 'vitest';
+
+import { createWorldDelta } from './delta.js';
+
+import type { WorldSnapshot } from '@simsand/shared';
+
+describe('createWorldDelta', () => {
+  const previous: WorldSnapshot = {
+    tick: 10,
+    elapsedSeconds: 1,
+    entities: [
+      {
+        id: 'character-0001',
+        x: 10,
+        y: 10,
+        color: 0xffffff,
+        sprite: 1,
+      },
+      {
+        id: 'character-0002',
+        x: 20,
+        y: 20,
+        color: 0xff0000,
+        sprite: 1,
+      },
+    ],
+  };
+
+  it('only includes entities whose state changed', () => {
+    const current: WorldSnapshot = {
+      tick: 11,
+      elapsedSeconds: 1.1,
+      entities: [
+        { ...previous.entities[0], x: 11 },
+        previous.entities[1],
+      ],
+    };
+
+    const delta = createWorldDelta(previous, current);
+
+    expect(delta.tick).toBe(11);
+    expect(delta.entities).toHaveLength(1);
+    expect(delta.entities[0].id).toBe('character-0001');
+  });
+
+  it('includes newly created entities', () => {
+    const current: WorldSnapshot = {
+      tick: 11,
+      elapsedSeconds: 1.1,
+      entities: [
+        ...previous.entities,
+        {
+          id: 'character-0003',
+          x: 30,
+          y: 30,
+          color: 0x00ff00,
+          sprite: 1,
+        },
+      ],
+    };
+
+    const delta = createWorldDelta(previous, current);
+
+    expect(delta.entities).toHaveLength(1);
+    expect(delta.entities[0].id).toBe('character-0003');
+  });
+
+  it('returns an empty delta when nothing changed', () => {
+    const delta = createWorldDelta(previous, {
+      ...previous,
+      tick: 11,
+      elapsedSeconds: 1.1,
+    });
+
+    expect(delta.entities).toHaveLength(0);
+  });
+});
