@@ -20,6 +20,7 @@ describe('applyDeltaToSnapshot', () => {
       entities: [
         { id: 'character-0001', x: 8, y: 9, color: 1, sprite: 0 },
       ],
+      removed: [],
     });
 
     expect(updated.tick).toBe(12);
@@ -42,8 +43,19 @@ describe('applyDeltaToSnapshot', () => {
     const updated = applyDeltaToSnapshot(snapshot, {
       tick: 11,
       entities: [created],
+      removed: [],
     });
 
     expect(updated.entities).toEqual([...snapshot.entities, created]);
+  });
+
+  it('drops removed entities so later clients do not see them', () => {
+    const updated = applyDeltaToSnapshot(snapshot, {
+      tick: 11,
+      entities: [],
+      removed: ['character-0001'],
+    });
+
+    expect(updated.entities).toEqual([snapshot.entities[1]]);
   });
 });

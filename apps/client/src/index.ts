@@ -17,6 +17,7 @@ connectToSimulation((message) => {
       break;
 
     case 'world.delta':
+        renderer.removeEntities(message.data.removed);
         renderer.updateEntities(message.data.entities);
         break;
     }

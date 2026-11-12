@@ -17,6 +17,7 @@ export interface WorldSnapshot {
 export interface WorldDelta {
   tick: number;
   entities: EntitySnapshot[];
+  removed: string[];
 }
 
 export type ServerToWorkerMessage =

@@ -9,6 +9,7 @@ export { Appearance } from './components/appearance.js';
 export type { CharacterDefinition } from './entities/create-character.js';
 
 export { createCharacter } from './entities/create-character.js';
+export { removeCharacter } from './entities/remove-character.js';
 export { createPopulation } from './entities/create-population.js';
 
 export { updateMovement } from './systems/movement.js';

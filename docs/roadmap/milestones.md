@@ -62,8 +62,6 @@ The project currently has:
 ### Remaining work
 
 - Introduce a basic tile map representation.
-- Establish persistent entity identity separately from runtime ECS handles.
-- Add entity removal to snapshot/delta synchronization.
 - Verify simulation continues independently of browser connections.
 - Introduce SQLite persistence with basic snapshot save/restore.
 - Expand headless tests for simulation behaviour and recovery.
@@ -84,7 +82,7 @@ The project currently has:
 - [x] Browser renders the moving entities.
 - [x] Two browser tabs observe the same authoritative world.
 - [x] Reconnection receives current state and resumes updates.
-- [ ] Entity creation and removal are represented correctly in client updates.
+- [x] Entity creation and removal are represented correctly in client updates.
 - [ ] A basic snapshot can be restored after restart.
 - [ ] Headless tests cover the foundational simulation behaviour.
 - [ ] A 1,000-entity test completes within an acceptable performance budget.

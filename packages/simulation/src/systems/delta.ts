@@ -33,8 +33,15 @@ export function createWorldDelta(
     );
   });
 
+  const currentIds = new Set(current.entities.map((entity) => entity.id));
+
+  const removed = previous.entities
+    .filter((entity) => !currentIds.has(entity.id))
+    .map((entity) => entity.id);
+
   return {
     tick: current.tick,
     entities: changedEntities,
+    removed,
   };
 }

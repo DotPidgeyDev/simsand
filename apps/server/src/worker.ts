@@ -79,7 +79,7 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
 
           const delta = createWorldDelta(previousSnapshot, currentSnapshot);
 
-          if (delta.entities.length > 0) {
+          if (delta.entities.length > 0 || delta.removed.length > 0) {
             send({
               type: 'world.delta',
               data: delta,

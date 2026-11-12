@@ -7,10 +7,11 @@ export function applyDeltaToSnapshot(
   const updates = new Map(
     delta.entities.map((entity) => [entity.id, entity]),
   );
+  const removed = new Set(delta.removed);
 
-  const entities = snapshot.entities.map((entity) => {
-    return updates.get(entity.id) ?? entity;
-  });
+  const entities = snapshot.entities
+    .filter((entity) => !removed.has(entity.id))
+    .map((entity) => updates.get(entity.id) ?? entity);
 
   for (const entity of delta.entities) {
     if (!snapshot.entities.some((existing) => existing.id === entity.id)) {

@@ -85,9 +85,11 @@ Each initial character receives a string identifier such as:
 
 These identifiers are stored in the `Identity` component and are used when producing snapshots and communicating with the browser.
 
-The underlying bitECS entity handle is separate from this identifier.
+The underlying bitECS entity handle is separate from this identifier. The simulation world keeps a map from stable ID to bitECS handle. `createCharacter` registers each character there and rejects IDs that already exist. `removeCharacter(world, id)` removes the bitECS entity and its map entry.
 
-Persistent identity rules, entity destruction and explicit stable-ID-to-runtime-handle mapping remain future work.
+bitECS reuses handles after removal, so handles must never leave the simulation or be persisted. Snapshots, deltas and other external contracts use stable IDs only.
+
+Rules for persisting stable IDs and rebuilding the map during restoration are part of the SQLite persistence work.
 
 ### Components
 
@@ -372,7 +374,7 @@ The current worker generates deltas every 200ms.
 
 This avoids broadcasting the entire world on every simulation tick.
 
-The current delta implementation detects newly created and changed entities. Entity removal tracking has not yet been implemented.
+The delta includes newly created and changed entities, and lists the stable IDs of entities present in the previous snapshot but not the current one in `removed`. The worker sends a delta whenever either list is non-empty.
 
 ### Communication flow
 
@@ -489,7 +491,8 @@ Performance should be measured against representative simulation workloads rathe
 | Time scaling | Not implemented |
 | Gameplay command processing | Not implemented |
 | Domain events | Not implemented |
-| Entity removal tracking | Not implemented |
+| Entity removal tracking | Implemented |
+| Stable-ID-to-handle mapping | Implemented (in memory) |
 | Persistent snapshots | Not implemented |
 | Snapshot restoration | Not implemented |
 | Deterministic replay | Not implemented |

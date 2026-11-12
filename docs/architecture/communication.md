@@ -290,9 +290,10 @@ The server broadcasts these updates to connected browser clients.
 The current delta format includes:
 
 - Simulation tick.
-- Changed entity snapshots.
+- Changed entity snapshots, including newly created entities.
+- `removed`: stable IDs of entities that no longer exist.
 
-The browser applies these updates to the PixiJS renderer.
+The browser applies these updates to the PixiJS renderer, destroying the sprites of removed entities. The server applies the same updates to its cached snapshot, so later clients never receive removed entities.
 
 ### Current limitations
 
@@ -303,7 +304,6 @@ The following remain future improvements:
 - Client-originated commands.
 - Protocol version negotiation.
 - Sequence numbers and missed-update detection.
-- Entity removal messages.
 - Explicit resynchronization requests.
 - Event notifications separate from state deltas.
 
@@ -418,7 +418,6 @@ The browser receives the initial snapshot and subsequent deltas and uses them to
 The remaining communication work includes:
 
 - Testing continued simulation without connected clients.
-- Entity removal tracking.
 - Runtime validation.
 - Protocol versioning.
 - Gameplay command processing.

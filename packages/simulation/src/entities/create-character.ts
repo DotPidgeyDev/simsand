@@ -26,7 +26,12 @@ export function createCharacter(
     throw new Error('Character ID cannot be empty');
   }
 
+  if (world.entityIds.has(definition.id)) {
+    throw new Error(`Character ID already exists: ${definition.id}`);
+  }
+
   const eid = addEntity(world.ecs);
+  world.entityIds.set(definition.id, eid);
 
   addComponents(
     world.ecs,

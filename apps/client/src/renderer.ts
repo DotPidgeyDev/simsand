@@ -82,21 +82,23 @@ export async function createRenderer(container: HTMLElement) {
     }
   }
 
+  function removeEntities(ids: string[]): void {
+    for (const id of ids) {
+      entities.get(id)?.destroy();
+      entities.delete(id);
+    }
+  }
+
   function replaceEntities(snapshots: EntitySnapshot[]): void {
     const ids = new Set(snapshots.map((entity) => entity.id));
 
-    for (const [id, graphic] of entities) {
-      if (!ids.has(id)) {
-        graphic.destroy();
-        entities.delete(id);
-      }
-    }
-
+    removeEntities([...entities.keys()].filter((id) => !ids.has(id)));
     updateEntities(snapshots);
   }
 
   return {
     updateEntities,
+    removeEntities,
     replaceEntities,
     destroy: () => app.destroy(true),
   };

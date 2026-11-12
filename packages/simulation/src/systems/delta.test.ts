@@ -65,6 +65,19 @@ describe('createWorldDelta', () => {
     expect(delta.entities[0].id).toBe('character-0003');
   });
 
+  it('lists the IDs of entities that no longer exist', () => {
+    const current: WorldSnapshot = {
+      tick: 11,
+      elapsedSeconds: 1.1,
+      entities: [previous.entities[1]],
+    };
+
+    const delta = createWorldDelta(previous, current);
+
+    expect(delta.entities).toHaveLength(0);
+    expect(delta.removed).toEqual(['character-0001']);
+  });
+
   it('returns an empty delta when nothing changed', () => {
     const delta = createWorldDelta(previous, {
       ...previous,
@@ -73,5 +86,6 @@ describe('createWorldDelta', () => {
     });
 
     expect(delta.entities).toHaveLength(0);
+    expect(delta.removed).toHaveLength(0);
   });
 });
