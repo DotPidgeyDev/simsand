@@ -1,88 +1,129 @@
 # Communication Architecture
 
-**Status:** Foundational draft\
-**Version:** 1.0
+**Status:** Active implementation — foundational communication  
+**Version:** 1.1  
+**Last updated:** 2026-11-12
 
 ## 1. Purpose
 
-Define how the application server, simulation worker, browser and
-streaming-platform adapters communicate without sharing ownership of
-authoritative gameplay state.
+Define how the application server, simulation worker, browser and future streaming-platform adapters communicate without sharing ownership of authoritative gameplay state.
+
+The communication architecture separates simulation execution from networking and presentation.
+
+The simulation worker owns authoritative gameplay state. The application server coordinates communication, while browser clients receive world state and render it.
+
+The current implementation supports worker lifecycle messages, world snapshots, incremental deltas and browser WebSocket connections.
+
+Gameplay commands, domain events, HTTP APIs and streaming-platform integrations remain future work.
+
+---
 
 ## 2. Communication boundaries
 
-  -----------------------------------------------------------------------
-  Boundary                Initial mechanism       Responsibility
-  ----------------------- ----------------------- -----------------------
-  Server ↔ simulation     Node worker message     Commands, lifecycle,
-  worker                  channel                 snapshots, deltas and
-                                                  errors
+| Boundary | Current mechanism | Responsibility | Status |
+|---|---|---|---|
+| Server ↔ simulation worker | Node.js worker message channel | Lifecycle, snapshots, deltas and errors | Implemented |
+| Browser ↔ server | WebSockets (`ws`) | Initial state and incremental updates | Implemented |
+| Browser ↔ server APIs | HTTP | Configuration and non-streaming operations | Planned |
+| Platform ↔ server | Platform-specific SDK/API or connection | Receive chat and platform events | Planned |
+| Server ↔ persistence | In-process persistence boundary | Save and restore durable world state | Planned |
 
-  Browser ↔ server        WebSockets              Initial state,
-                                                  incremental updates and
-                                                  client requests
+The browser never communicates directly with the worker.
 
-  Browser ↔ server APIs   HTTP                    Configuration and
-                                                  non-streaming
-                                                  operations where
-                                                  appropriate
+Platform adapters must never directly mutate simulation state.
 
-  Platform ↔ server       Platform-specific       Receive chat and
-                          SDK/API or connection   platform events
+The server distributes simulation updates but does not own or modify authoritative gameplay state.
 
-  Server ↔ persistence    In-process persistence  Save and restore
-                          boundary                durable world state
-  -----------------------------------------------------------------------
-
-The browser never communicates directly with the worker. Platform
-adapters never directly mutate simulation state.
+---
 
 ## 3. Message categories
 
 Keep these concepts distinct:
 
--   **Command:** a request for the simulation to attempt an action.
--   **Domain event:** a fact that the simulation says occurred.
--   **State delta:** a compact description of changed state for clients.
--   **Snapshot:** a consistent representation of current state.
--   **Lifecycle message:** worker readiness, shutdown or failure.
+- **Command:** A request for the simulation to attempt an action.
+- **Domain event:** A fact that the simulation says occurred.
+- **State delta:** A compact description of changed state for clients.
+- **Snapshot:** A consistent representation of current state.
+- **Lifecycle message:** Worker readiness, shutdown or failure.
 
-A command can fail. A domain event describes an outcome, not an
-intention.
+A command can fail. A domain event describes an outcome, not an intention.
 
-## 4. Initial worker protocol
+### Current implementation
+
+The current protocol supports:
+
+- Worker lifecycle messages.
+- Simulation startup configuration.
+- Pause and resume.
+- Snapshot requests.
+- Full world snapshots.
+- Incremental world deltas.
+- Simulation errors.
+
+Gameplay commands and domain events have not yet been implemented.
+
+---
+
+## 4. Worker protocol
+
+**Status: Implemented — foundational protocol**
+
+Worker communication uses Node.js `worker_threads` message passing.
+
+The message contracts are defined in `packages/shared`.
 
 ### Server to worker
 
-``` text
-world.start
-world.pause
-world.resume
-world.snapshot.request
-```
+| Message | Purpose |
+|---|---|
+| `world.start` | Initialize and start the simulation |
+| `world.pause` | Pause simulation advancement |
+| `world.resume` | Resume simulation advancement |
+| `world.snapshot.request` | Request a full world snapshot |
 
-The command envelope should include a protocol version and
-correlation/request ID where a response must be matched to a request.
+The `world.start` message optionally includes:
+
+- `seed`
+- `population`
+
+The worker uses these values to initialize the initial world and population.
 
 ### Worker to server
 
-``` text
-world.ready
-world.snapshot
-world.delta
-world.event
-world.error
-```
+| Message | Purpose |
+|---|---|
+| `world.ready` | Indicates that the simulation has initialized |
+| `world.snapshot` | Full world state |
+| `world.delta` | Incremental entity updates |
+| `world.error` | Simulation error information |
 
-These names are initial contract concepts. Exact TypeScript
-discriminated-union definitions should be added in `packages/shared`
-when implementing the worker.
+The current message types are represented as TypeScript discriminated unions.
 
-## 5. Message envelope
+### Current message contracts
 
-Use a consistent envelope with fields such as:
+The shared package currently defines the following concepts:
 
-``` ts
+- `ServerToWorkerMessage`
+- `WorkerToServerMessage`
+- `EntitySnapshot`
+- `WorldSnapshot`
+- `WorldDelta`
+
+The exact definitions are maintained in:
+
+`packages/shared/src/index.ts`
+
+The simulation worker and server import these shared types rather than duplicating message definitions.
+
+---
+
+## 5. Message envelope and protocol versioning
+
+**Status: Planned**
+
+The original architecture proposes a standard message envelope:
+
+```ts
 type MessageEnvelope<TType extends string, TPayload> = {
   protocolVersion: number;
   type: TType;
@@ -93,64 +134,91 @@ type MessageEnvelope<TType extends string, TPayload> = {
 };
 ```
 
-Use timestamps for diagnostics and transport context, not as the
-authoritative simulation clock.
+This standard envelope has not yet been implemented.
 
-Every incoming message must be validated at the process boundary.
-TypeScript types alone do not validate runtime data.
+For the current foundational implementation, messages use a simpler structure containing:
+
+- `type`
+- `data`
+
+A versioned envelope should be introduced when the communication protocol becomes more complex or requires compatibility across independently deployed clients and services.
+
+Use timestamps for diagnostics and transport context, not as the authoritative simulation clock.
+
+TypeScript types alone do not validate runtime data. Runtime validation should be introduced at process and network boundaries when external or untrusted messages are accepted.
+
+---
 
 ## 6. External command lifecycle
 
-``` text
+**Status: Planned**
+
+External callers will eventually submit commands through the application server.
+
+The intended lifecycle is:
+
+```text
 Platform event / browser request
               |
        Normalize input
               |
      Authenticate identity
               |
-  Validate syntax and parameters
+ Validate syntax and parameters
               |
-   Check permissions and limits
+  Check permissions and limits
               |
       Create command envelope
               |
        Send to simulation
               |
-  Simulation checks world state
+   Simulation checks world state
               |
-       Apply or reject
+        Apply or reject
               |
-     Emit result / domain event
+      Emit result / domain event
               |
-  Persist, notify and present result
+    Persist, notify and present result
 ```
 
-The server performs transport, identity, syntax, permission and abuse
-checks. The simulation performs gameplay validation and determines the
-actual outcome.
+The server performs transport, identity, syntax, permission and abuse checks.
+
+The simulation performs gameplay validation and determines the actual outcome.
+
+The current implementation does not yet support external gameplay commands.
+
+---
 
 ## 7. Command properties
 
-Commands should support:
+**Status: Planned**
 
--   Unique command ID.
--   Issuer identity and source.
--   Target stable entity ID where relevant.
--   Typed parameters.
--   Submission timestamp.
--   Optional expiry or voting-window identifier.
--   Permission context or server-validated actor role.
--   Idempotency/deduplication key where duplicate delivery is possible.
+Commands should eventually support:
 
-Do not trust a client-provided role or permission claim. The server
-derives authorization from authenticated platform or application
-identity.
+- Unique command ID.
+- Issuer identity and source.
+- Target stable entity ID where relevant.
+- Typed parameters.
+- Submission timestamp.
+- Optional expiry or voting-window identifier.
+- Permission context or server-validated actor role.
+- Idempotency/deduplication key where duplicate delivery is possible.
+
+Do not trust a client-provided role or permission claim.
+
+The server must derive authorization from authenticated platform or application identity.
+
+---
 
 ## 8. Domain events
 
-Events are emitted after an authoritative outcome occurs. Example names:
+**Status: Planned**
 
-``` text
+Events are emitted after an authoritative outcome occurs.
+
+Example event names:
+
+```text
 character.created
 character.joined
 character.moved
@@ -162,35 +230,89 @@ settlement.founded
 faction.created
 ```
 
-An event should identify its event type, stable event ID, simulation
-tick, simulation time, relevant entity IDs and event-specific payload.
+An event should identify:
 
-Only selected events need durable storage. Transient movement updates
-should not become an unbounded event log.
+- Event type.
+- Stable event ID.
+- Simulation tick.
+- Simulation time.
+- Relevant entity IDs.
+- Event-specific payload.
+
+Only selected events need durable storage. Transient movement updates should not become an unbounded event log.
+
+Domain events are not currently implemented.
+
+---
 
 ## 9. WebSocket client protocol
 
-On connection:
+**Status: Implemented — foundational protocol**
 
-1.  Authenticate or establish the permitted client role.
-2.  Subscribe the connection to the relevant world.
-3.  Send a consistent initial snapshot.
-4.  Send subsequent deltas and relevant events.
-5.  Detect disconnects and release subscriptions.
-6.  On reconnect, send a fresh snapshot before further deltas.
+Browser clients communicate with the server using WebSockets.
 
-The client should be able to detect protocol version mismatch and
-request or require a fresh snapshot if it misses updates.
+The current browser WebSocket endpoint listens on port `8766`.
 
-Avoid sending the entire world on every tick. Batch or throttle updates
-where appropriate, while preserving important event notifications.
+### Connection lifecycle
+
+When a browser connects:
+
+1. The WebSocket server accepts the connection.
+2. The server checks whether a cached world snapshot exists.
+3. If available, the server sends the latest full snapshot.
+4. The client initializes or updates its renderer.
+5. Subsequent incremental deltas are broadcast to connected clients.
+
+When a client disconnects, the server logs the disconnection.
+
+The simulation continues independently of browser connections.
+
+### Initial snapshots
+
+The server caches the latest full snapshot received from the simulation worker.
+
+Newly connected clients receive this snapshot rather than waiting for the next full snapshot request or attempting to reconstruct the world from deltas alone.
+
+### Incremental updates
+
+The worker periodically generates deltas containing changed entities.
+
+The server broadcasts these updates to connected browser clients.
+
+The current delta format includes:
+
+- Simulation tick.
+- Changed entity snapshots.
+
+The browser applies these updates to the PixiJS renderer.
+
+### Current limitations
+
+The following remain future improvements:
+
+- WebSocket authentication and authorization.
+- Subscription management for multiple worlds.
+- Client-originated commands.
+- Protocol version negotiation.
+- Sequence numbers and missed-update detection.
+- Automatic reconnection.
+- Entity removal messages.
+- Explicit resynchronization requests.
+- Event notifications separate from state deltas.
+
+The client currently assumes that received messages follow the expected protocol.
+
+---
 
 ## 10. Platform adapters
 
-Each platform adapter converts platform-specific payloads into a
-platform-independent message, for example:
+**Status: Planned**
 
-``` ts
+Each streaming platform adapter should convert platform-specific payloads into platform-independent messages.
+
+For example:
+
+```ts
 type NormalizedChatMessage = {
   platform: "twitch" | "youtube" | "kick";
   platformUserId: string;
@@ -202,39 +324,117 @@ type NormalizedChatMessage = {
 };
 ```
 
-The command processor should not contain platform-specific parsing
-logic. Adding a platform should primarily mean implementing an adapter
-and mapping its identities.
+The command processor should not contain platform-specific parsing logic.
+
+Adding a platform should primarily mean implementing an adapter and mapping its identities.
+
+Twitch is the intended initial integration, with YouTube and Kick potentially supported later.
+
+No streaming-platform adapters are currently implemented.
+
+---
 
 ## 11. Validation and versioning
 
--   Use Zod schemas for runtime validation at boundaries.
--   Version message contracts.
--   Reject malformed or unsupported messages clearly.
--   Keep internal ECS component layouts out of public contracts.
--   Prefer stable IDs and domain-level payloads over runtime ECS
-    handles.
--   Add compatibility rules before changing persisted or externally
-    consumed formats.
+**Status: Partially implemented**
+
+The current implementation uses shared TypeScript contracts to keep worker and browser message structures consistent.
+
+Runtime validation and protocol versioning have not yet been introduced.
+
+Future requirements:
+
+- Use Zod schemas for runtime validation at boundaries.
+- Version message contracts.
+- Reject malformed or unsupported messages clearly.
+- Keep internal ECS component layouts out of public contracts.
+- Prefer stable IDs and domain-level payloads over runtime ECS handles.
+- Add compatibility rules before changing persisted or externally consumed formats.
+
+TypeScript provides compile-time checks but does not validate arbitrary runtime data.
+
+This distinction becomes particularly important when accepting browser requests, platform events and persisted data.
+
+---
 
 ## 12. Error handling
 
-Errors should be classified, for example:
+**Status: Partially implemented**
 
--   Invalid message.
--   Unsupported protocol version.
--   Unauthenticated or unauthorized request.
--   Rate limited or duplicate command.
--   Invalid gameplay request.
--   Worker unavailable.
--   Internal simulation failure.
+The current implementation supports basic worker error reporting.
 
-Return useful, safe feedback to the requester. Keep diagnostic detail in
-server logs rather than exposing internal stack traces to viewers.
+The worker can send a `world.error` message containing an error message.
+
+The server receives and logs worker errors.
+
+The server also listens for worker runtime errors and exit events.
+
+Future error classifications should include:
+
+- Invalid message.
+- Unsupported protocol version.
+- Unauthenticated or unauthorized request.
+- Rate limited or duplicate command.
+- Invalid gameplay request.
+- Worker unavailable.
+- Internal simulation failure.
+- Persistence failure.
+
+Return useful, safe feedback to the requester.
+
+Keep diagnostic detail in server logs rather than exposing internal stack traces to viewers.
+
+---
 
 ## 13. Initial implementation scope
 
-For Milestone 01, implement only worker lifecycle messages, snapshot
-request/response, entity deltas and errors. Define the standard command
-envelope and test it without integrating Twitch. Platform adapters come
-later.
+The initial communication milestone focused on:
+
+- Worker lifecycle messages.
+- Simulation startup.
+- Pause and resume.
+- Snapshot request and response.
+- Entity deltas.
+- Worker error reporting.
+- Browser WebSocket connections.
+- Initial snapshots for newly connected clients.
+- Broadcasting incremental updates.
+
+### Progress
+
+The foundational communication layer is implemented.
+
+The server can start the simulation worker, receive snapshots and deltas, cache the latest snapshot and broadcast updates to browser clients.
+
+The browser receives the initial snapshot and subsequent deltas and uses them to update the PixiJS renderer.
+
+The remaining communication work includes:
+
+- Verifying simultaneous browser clients.
+- Testing continued simulation without connected clients.
+- Entity removal tracking.
+- Reconnection and resynchronization.
+- Runtime validation.
+- Protocol versioning.
+- Gameplay command processing.
+- Domain events.
+- Livestream platform adapters.
+
+The initial communication milestone does not require implementing Twitch or other platform integrations.
+
+---
+
+## 14. Communication principles
+
+1. Keep authoritative simulation state inside the worker.
+2. Keep browser clients and platform adapters separate from simulation internals.
+3. Use shared contracts for communication across process boundaries.
+4. Distinguish commands, domain events, deltas and snapshots.
+5. Send full snapshots for initialization and incremental updates for ongoing state changes.
+6. Validate external data at runtime boundaries.
+7. Keep protocol complexity proportional to actual requirements.
+8. Never treat a requested action as a successful gameplay outcome until the simulation confirms it.
+9. Keep network operations outside the simulation tick loop.
+10. Version public or persisted contracts before compatibility becomes a problem.
+
+The communication layer should remain simple while the simulation foundation is being developed, but must provide clear boundaries for future commands, events, platform integrations and persistence.
