@@ -44,7 +44,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 9;
+export const PERSISTED_WORLD_VERSION = 10;
 
 export const ATTRIBUTE_NAMES = [
   'strength',
@@ -96,6 +96,17 @@ export type ActionId = (typeof ACTION_IDS)[number];
 
 export type ActionCooldowns = Record<ActionId, number>;
 
+// Append only. Saved worlds store the name.
+export const ACTION_OUTCOMES = ['completed', 'interrupted'] as const;
+
+export type ActionResult = (typeof ACTION_OUTCOMES)[number];
+
+// How the previous action ended. Absent until one has ended.
+export interface ActionEnding {
+  action: ActionId;
+  result: ActionResult;
+}
+
 export const LIFECYCLE_STATES = ['alive', 'dead'] as const;
 
 export type LifecycleState = (typeof LIFECYCLE_STATES)[number];
@@ -135,6 +146,8 @@ export interface PersistedEntity extends CharacterProfile {
   actionSeconds: number;
   // Seconds before that action can be chosen again. Set when a need interrupts it.
   cooldowns: ActionCooldowns;
+  // How the action before this one ended. Null until one has ended.
+  outcome: ActionEnding | null;
 }
 
 // Everything needed to resume the simulation. Unlike WorldSnapshot, which
@@ -246,6 +259,7 @@ export interface EntityInspection extends CharacterProfile {
   cooldowns: ActionCooldowns;
   // Which actions can be chosen right now. Idle is always available.
   available: Record<ActionId, boolean>;
+  outcome: ActionEnding | null;
   derived: DerivedStats;
   // The tile containing the entity. An entity on the far edge of the map
   // reports the last row or column.

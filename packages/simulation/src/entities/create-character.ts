@@ -1,7 +1,7 @@
 import { addEntity, addComponents } from 'bitecs';
 
-import { ACTION_IDS } from '@simsand/shared';
-import type { ActionCooldowns, ActionId, CharacterProfile, SpriteId } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES } from '@simsand/shared';
+import type { ActionCooldowns, ActionEnding, ActionId, CharacterProfile, SpriteId } from '@simsand/shared';
 
 import { assertCharacterProfile, assertSpriteId, generateCharacterProfile, startingAgeSeconds, writeCharacterProfile } from '../characters/profile.js';
 import { emptyCooldowns } from '../systems/actions.js';
@@ -33,6 +33,7 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   action?: ActionId;
   actionSeconds?: number;
   cooldowns?: ActionCooldowns;
+  outcome?: ActionEnding | null;
 }
 
 // pass in the world and character attr, and get the id of a new char entity added to the world.
@@ -84,6 +85,9 @@ export function createCharacter(
   for (const id of ACTION_IDS) {
     Action.cooldown[id][eid] = cooldowns[id];
   }
+
+  Action.outcomeAction[eid] = definition.outcome ? ACTION_IDS.indexOf(definition.outcome.action) : -1;
+  Action.outcomeResult[eid] = definition.outcome ? ACTION_OUTCOMES.indexOf(definition.outcome.result) : 0;
 
   Position.x[eid] = definition.x;
   Position.y[eid] = definition.y;

@@ -55,6 +55,7 @@ describe('inspectCharacter', () => {
         ...generateCharacterProfile(0, 'swimmer').needs,
         cooldowns: emptyCooldowns(),
       }),
+      outcome: null,
       derived: derivedStats(generateCharacterProfile(0, 'swimmer').attributes.constitution),
       tile: { x: 2, y: 3, terrain: 'water' },
     });

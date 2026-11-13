@@ -11,7 +11,7 @@ function world(tick: number): PersistedWorld {
   const profile = generateCharacterProfile(12345, 'character-0001');
 
   return {
-    version: 9,
+    version: 10,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -34,6 +34,7 @@ function world(tick: number): PersistedWorld {
         action: 'move',
         actionSeconds: 0,
         cooldowns: { idle: 0, move: 0, eat: 0, rest: 0, drink: 0 },
+        outcome: null,
       },
     ],
   };
@@ -146,7 +147,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(9);
+    expect(loaded?.version).toBe(10);
     expect(loaded?.entities[0].eating).toBe(false);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].resting).toBe(true);
@@ -168,7 +169,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(9);
+    expect(loaded?.version).toBe(10);
     expect(loaded?.entities[0].eating).toBe(true);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].needs.hunger).toBe(0.9);
@@ -187,7 +188,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(9);
+    expect(loaded?.version).toBe(10);
     expect(loaded?.entities[0].ageSeconds).toBe(saved.entities[0].ageSeconds);
   });
 

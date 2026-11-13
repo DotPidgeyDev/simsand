@@ -153,7 +153,7 @@ The current simulation includes:
 - Scores `idle`, `move`, `eat`, `rest` and `drink` from needs and curiosity, then adds a stable bias of at most 0.05 per action. The bias comes from the world seed and the character id, on its own salt, and is not saved. Inspection shows the biased scores. A pressing need still outranks the bias.
 - A meal, drink or rest is available only while that need is above 0.3 and its cooldown has elapsed. Move requires the character to be alive. Idle is always available. Inspection shows the available set.
 - Keeps the choice for at least 5 seconds. Eat, drink and rest then continue until that need falls to 0.3.
-- A need at 0.8 interrupts the current choice. The interrupted action cannot be chosen again for 20 seconds. Finishing it does not start that cooldown. Only one recovery runs at a time.
+- A need at 0.8 interrupts the current choice. The interrupted action cannot be chosen again for 20 seconds, and the ending is recorded as interrupted. Finishing an action records it as completed and does not start that cooldown. Only one recovery runs at a time. Inspection shows the latest ending.
 - Writes the resting, eating and drinking flags that needs and movement read.
 
 **Lifecycle system**

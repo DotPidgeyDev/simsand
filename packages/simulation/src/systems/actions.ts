@@ -1,7 +1,7 @@
 import { query } from 'bitecs';
 
-import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
-import type { ActionCooldowns, ActionId } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, LIFECYCLE_STATES } from '@simsand/shared';
+import type { ActionCooldowns, ActionEnding, ActionId, ActionResult } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
 
@@ -182,6 +182,25 @@ function tickCooldowns(eid: number, deltaSeconds: number): void {
   }
 }
 
+export function readActionOutcome(eid: number): ActionEnding | null {
+  const action = ACTION_IDS[Action.outcomeAction[eid]];
+  const result = ACTION_OUTCOMES[Action.outcomeResult[eid]];
+
+  if (action === undefined || Action.outcomeAction[eid] < 0) return null;
+
+  return { action, result };
+}
+
+function writeActionOutcome(eid: number, action: ActionId, result: ActionResult): void {
+  Action.outcomeAction[eid] = ACTION_IDS.indexOf(action);
+  Action.outcomeResult[eid] = ACTION_OUTCOMES.indexOf(result);
+}
+
+function clearActionOutcome(eid: number): void {
+  Action.outcomeAction[eid] = -1;
+  Action.outcomeResult[eid] = 0;
+}
+
 function applyAction(eid: number, action: ActionId): void {
   Condition.resting[eid] = action === 'rest' ? 1 : 0;
   Condition.eating[eid] = action === 'eat' ? 1 : 0;
@@ -201,6 +220,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       Action.kind[eid] = ACTION_IDS.indexOf('idle');
       Action.elapsed[eid] = 0;
       writeCooldowns(eid, emptyCooldowns());
+      clearActionOutcome(eid);
       applyAction(eid, 'idle');
       continue;
     }
@@ -227,6 +247,9 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
 
     if (Action.elapsed[eid] > 0 && isUrgent(current, hunger, thirst, fatigue)) {
       Action.cooldown[current][eid] = ACTION_COOLDOWN_SECONDS;
+      writeActionOutcome(eid, current, 'interrupted');
+    } else if (Action.elapsed[eid] > 0) {
+      writeActionOutcome(eid, current, 'completed');
     }
 
     const next = chooseAction(utilities, actionAvailability({

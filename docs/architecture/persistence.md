@@ -199,12 +199,12 @@ model incrementally as simulation systems become real.
     is stored in `PRAGMA user_version`. A database from a newer schema
     is refused.
 -   **Snapshot format:** `PersistedWorld` in `packages/shared`, version
-    9: seed, tick, elapsed time, fixed timestep, the tile map and every
+    10: seed, tick, elapsed time, fixed timestep, the tile map and every
     entity's stable ID, position, velocity, appearance (colour and a
     named sprite), character profile (name, attributes, personality,
     needs and lifecycle), age, the action they are committed to and how
-    long they have held it, how long each action is cooling down, and
-    whether the character is resting,
+    long they have held it, how long each action is cooling down, how
+    the previous action ended, and whether the character is resting,
     eating or drinking. It is separate from the render-oriented
     `WorldSnapshot`, which carries position, appearance, those three
     flags and the lifecycle state, but not the action, age, velocity or
@@ -219,8 +219,9 @@ model incrementally as simulation systems become real.
     already at the threshold. Version 6 gains a seeded age, always
     short of the lifespan for that constitution. Version 7 gains the
     current action, taken from those flags, and an action time of zero.
-    Version 8 gains a cooldown of zero for every action. The next save
-    writes version 9.
+    Version 8 gains a cooldown of zero for every action. Version 9 gains
+    an empty outcome for the previous action. The next save writes
+    version 10.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot alter an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker

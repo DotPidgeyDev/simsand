@@ -19,6 +19,7 @@ import {
   actionUtilities,
   biasedUtilities,
   chooseAction,
+  readActionOutcome,
   updateActions,
 } from './actions.js';
 import { updateMovement } from './movement.js';
@@ -112,6 +113,7 @@ describe('updateActions', () => {
     expect(Position.x[eid]).toBe(10);
     expect(Action.cooldown.move[eid]).toBe(ACTION_COOLDOWN_SECONDS);
     expect(Action.cooldown.drink[eid]).toBe(0);
+    expect(readActionOutcome(eid)).toEqual({ action: 'move', result: 'interrupted' });
   });
 
   it('skips a cooled action even when it scores highest', () => {
@@ -138,6 +140,7 @@ describe('updateActions', () => {
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
     expect(Action.cooldown.eat[eid]).toBe(0);
+    expect(readActionOutcome(eid)).toEqual({ action: 'eat', result: 'completed' });
   });
 
   it('idles a dead character and leaves them where they are', () => {
@@ -145,12 +148,15 @@ describe('updateActions', () => {
     Lifecycle.state[eid] = LIFECYCLE_STATES.indexOf('dead');
     Action.kind[eid] = 1;
     Action.elapsed[eid] = 3;
+    Action.outcomeAction[eid] = ACTION_IDS.indexOf('move');
+    Action.outcomeResult[eid] = 1;
 
     updateActions(world, 1);
     updateMovement(world, 1);
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
     expect(Action.elapsed[eid]).toBe(0);
+    expect(readActionOutcome(eid)).toBeNull();
     expect(Position.x[eid]).toBe(10);
   });
 
@@ -268,5 +274,6 @@ describe('updateActions', () => {
     updateActions(world, 0.1);
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+    expect(readActionOutcome(eid)).toEqual({ action: 'move', result: 'completed' });
   });
 });

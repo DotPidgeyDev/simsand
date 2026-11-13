@@ -52,7 +52,7 @@ describe('world persistence', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(0.05), 99);
 
     expect(persisted).toMatchObject({
-      version: 9,
+      version: 10,
       seed: 99,
       tick: 0,
       fixedDeltaSeconds: 0.05,
@@ -95,7 +95,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld({ ...current, version: 1 });
 
-    expect(upgraded.version).toBe(9);
+    expect(upgraded.version).toBe(10);
     expect(upgraded.map).toEqual(toWorldMapData(generateWorldMap(42)));
     expect(() => restorePersistedWorld(upgraded)).not.toThrow();
   });
@@ -115,7 +115,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutProfiles);
 
-    expect(upgraded.version).toBe(9);
+    expect(upgraded.version).toBe(10);
     expect(upgraded.entities.map((entity) => entity.name)).toEqual(
       persisted.entities.map((entity) => entity.name),
     );
@@ -160,7 +160,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutSustenance);
 
-    expect(upgraded.version).toBe(9);
+    expect(upgraded.version).toBe(10);
     expect(upgraded.entities[0].eating).toBe(true);
     expect(upgraded.entities[0].drinking).toBe(false);
     expect(upgraded.entities[0].needs.hunger).toBe(0.9);
@@ -184,7 +184,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutAge);
 
-    expect(upgraded.version).toBe(9);
+    expect(upgraded.version).toBe(10);
     expect(upgraded.entities[0].ageSeconds).toBe(persisted.entities[0].ageSeconds);
     expect(upgraded.entities[0].action).toBe('move');
   });
@@ -193,8 +193,8 @@ describe('world persistence', () => {
     const world = createSimulationWorld();
     const persisted = capturePersistedWorld(world, createSimulationClock(), 1);
 
-    expect(() => restorePersistedWorld({ ...persisted, version: 10 })).toThrow(
-      'Unsupported persisted world version: 10',
+    expect(() => restorePersistedWorld({ ...persisted, version: 11 })).toThrow(
+      'Unsupported persisted world version: 11',
     );
   });
 });

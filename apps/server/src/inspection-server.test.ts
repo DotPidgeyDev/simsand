@@ -40,6 +40,7 @@ const entity: EntityInspection = {
     ...generateCharacterProfile(1, 'character-0001').needs,
     cooldowns: emptyCooldowns(),
   }),
+  outcome: null,
   derived: derivedStats(generateCharacterProfile(1, 'character-0001').attributes.constitution),
   tile: { x: 1, y: 2, terrain: 'grass' },
 };

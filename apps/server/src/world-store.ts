@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { ACTION_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, PERSISTED_WORLD_VERSION } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
@@ -134,7 +134,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (![1, 2, 3, 4, 5, 6, 7, 8, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
@@ -216,6 +216,26 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
         if (!isFiniteNumber(cooldowns[id]) || (cooldowns[id] as number) < 0) {
           throw new Error(`Character cooldown for ${id} is missing or invalid`);
         }
+      }
+    }
+  }
+
+  if (Number(world.version) >= 10) {
+    for (const entity of world.entities as { outcome?: unknown }[]) {
+      if (entity.outcome === null) continue;
+
+      if (typeof entity.outcome !== 'object' || entity.outcome === undefined) {
+        throw new Error('Character outcome is missing');
+      }
+
+      const outcome = entity.outcome as { action?: unknown; result?: unknown };
+
+      if (!(ACTION_IDS as readonly string[]).includes(String(outcome.action))) {
+        throw new Error(`Unknown action outcome: ${String(outcome.action)}`);
+      }
+
+      if (!(ACTION_OUTCOMES as readonly string[]).includes(String(outcome.result))) {
+        throw new Error(`Unknown action result: ${String(outcome.result)}`);
       }
     }
   }

@@ -8,7 +8,7 @@ import { Personality } from '../components/personality.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Attributes } from '../components/attributes.js';
-import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns } from '../systems/actions.js';
+import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns, readActionOutcome } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
@@ -71,6 +71,7 @@ export function inspectCharacter(
       fatigue: Needs.fatigue[eid],
       cooldowns,
     }),
+    outcome: readActionOutcome(eid),
     derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };

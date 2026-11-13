@@ -13,4 +13,8 @@ export const Action = {
     rest: [] as number[],
     drink: [] as number[],
   } satisfies Record<ActionId, number[]>,
+  // Index into ACTION_IDS for the action that just ended. -1 means none yet.
+  outcomeAction: [] as number[],
+  // Index into ACTION_OUTCOMES. Meaningful only when outcomeAction is not -1.
+  outcomeResult: [] as number[],
 };
