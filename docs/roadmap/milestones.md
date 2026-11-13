@@ -1,7 +1,7 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 01 complete; Milestone 02 next  
-**Version:** 1.2  
+**Status:** Active — Milestone 02 in progress  
+**Version:** 1.3  
 **Last updated:** 2026-11-13
 
 ## Guiding approach
@@ -102,11 +102,30 @@ The milestone is complete when the foundational simulation can run independently
 
 ## Milestone 02 — Character foundation
 
-**Status: Planned**
+**Status: In progress**
 
 Add character identity, appearance references, attributes, personality, needs and basic lifecycle.
 
 Establish data ownership and validation before building complex AI.
+
+### Current implementation
+
+A character now has a profile stored on its entity and saved with the world (persisted format version 3):
+
+- A seeded name, from the world seed and the character's stable ID.
+- Seven attributes, integers from 1 to 10.
+- Ten personality traits, each from 0 to 1.
+- Three basic needs (hunger, thirst and fatigue), from 0 (satisfied) to 1 (critical). New characters start comfortable.
+- A lifecycle state, `alive` or `dead`. Dead characters stay in the world but do not move.
+
+The profile is generated inside the simulation, validated when a character is created or a save is loaded, and returned by the inspection API. Version 2 saves gain profiles on load, generated from the seed, and the next save stores them. Needs do not change over time yet, and nothing in the simulation sets a character to dead.
+
+### Remaining work
+
+- Derived statistics, once a system needs them.
+- Named sprite references. Appearance is still a colour and a numeric sprite index.
+- Needs changing over time, together with a way for them to recover.
+- Lifecycle transitions caused by the simulation.
 
 Initial scope:
 
@@ -121,6 +140,21 @@ Initial scope:
 - Initial character-focused inspection tools.
 
 Avoid implementing complex decision-making at this stage. The goal is to establish a reliable character model that future systems can build upon.
+
+### Definition of done
+
+- [x] Characters have stable IDs and seeded names.
+- [ ] Appearance uses named sprite references.
+- [x] Core attributes are stored, validated and persisted.
+- [ ] Derived statistics are defined by a system that uses them.
+- [x] Personality traits are stored, validated and persisted.
+- [x] Basic needs are stored, validated and persisted.
+- [ ] Needs change over time and can recover.
+- [x] Lifecycle state is stored, and dead characters do not move.
+- [ ] The simulation itself changes lifecycle state.
+- [x] Character creation fills in a valid profile.
+- [x] Character data is validated at creation and when a save is loaded.
+- [x] Inspection shows a character's full profile.
 
 ---
 

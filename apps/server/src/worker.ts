@@ -68,7 +68,7 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
           seed = restore.seed;
         } else {
           seed = message.data?.seed ?? 12345;
-          world = createSimulationWorld(generateWorldMap(seed));
+          world = createSimulationWorld(generateWorldMap(seed), seed);
           clock = createSimulationClock();
           createPopulation(world, message.data?.population ?? 20, seed);
         }

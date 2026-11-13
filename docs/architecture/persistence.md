@@ -199,14 +199,17 @@ model incrementally as simulation systems become real.
     is stored in `PRAGMA user_version`. A database from a newer schema
     is refused.
 -   **Snapshot format:** `PersistedWorld` in `packages/shared`, version
-    2: seed, tick, elapsed time, fixed timestep, the tile map and every
-    entity's stable ID, position, velocity and appearance. It is
-    separate from the render-oriented `WorldSnapshot`, which lacks
-    velocity. Version 1 snapshots, saved before the tile map existed,
-    are still accepted. They are upgraded on load by generating the map
-    from their seed, and the next save writes version 2. The map is
-    stored rather than regenerated so that a later change to the
-    generator, or future terrain edits, cannot alter an existing world.
+    3: seed, tick, elapsed time, fixed timestep, the tile map and every
+    entity's stable ID, position, velocity, appearance and character
+    profile (name, attributes, personality, needs and lifecycle). It is
+    separate from the render-oriented `WorldSnapshot`, which carries
+    none of the profile and lacks velocity. Older snapshots are still
+    accepted and upgraded on load. Version 1 gains the map generated
+    from its seed. Version 2 gains each character's profile, also
+    generated from the seed and the character's ID. The next save
+    writes version 3. The map and the profile are stored rather than
+    regenerated, so a later change to either generator cannot alter an
+    existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker
     answers between ticks with a consistent `PersistedWorld`. The server
     then writes it. The request times out after 2 seconds.

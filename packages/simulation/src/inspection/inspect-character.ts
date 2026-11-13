@@ -1,11 +1,12 @@
 import type { EntityInspection } from '@simsand/shared';
 
+import { readCharacterProfile } from '../characters/profile.js';
 import { getTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
+import { Appearance } from '../components/appearance.js';
 import { Position } from '../components/position.js';
 import { Velocity } from '../components/velocity.js';
-import { Appearance } from '../components/appearance.js';
 
 export function inspectCharacter(
   world: SimulationWorld,
@@ -30,6 +31,7 @@ export function inspectCharacter(
     velocityY: Velocity.y[eid],
     color: Appearance.color[eid],
     sprite: Appearance.sprite[eid],
+    ...readCharacterProfile(eid),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };
 }

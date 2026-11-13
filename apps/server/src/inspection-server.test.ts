@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { EntityInspection, SimulationStatus, WorldSnapshot } from '@simsand/shared';
+import { generateCharacterProfile } from '@simsand/simulation';
 
 import { createInspectionServer } from './inspection-server.js';
 import type { InspectionSource } from './inspection-server.js';
@@ -25,6 +26,7 @@ const entity: EntityInspection = {
   velocityY: -0.2,
   color: 0xff0000,
   sprite: 1,
+  ...generateCharacterProfile(1, 'character-0001'),
   tile: { x: 1, y: 2, terrain: 'grass' },
 };
 

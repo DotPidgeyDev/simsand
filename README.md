@@ -206,7 +206,7 @@ A read-only inspection API listens on `http://127.0.0.1:8767` (local connections
 ```bash
 curl 127.0.0.1:8767/status                       # server and simulation status, tick timing
 curl 127.0.0.1:8767/entities                     # every entity's ID and position
-curl 127.0.0.1:8767/entities/character-0001      # one entity, with velocity and the tile under it
+curl 127.0.0.1:8767/entities/character-0001      # one entity, including velocity, the tile under it and its profile
 ```
 
 ### Server configuration

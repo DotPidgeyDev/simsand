@@ -3,20 +3,29 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PersistedWorld } from '@simsand/shared';
-import { generateWorldMap, toWorldMapData } from '@simsand/simulation';
+import { generateCharacterProfile, generateWorldMap, toWorldMapData } from '@simsand/simulation';
 
 import { WorldStore } from './world-store.js';
 
 function world(tick: number): PersistedWorld {
   return {
-    version: 2,
+    version: 3,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
     fixedDeltaSeconds: 0.1,
     map: { width: 2, height: 2, tiles: [0, 1, 2, 0] },
     entities: [
-      { id: 'character-0001', x: 1, y: 2, velocityX: 0.5, velocityY: -0.5, color: 3, sprite: 1 },
+      {
+        id: 'character-0001',
+        x: 1,
+        y: 2,
+        velocityX: 0.5,
+        velocityY: -0.5,
+        color: 3,
+        sprite: 1,
+        ...generateCharacterProfile(12345, 'character-0001'),
+      },
     ],
   };
 }
@@ -87,13 +96,44 @@ describe('WorldStore', () => {
     const db = new DatabaseSync(':memory:');
     const store = new WorldStore(db);
     const { map: _map, ...withoutMap } = world(10);
+    const entities = withoutMap.entities.map((entity) => {
+      const { name: _name, attributes: _attributes, personality: _personality, needs: _needs, lifecycle: _lifecycle, ...base } = entity;
+      return base;
+    });
 
-    insertRaw(db, 10, JSON.stringify({ ...withoutMap, version: 1 }));
+    insertRaw(db, 10, JSON.stringify({ ...withoutMap, version: 1, entities }));
 
     expect(store.loadLatest()).toEqual({
       ...world(10),
       map: toWorldMapData(generateWorldMap(12345)),
     });
+  });
+
+  it('upgrades a version 2 snapshot with a generated character profile', () => {
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const saved = world(10);
+    const entities = saved.entities.map((entity) => {
+      const { name: _name, attributes: _attributes, personality: _personality, needs: _needs, lifecycle: _lifecycle, ...base } = entity;
+      return base;
+    });
+
+    insertRaw(db, 10, JSON.stringify({ ...saved, version: 2, entities }));
+
+    expect(store.loadLatest()).toEqual(saved);
+  });
+
+  it('rejects a snapshot whose character profile is out of range', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const saved = world(10);
+    saved.entities[0].attributes.strength = 50;
+
+    insertRaw(db, 10, JSON.stringify(saved));
+
+    expect(() => store.loadLatest()).toThrow('No valid world snapshot');
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('attributes are missing or out of range'));
   });
 
   it('rejects a snapshot whose map does not match its dimensions', () => {

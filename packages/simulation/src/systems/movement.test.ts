@@ -5,6 +5,9 @@ import { createWorldMap } from '../core/map.js';
 import { createSimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
 import { createPopulation } from '../entities/create-population.js';
+import { LIFECYCLE_STATES } from '@simsand/shared';
+
+import { Lifecycle } from '../components/lifecycle.js';
 import { Position } from '../components/position.js';
 import { Velocity } from '../components/velocity.js';
 import { updateMovement } from './movement.js';
@@ -86,6 +89,27 @@ describe('updateMovement', () => {
 
     expect(Position.x[eid]).toBe(0);
     expect(Position.y[eid]).toBe(10);
+  });
+
+  it('leaves dead characters where they are', () => {
+    const world = createSimulationWorld();
+
+    const eid = createCharacter(world, {
+      id: 'test-character',
+      x: 10,
+      y: 10,
+      velocityX: 2,
+      velocityY: 2,
+      color: 0xffffff,
+      sprite: 1,
+    });
+
+    Lifecycle.state[eid] = LIFECYCLE_STATES.indexOf('dead');
+    updateMovement(world, 1);
+
+    expect(Position.x[eid]).toBe(10);
+    expect(Position.y[eid]).toBe(10);
+    expect(Velocity.x[eid]).toBe(2);
   });
 
   it('does not pin characters in the corners over a long run', () => {

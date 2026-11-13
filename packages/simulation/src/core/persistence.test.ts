@@ -50,7 +50,7 @@ describe('world persistence', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(0.05), 99);
 
     expect(persisted).toMatchObject({
-      version: 2,
+      version: 3,
       seed: 99,
       tick: 0,
       fixedDeltaSeconds: 0.05,
@@ -93,17 +93,43 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld({ ...current, version: 1 });
 
-    expect(upgraded.version).toBe(2);
+    expect(upgraded.version).toBe(3);
     expect(upgraded.map).toEqual(toWorldMapData(generateWorldMap(42)));
     expect(() => restorePersistedWorld(upgraded)).not.toThrow();
+  });
+
+  it('upgrades a version 2 world with each character profile generated from the seed', () => {
+    const world = createSimulationWorld();
+    createPopulation(world, 2, 42);
+    const persisted = capturePersistedWorld(world, createSimulationClock(), 42);
+    const withoutProfiles = {
+      ...persisted,
+      version: 2 as const,
+      entities: persisted.entities.map((entity) => {
+        const { name: _name, attributes: _attributes, personality: _personality, needs: _needs, lifecycle: _lifecycle, ...base } = entity;
+        return base;
+      }),
+    };
+
+    const upgraded = upgradePersistedWorld(withoutProfiles);
+
+    expect(upgraded.version).toBe(3);
+    expect(upgraded.entities.map((entity) => entity.name)).toEqual(
+      persisted.entities.map((entity) => entity.name),
+    );
+    expect(capturePersistedWorld(
+      restorePersistedWorld(upgraded).world,
+      createSimulationClock(),
+      42,
+    ).entities).toEqual(persisted.entities);
   });
 
   it('rejects an unsupported format version', () => {
     const world = createSimulationWorld();
     const persisted = capturePersistedWorld(world, createSimulationClock(), 1);
 
-    expect(() => restorePersistedWorld({ ...persisted, version: 3 })).toThrow(
-      'Unsupported persisted world version: 3',
+    expect(() => restorePersistedWorld({ ...persisted, version: 4 })).toThrow(
+      'Unsupported persisted world version: 4',
     );
   });
 });

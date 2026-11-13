@@ -7,6 +7,7 @@ export function createPopulation(
   count = 20,
   seed = 12345,
 ): number[] {
+  world.seed = seed;
   const random = createRandom(seed);
   const entities: number[] = [];
 

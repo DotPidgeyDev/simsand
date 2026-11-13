@@ -42,12 +42,18 @@ export type {
 export { inspectCharacter } from './inspection/inspect-character.js';
 
 export {
+  assertCharacterProfile,
+  generateCharacterProfile,
+  readCharacterProfile,
+} from './characters/profile.js';
+
+export {
   capturePersistedWorld,
   restorePersistedWorld,
   upgradePersistedWorld,
 } from './core/persistence.js';
 
-export type { PersistedWorldV1 } from './core/persistence.js';
+export type { PersistedWorldV1, PersistedWorldV2, UpgradeableWorld } from './core/persistence.js';
 
 export { createWorldSnapshot } from './systems/snapshot.js';
 export { createWorldDelta } from './systems/delta.js';

@@ -1,9 +1,14 @@
 import { query } from 'bitecs';
 
+import { LIFECYCLE_STATES } from '@simsand/shared';
+
 import type { SimulationWorld } from '../core/world.js';
 
+import { Lifecycle } from '../components/lifecycle.js';
 import { Position } from '../components/position.js';
 import { Velocity } from '../components/velocity.js';
+
+const DEAD = LIFECYCLE_STATES.indexOf('dead');
 
 // update the movement of every char in the world
 // we have their current pos and their vel, and bounce them off the map edges.
@@ -15,6 +20,8 @@ export function updateMovement(
   const entities = query(world.ecs, [Position, Velocity]);
 
   for (const eid of entities) {
+    if (Lifecycle.state[eid] === DEAD) continue;
+
     const x = bounce(Position.x[eid] + Velocity.x[eid] * deltaSeconds, worldWidth);
     const y = bounce(Position.y[eid] + Velocity.y[eid] * deltaSeconds, worldHeight);
 

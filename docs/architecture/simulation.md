@@ -102,10 +102,14 @@ The current components are:
 
 | Component | Current data | Purpose |
 |---|---|---|
-| `Identity` | `id` | Identifies an entity |
+| `Identity` | `id`, `name` | Stable ID and display name |
 | `Position` | `x`, `y` | World coordinates |
 | `Velocity` | `x`, `y` | Movement vector |
 | `Appearance` | `color`, `sprite` | Basic visual representation |
+| `Attributes` | seven scores, 1–10 | Physical and mental capability |
+| `Personality` | ten traits, 0–1 | Disposition, distinct from capability |
+| `Needs` | hunger, thirst, fatigue, 0–1 | 0 is satisfied and 1 is critical |
+| `Lifecycle` | `alive` or `dead` | Whether the character still acts |
 
 Components are implemented using bitECS 0.4-compatible data structures.
 
@@ -123,6 +127,14 @@ Future components may include:
 
 Components should remain focused on representing data rather than implementing gameplay behaviour.
 
+### Character profile
+
+Attributes, personality, needs and lifecycle are component data because later systems will read them for every character on a tick. Strings such as the name live in plain arrays beside the numeric components, the same way stable IDs already do. Sparse data such as memories and relationships stays out of the ECS until those systems exist.
+
+`generateCharacterProfile(seed, id)` in `packages/simulation/src/characters/profile.ts` builds the profile from the world seed and the stable ID, using its own random stream, so it never changes where characters are placed. The same character therefore gets the same profile when an older save is upgraded. A profile supplied at creation, including one read back from a save, is checked with `assertCharacterProfile` and stored as given.
+
+Attributes are integers from 1 to 10. Personality traits are 0 to 1. Needs are 0 (satisfied) to 1 (critical); generated characters start between 0.15 and 0.45. Names come from a small placeholder list. No derived statistics are defined yet, because no system uses one. Needs do not change during a tick.
+
 ### Systems
 
 Systems process entities with relevant component combinations.
@@ -134,6 +146,7 @@ The current simulation includes:
 - Queries entities containing `Position` and `Velocity`.
 - Calculates new positions using the fixed simulation timestep.
 - Bounces entities off the map edges: the distance past the edge is mirrored back inside, and that velocity component is reversed.
+- Skips dead characters, leaving their position and velocity unchanged.
 - Updates entity positions.
 
 Positions were originally clamped at the edge with velocity unchanged. In a long-running world that pinned every moving character in a corner. A movement test now runs 20 characters for 30,000 ticks to check that none end up in a corner.
@@ -467,7 +480,8 @@ Current test coverage includes foundational behaviour such as:
 - Stable-ID mapping and entity removal, including reused bitECS handles.
 - Persisted-world capture and restoration, including identical continuation after restore, stored terrain, and upgrading version 1 saves.
 - Tile map generation, lookup and validation.
-- Command execution and character inspection.
+- Command execution and character inspection, including the character profile.
+- Character profile generation, validation, persistence and the rule that dead characters do not move.
 - On the server: the snapshot cache, the SQLite world store's recovery rules, the command gateway, and the inspection API.
 - End to end: the real server running with no browser, across a WebSocket connect and disconnect, through to a clean shutdown save.
 
@@ -527,6 +541,7 @@ Measure representative workloads again as systems are added, rather than assumin
 | 1,000-entity performance test | Implemented — within budget |
 | Tick timing and dropped-tick tracking | Implemented |
 | Entity inspection | Implemented — read-only, via the server's inspection API |
+| Character profile | Implemented — name, attributes, personality, needs, lifecycle |
 
 ---
 

@@ -196,6 +196,7 @@ Contains engine-independent simulation code:
 - ECS components.
 - Entity creation.
 - Seeded population generation.
+- Character profiles: name, attributes, personality, needs and lifecycle.
 - Movement system.
 - Simulation clock.
 - Simulation runner and loop.
@@ -206,7 +207,7 @@ Contains engine-independent simulation code:
 
 The package uses bitECS 0.4 and must remain independent of PixiJS, Vue, browser APIs and server-specific modules.
 
-Future functionality will include character behaviours, needs, skills, inventory, relationships, navigation, world systems and other gameplay logic.
+Future functionality will include character behaviour, skills, inventory, relationships, navigation, world systems and other gameplay logic. Needs are stored but do not change yet.
 
 ### Shared package
 

@@ -191,6 +191,9 @@ should be grounded in simulation state or recorded events.
 
 ## 11. Initial implementation boundary
 
-Do not implement the full character model in the first milestone. Start
-with identity, position, velocity and appearance. Add needs and actions
-only after the worker, clock and rendering vertical slice is stable.
+Milestone 01 stored only identity, position, velocity and appearance.
+Milestone 02 adds the character profile: a seeded name, the seven
+attributes, the ten personality traits, hunger, thirst and fatigue, and
+a lifecycle of alive or dead. Needs do not change over time yet, and no
+derived statistics or actions are implemented. Skills, inventory,
+relationships, memories and goals stay later.

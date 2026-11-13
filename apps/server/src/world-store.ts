@@ -4,8 +4,8 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { PERSISTED_WORLD_VERSION } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
-import { fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
-import type { PersistedWorldV1 } from '@simsand/simulation';
+import { assertCharacterProfile, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
+import type { UpgradeableWorld } from '@simsand/simulation';
 
 import { log } from './logger.js';
 
@@ -130,11 +130,11 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (world.version !== 1 && world.version !== PERSISTED_WORLD_VERSION) {
+  if (world.version !== 1 && world.version !== 2 && world.version !== PERSISTED_WORLD_VERSION) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
-  if (world.version === PERSISTED_WORLD_VERSION) {
+  if (world.version !== 1) {
     if (typeof world.map !== 'object' || world.map === null) {
       throw new Error('Snapshot map is missing');
     }
@@ -152,11 +152,17 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
     throw new Error('Snapshot entities are missing or invalid');
   }
 
+  if (world.version === PERSISTED_WORLD_VERSION) {
+    for (const entity of world.entities) {
+      assertCharacterProfile(entity);
+    }
+  }
+
   const ids = new Set(world.entities.map((entity) => entity.id));
 
   if (ids.size !== world.entities.length) {
     throw new Error('Snapshot contains duplicate entity IDs');
   }
 
-  return upgradePersistedWorld(world as unknown as PersistedWorldV1 | PersistedWorld);
+  return upgradePersistedWorld(world as unknown as UpgradeableWorld);
 }

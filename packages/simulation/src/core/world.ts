@@ -9,12 +9,19 @@ export interface SimulationWorld {
   // recycled after removal and must not be exposed or persisted.
   entityIds: Map<string, number>;
   map: WorldMap;
+  // Used to derive a new character's profile. Population generation and
+  // restoring a save both set it.
+  seed: number;
 }
 
-export function createSimulationWorld(map: WorldMap = createWorldMap()): SimulationWorld {
+export function createSimulationWorld(
+  map: WorldMap = createWorldMap(),
+  seed = 0,
+): SimulationWorld {
   return {
     ecs: createWorld(),
     entityIds: new Map(),
     map,
+    seed,
   };
 }

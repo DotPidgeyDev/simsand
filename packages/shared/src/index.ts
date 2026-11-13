@@ -34,9 +34,64 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 2;
+export const PERSISTED_WORLD_VERSION = 3;
 
-export interface PersistedEntity {
+export const ATTRIBUTE_NAMES = [
+  'strength',
+  'dexterity',
+  'intelligence',
+  'wisdom',
+  'constitution',
+  'perception',
+  'charisma',
+] as const;
+
+export type AttributeName = (typeof ATTRIBUTE_NAMES)[number];
+
+export type CharacterAttributes = Record<AttributeName, number>;
+
+export const ATTRIBUTE_MIN = 1;
+export const ATTRIBUTE_MAX = 10;
+
+export const PERSONALITY_TRAITS = [
+  'aggression',
+  'sociability',
+  'greed',
+  'ambition',
+  'loyalty',
+  'curiosity',
+  'courage',
+  'honesty',
+  'industriousness',
+  'empathy',
+] as const;
+
+export type PersonalityTrait = (typeof PERSONALITY_TRAITS)[number];
+
+// Each trait is 0 to 1. A higher value means more of that trait.
+export type CharacterPersonality = Record<PersonalityTrait, number>;
+
+// 0 is satisfied and 1 is critical. Only the needs that drive the next
+// behaviours exist so far.
+export const BASIC_NEEDS = ['hunger', 'thirst', 'fatigue'] as const;
+
+export type BasicNeed = (typeof BASIC_NEEDS)[number];
+
+export type CharacterNeeds = Record<BasicNeed, number>;
+
+export const LIFECYCLE_STATES = ['alive', 'dead'] as const;
+
+export type LifecycleState = (typeof LIFECYCLE_STATES)[number];
+
+export interface CharacterProfile {
+  name: string;
+  attributes: CharacterAttributes;
+  personality: CharacterPersonality;
+  needs: CharacterNeeds;
+  lifecycle: LifecycleState;
+}
+
+export interface PersistedEntity extends CharacterProfile {
   id: string;
   x: number;
   y: number;
@@ -138,7 +193,7 @@ export interface SimulationStatus {
   maxTickMs: number;
 }
 
-export interface EntityInspection {
+export interface EntityInspection extends CharacterProfile {
   id: string;
   x: number;
   y: number;

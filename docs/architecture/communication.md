@@ -43,7 +43,7 @@ The server distributes simulation updates but does not own or modify authoritati
 |---|---|---|
 | `GET /status` | Worker `world.status.request`, plus server state | Uptime, browser clients, last save, and the `SimulationStatus` |
 | `GET /entities` | The server's cached snapshot | Tick, count, and each entity's ID and position |
-| `GET /entities/:id` | Worker `world.inspect.request` | `EntityInspection`, or 404 |
+| `GET /entities/:id` | Worker `world.inspect.request` | `EntityInspection` (movement, appearance and character profile), or 404 |
 
 If the worker doesn't answer within 2 seconds, the routes that query it return 503 with `simulation_unavailable`.
 

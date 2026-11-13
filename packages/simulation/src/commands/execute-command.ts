@@ -7,6 +7,7 @@ import type {
 
 import type { SimulationClock } from '../core/clock.js';
 import type { SimulationWorld } from '../core/world.js';
+import { generateCharacterProfile } from '../characters/profile.js';
 import { createCharacter } from '../entities/create-character.js';
 import { removeCharacter } from '../entities/remove-character.js';
 
@@ -67,6 +68,7 @@ export function executeCommand(
         velocityY,
         color,
         sprite: DEFAULT_SPRITE,
+        ...generateCharacterProfile(world.seed, characterId),
       });
 
       return {
