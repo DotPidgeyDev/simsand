@@ -115,7 +115,8 @@ function isPersistedEntity(value: unknown, version: number): value is PersistedE
   const entity = value as Record<string, unknown>;
   const numeric = ['x', 'y', 'velocityX', 'velocityY', 'color'];
 
-  if (version < PERSISTED_WORLD_VERSION) numeric.push('sprite');
+  // Versions before 5 stored a numeric sprite. Named sprites start at 5.
+  if (version < 5) numeric.push('sprite');
 
   return (
     typeof entity.id === 'string' &&
@@ -133,7 +134,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (![1, 2, 3, 4, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
+  if (![1, 2, 3, 4, 5, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
@@ -169,9 +170,17 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
     }
   }
 
-  if (world.version === PERSISTED_WORLD_VERSION) {
+  if (Number(world.version) >= 5) {
     for (const entity of world.entities as { sprite?: unknown }[]) {
       assertSpriteId(entity.sprite);
+    }
+  }
+
+  if (Number(world.version) >= 6) {
+    for (const entity of world.entities as { eating?: unknown; drinking?: unknown }[]) {
+      if (typeof entity.eating !== 'boolean' || typeof entity.drinking !== 'boolean') {
+        throw new Error('Character sustenance flags are missing');
+      }
     }
   }
 

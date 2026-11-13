@@ -31,6 +31,8 @@ export function createWorldSnapshot(
       color: Appearance.color[eid],
       sprite: Appearance.sprite[eid],
       resting: Condition.resting[eid] === 1,
+      eating: Condition.eating[eid] === 1,
+      drinking: Condition.drinking[eid] === 1,
     });
   }
 

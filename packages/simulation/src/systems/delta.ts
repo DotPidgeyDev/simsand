@@ -13,7 +13,9 @@ function hasChanged(
     previous.y !== current.y ||
     previous.color !== current.color ||
     previous.sprite !== current.sprite ||
-    previous.resting !== current.resting
+    previous.resting !== current.resting ||
+    previous.eating !== current.eating ||
+    previous.drinking !== current.drinking
   );
 }
 

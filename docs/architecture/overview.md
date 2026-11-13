@@ -207,7 +207,7 @@ Contains engine-independent simulation code:
 
 The package uses bitECS 0.4 and must remain independent of PixiJS, Vue, browser APIs and server-specific modules.
 
-Future functionality will include character behaviour, skills, inventory, relationships, navigation, world systems and other gameplay logic. Fatigue rises and recovers with rest. Hunger and thirst are stored but do not change yet.
+Future functionality will include character behaviour, skills, inventory, relationships, navigation, world systems and other gameplay logic. Fatigue, hunger and thirst each rise and recover. A character rests, and the world feeds or waters them, once that need is pressing.
 
 ### Shared package
 
@@ -381,7 +381,7 @@ These are initial engineering targets, not guaranteed capacity limits.
 | Movement | Implemented |
 | World dimensions | 64 × 64 tile map |
 | Browser renderer | PixiJS |
-| Entity representation | Named sprite shapes (square, diamond, triangle; circle while resting) |
+| Entity representation | Named sprite shapes (square, diamond, triangle; circle while resting; ring while eating or drinking) |
 | Snapshot and delta communication | Implemented |
 | Multiple browser clients | Supported by WebSocket server |
 

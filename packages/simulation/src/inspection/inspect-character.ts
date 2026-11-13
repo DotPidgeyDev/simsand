@@ -36,6 +36,8 @@ export function inspectCharacter(
     sprite: Appearance.sprite[eid],
     ...readCharacterProfile(eid),
     resting: Condition.resting[eid] === 1,
+    eating: Condition.eating[eid] === 1,
+    drinking: Condition.drinking[eid] === 1,
     derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };

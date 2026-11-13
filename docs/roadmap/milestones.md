@@ -110,7 +110,7 @@ Establish data ownership and validation before building complex AI.
 
 ### Current implementation
 
-A character now has a profile stored on its entity and saved with the world (persisted format version 5):
+A character now has a profile stored on its entity and saved with the world (persisted format version 6):
 
 - A seeded name, from the world seed and the character's stable ID.
 - Seven attributes, integers from 1 to 10.
@@ -120,13 +120,12 @@ A character now has a profile stored on its entity and saved with the world (per
 
 The profile is generated inside the simulation, validated when a character is created or a save is loaded, and returned by the inspection API. Version 2 saves gain profiles on load, generated from the seed, and the next save stores them.
 
-Fatigue rises while a character moves and falls while they rest. Constitution is the first derived statistic: it sets the fatigue rate, which inspection reports. A character rests at fatigue 0.8 and starts moving again at 0.3, shown as a circle. The resting flag is saved so a restart does not wake them early. Hunger and thirst do not change yet, because nothing can feed a character, and a need that only rises would leave everyone at critical. Nothing in the simulation sets a character to dead.
+Fatigue rises while a character moves and falls while they rest. Constitution is the first derived statistic: it sets the fatigue rate, which inspection reports. A character rests at fatigue 0.8 and starts moving again at 0.3, shown as a circle. Hunger and thirst rise the same way, and the world feeds and waters a character once a need reaches 0.8, until it falls to 0.3. They stop while eating or drinking, drawn with a ring. The resting, eating and drinking flags are saved, because the same need value occurs on the way up and the way down. Seeking a source, and choosing between needs, comes later. Nothing in the simulation sets a character to dead.
 
-Appearance stores a named sprite from a small catalog (`wanderer`, `scout`, `elder`), chosen from the world seed and the character's ID on a stream that does not change the profile. The renderer draws them as a square, a diamond and a triangle. A resting character is still a circle, so the state stays readable. Older saves stored a numeric sprite that was always 1; loading one assigns the seeded name, and the next save writes format version 5.
+Appearance stores a named sprite from a small catalog (`wanderer`, `scout`, `elder`), chosen from the world seed and the character's ID on a stream that does not change the profile. The renderer draws them as a square, a diamond and a triangle. A resting character is still a circle, so the state stays readable. Older saves stored a numeric sprite that was always 1; loading one assigns the seeded name.
 
 ### Remaining work
 
-- Hunger and thirst changing, once something can feed a character.
 - Lifecycle transitions caused by the simulation.
 
 Initial scope:
@@ -151,7 +150,7 @@ Avoid implementing complex decision-making at this stage. The goal is to establi
 - [x] Derived statistics are defined by a system that uses them.
 - [x] Personality traits are stored, validated and persisted.
 - [x] Basic needs are stored, validated and persisted.
-- [x] Needs change over time and can recover. Fatigue does; hunger and thirst wait for food.
+- [x] Needs change over time and can recover.
 - [x] Lifecycle state is stored, and dead characters do not move.
 - [ ] The simulation itself changes lifecycle state.
 - [x] Character creation fills in a valid profile.

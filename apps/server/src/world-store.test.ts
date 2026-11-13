@@ -9,7 +9,7 @@ import { WorldStore } from './world-store.js';
 
 function world(tick: number): PersistedWorld {
   return {
-    version: 5,
+    version: 6,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -25,6 +25,8 @@ function world(tick: number): PersistedWorld {
         color: 3,
         sprite: spriteIdFor(12345, 'character-0001'),
         resting: false,
+        eating: false,
+        drinking: false,
         ...generateCharacterProfile(12345, 'character-0001'),
       },
     ],
@@ -138,10 +140,32 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(5);
+    expect(loaded?.version).toBe(6);
+    expect(loaded?.entities[0].eating).toBe(false);
+    expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].resting).toBe(true);
     expect(loaded?.entities[0].needs.fatigue).toBe(0.9);
     expect(loaded?.entities[0].sprite).toBe(spriteIdFor(12345, 'character-0001'));
+  });
+
+  it('upgrades a version 5 snapshot by deriving eating and drinking from needs', () => {
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const saved = world(10);
+    const { eating: _eating, drinking: _drinking, ...withoutSustenance } = saved.entities[0];
+
+    insertRaw(db, 10, JSON.stringify({
+      ...saved,
+      version: 5,
+      entities: [{ ...withoutSustenance, needs: { ...withoutSustenance.needs, hunger: 0.9 } }],
+    }));
+
+    const loaded = store.loadLatest();
+
+    expect(loaded?.version).toBe(6);
+    expect(loaded?.entities[0].eating).toBe(true);
+    expect(loaded?.entities[0].drinking).toBe(false);
+    expect(loaded?.entities[0].needs.hunger).toBe(0.9);
   });
 
   it('rejects a snapshot whose character profile is out of range', () => {

@@ -24,6 +24,8 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   color: number;
   sprite: SpriteId;
   resting?: boolean;
+  eating?: boolean;
+  drinking?: boolean;
 }
 
 // pass in the world and character attr, and get the id of a new char entity added to the world.
@@ -59,6 +61,8 @@ export function createCharacter(
   Identity.id[eid] = definition.id;
   writeCharacterProfile(eid, profileFor(world, definition));
   Condition.resting[eid] = definition.resting ? 1 : 0;
+  Condition.eating[eid] = definition.eating ? 1 : 0;
+  Condition.drinking[eid] = definition.drinking ? 1 : 0;
 
   Position.x[eid] = definition.x;
   Position.y[eid] = definition.y;

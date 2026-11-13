@@ -19,6 +19,8 @@ describe('createWorldDelta', () => {
         color: 0xffffff,
         sprite: 'wanderer',
         resting: false,
+        eating: false,
+        drinking: false,
       },
       {
         id: 'character-0002',
@@ -27,6 +29,8 @@ describe('createWorldDelta', () => {
         color: 0xff0000,
         sprite: 'wanderer',
         resting: false,
+        eating: false,
+        drinking: false,
       },
     ],
   };
@@ -62,7 +66,9 @@ describe('createWorldDelta', () => {
           y: 30,
           color: 0x00ff00,
           sprite: 'wanderer',
-        resting: false,
+          resting: false,
+          eating: false,
+          drinking: false,
         },
       ],
     };

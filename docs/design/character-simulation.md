@@ -196,5 +196,6 @@ Milestone 02 adds the character profile: a seeded name, the seven
 attributes, the ten personality traits, hunger, thirst and fatigue, and
 a lifecycle of alive or dead. Fatigue rises with movement and recovers
 while the character rests; constitution sets the rate. Hunger and thirst
-do not change until the world can feed someone. Skills, inventory,
+rise over time, and the world feeds or waters a character once that need
+is pressing. Skills, inventory,
 relationships, memories and goals stay later.

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TERRAIN_TYPES } from '@simsand/shared';
 
+import { createCharacter } from '../entities/create-character.js';
 import { createPopulation } from '../entities/create-population.js';
 import { removeCharacter } from '../entities/remove-character.js';
 import { createWorldSnapshot } from '../systems/snapshot.js';
@@ -50,7 +51,7 @@ describe('world persistence', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(0.05), 99);
 
     expect(persisted).toMatchObject({
-      version: 5,
+      version: 6,
       seed: 99,
       tick: 0,
       fixedDeltaSeconds: 0.05,
@@ -93,7 +94,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld({ ...current, version: 1 });
 
-    expect(upgraded.version).toBe(5);
+    expect(upgraded.version).toBe(6);
     expect(upgraded.map).toEqual(toWorldMapData(generateWorldMap(42)));
     expect(() => restorePersistedWorld(upgraded)).not.toThrow();
   });
@@ -113,7 +114,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutProfiles);
 
-    expect(upgraded.version).toBe(5);
+    expect(upgraded.version).toBe(6);
     expect(upgraded.entities.map((entity) => entity.name)).toEqual(
       persisted.entities.map((entity) => entity.name),
     );
@@ -124,12 +125,52 @@ describe('world persistence', () => {
     ).entities).toEqual(persisted.entities);
   });
 
+  it('upgrades a version 5 world by deriving eating and drinking from needs', () => {
+    const world = createSimulationWorld();
+    createCharacter(world, {
+      id: 'diner',
+      x: 1,
+      y: 1,
+      velocityX: 0,
+      velocityY: 0,
+      color: 1,
+      sprite: 'wanderer',
+      name: 'Din Er',
+      attributes: {
+        strength: 5, dexterity: 5, intelligence: 5, wisdom: 5, constitution: 5, perception: 5, charisma: 5,
+      },
+      personality: {
+        aggression: 0.5, sociability: 0.5, greed: 0.5, ambition: 0.5, loyalty: 0.5,
+        curiosity: 0.5, courage: 0.5, honesty: 0.5, industriousness: 0.5, empathy: 0.5,
+      },
+      needs: { hunger: 0.9, thirst: 0.2, fatigue: 0.2 },
+      lifecycle: 'alive',
+    });
+
+    const persisted = capturePersistedWorld(world, createSimulationClock(), 1);
+    const withoutSustenance = {
+      ...persisted,
+      version: 5 as const,
+      entities: persisted.entities.map((entity) => {
+        const { eating: _eating, drinking: _drinking, ...rest } = entity;
+        return rest;
+      }),
+    };
+
+    const upgraded = upgradePersistedWorld(withoutSustenance);
+
+    expect(upgraded.version).toBe(6);
+    expect(upgraded.entities[0].eating).toBe(true);
+    expect(upgraded.entities[0].drinking).toBe(false);
+    expect(upgraded.entities[0].needs.hunger).toBe(0.9);
+  });
+
   it('rejects an unsupported format version', () => {
     const world = createSimulationWorld();
     const persisted = capturePersistedWorld(world, createSimulationClock(), 1);
 
-    expect(() => restorePersistedWorld({ ...persisted, version: 6 })).toThrow(
-      'Unsupported persisted world version: 6',
+    expect(() => restorePersistedWorld({ ...persisted, version: 7 })).toThrow(
+      'Unsupported persisted world version: 7',
     );
   });
 });

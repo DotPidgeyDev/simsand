@@ -5,7 +5,7 @@ import type { CharacterProfile, PersistedEntity, PersistedWorld } from '@simsand
 
 import { generateCharacterProfile, readCharacterProfile, spriteIdFor } from '../characters/profile.js';
 import { Condition } from '../components/condition.js';
-import { FATIGUE_REST_AT } from '../systems/needs.js';
+import { FATIGUE_REST_AT, HUNGER_EAT_AT, THIRST_DRINK_AT } from '../systems/needs.js';
 import type { SimulationClock } from './clock.js';
 import { createSimulationClock } from './clock.js';
 import { fromWorldMapData, generateWorldMap, toWorldMapData } from './map.js';
@@ -20,11 +20,17 @@ import { createCharacter } from '../entities/create-character.js';
 
 // Version 1 predates the tile map. Version 2 predates the character profile.
 // Version 3 predates the resting flag. Version 4 stores a numeric sprite.
-type PersistedEntityV2 = Omit<PersistedEntity, keyof CharacterProfile | 'resting'>;
+// Version 5 predates the eating and drinking flags.
+type PersistedEntityV2 = Omit<PersistedEntity, keyof CharacterProfile | 'resting' | 'eating' | 'drinking'>;
 
-export type PersistedWorldV4 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV5 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 5;
+  entities: Array<Omit<PersistedEntity, 'eating' | 'drinking'>>;
+};
+
+export type PersistedWorldV4 = Omit<PersistedWorldV5, 'version' | 'entities'> & {
   version: 4;
-  entities: Array<Omit<PersistedEntity, 'sprite'> & { sprite: number }>;
+  entities: Array<Omit<PersistedWorldV5['entities'][number], 'sprite'> & { sprite: number }>;
 };
 
 export type PersistedWorldV3 = Omit<PersistedWorldV4, 'version' | 'entities'> & {
@@ -39,7 +45,13 @@ export type PersistedWorldV2 = Omit<PersistedWorld, 'version' | 'entities'> & {
 
 export type PersistedWorldV1 = Omit<PersistedWorldV2, 'version' | 'map'> & { version: 1 };
 
-export type UpgradeableWorld = PersistedWorldV1 | PersistedWorldV2 | PersistedWorldV3 | PersistedWorldV4 | PersistedWorld;
+export type UpgradeableWorld =
+  | PersistedWorldV1
+  | PersistedWorldV2
+  | PersistedWorldV3
+  | PersistedWorldV4
+  | PersistedWorldV5
+  | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
 export function capturePersistedWorld(
@@ -60,6 +72,8 @@ export function capturePersistedWorld(
       color: Appearance.color[eid],
       sprite: Appearance.sprite[eid],
       resting: Condition.resting[eid] === 1,
+      eating: Condition.eating[eid] === 1,
+      drinking: Condition.drinking[eid] === 1,
     });
   }
 
@@ -114,12 +128,26 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 4) {
+    const withSprite = {
+      ...persisted,
+      version: 5 as const,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        sprite: spriteIdFor(persisted.seed, entity.id),
+      })),
+    } as unknown as PersistedWorldV5;
+
+    return upgradePersistedWorld(withSprite);
+  }
+
+  if (persisted.version === 5) {
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
       entities: persisted.entities.map((entity) => ({
         ...entity,
-        sprite: spriteIdFor(persisted.seed, entity.id),
+        eating: entity.needs.hunger >= HUNGER_EAT_AT,
+        drinking: entity.needs.thirst >= THIRST_DRINK_AT,
       })),
     };
   }

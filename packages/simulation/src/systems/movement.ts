@@ -21,7 +21,12 @@ export function updateMovement(
   const entities = query(world.ecs, [Position, Velocity]);
 
   for (const eid of entities) {
-    if (Lifecycle.state[eid] === DEAD || Condition.resting[eid] === 1) continue;
+    if (
+      Lifecycle.state[eid] === DEAD
+      || Condition.resting[eid] === 1
+      || Condition.eating[eid] === 1
+      || Condition.drinking[eid] === 1
+    ) continue;
 
     const x = bounce(Position.x[eid] + Velocity.x[eid] * deltaSeconds, worldWidth);
     const y = bounce(Position.y[eid] + Velocity.y[eid] * deltaSeconds, worldHeight);

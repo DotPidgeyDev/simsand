@@ -13,6 +13,8 @@ export interface EntitySnapshot {
   color: number;
   sprite: SpriteId;
   resting: boolean;
+  eating: boolean;
+  drinking: boolean;
 }
 
 // A tile's terrain is stored as its index in this list, so entries may be
@@ -41,7 +43,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 5;
+export const PERSISTED_WORLD_VERSION = 6;
 
 export const ATTRIBUTE_NAMES = [
   'strength',
@@ -112,9 +114,11 @@ export interface PersistedEntity extends CharacterProfile {
   velocityY: number;
   color: number;
   sprite: SpriteId;
-  // Remembered so a save during the rest gap resumes resting. Fatigue alone
-  // cannot say, because the same value occurs on the way up and the way down.
+  // Remembered so a save during the gap resumes the same recovery. The need
+  // alone cannot say, because the same value occurs on the way up and down.
   resting: boolean;
+  eating: boolean;
+  drinking: boolean;
 }
 
 // Everything needed to resume the simulation. Unlike WorldSnapshot, which
@@ -218,6 +222,8 @@ export interface EntityInspection extends CharacterProfile {
   color: number;
   sprite: SpriteId;
   resting: boolean;
+  eating: boolean;
+  drinking: boolean;
   derived: DerivedStats;
   // The tile containing the entity. An entity on the far edge of the map
   // reports the last row or column.
