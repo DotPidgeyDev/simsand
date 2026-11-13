@@ -8,7 +8,7 @@ import { Personality } from '../components/personality.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Attributes } from '../components/attributes.js';
-import { actionUtilities } from '../systems/actions.js';
+import { actionUtilities, emptyCooldowns } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
@@ -52,6 +52,14 @@ export function inspectCharacter(
       fatigue: Needs.fatigue[eid],
       curiosity: Personality.curiosity[eid],
     }),
+    cooldowns: {
+      ...emptyCooldowns(),
+      idle: Action.cooldown.idle[eid],
+      move: Action.cooldown.move[eid],
+      eat: Action.cooldown.eat[eid],
+      rest: Action.cooldown.rest[eid],
+      drink: Action.cooldown.drink[eid],
+    },
     derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };

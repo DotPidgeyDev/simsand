@@ -5,6 +5,7 @@ import type { ActionId, CharacterProfile, PersistedEntity, PersistedWorld } from
 
 import { generateCharacterProfile, readCharacterProfile, spriteIdFor, startingAgeSeconds } from '../characters/profile.js';
 import { Action } from '../components/action.js';
+import { emptyCooldowns } from '../systems/actions.js';
 import { Condition } from '../components/condition.js';
 import { FATIGUE_REST_AT, HUNGER_EAT_AT, THIRST_DRINK_AT } from '../systems/needs.js';
 import type { SimulationClock } from './clock.js';
@@ -23,12 +24,20 @@ import { createCharacter } from '../entities/create-character.js';
 // Version 1 predates the tile map. Version 2 predates the character profile.
 // Version 3 predates the resting flag. Version 4 stores a numeric sprite.
 // Version 5 predates the eating and drinking flags. Version 6 predates age.
-// Version 7 predates the chosen action.
-type PersistedEntityV2 = Omit<PersistedEntity, keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds'>;
+// Version 7 predates the chosen action. Version 8 predates action cooldowns.
+type PersistedEntityV2 = Omit<
+  PersistedEntity,
+  keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns'
+>;
 
-export type PersistedWorldV7 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV8 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 8;
+  entities: Array<Omit<PersistedEntity, 'cooldowns'>>;
+};
+
+export type PersistedWorldV7 = Omit<PersistedWorldV8, 'version' | 'entities'> & {
   version: 7;
-  entities: Array<Omit<PersistedEntity, 'action' | 'actionSeconds'>>;
+  entities: Array<Omit<PersistedWorldV8['entities'][number], 'action' | 'actionSeconds'>>;
 };
 
 export type PersistedWorldV6 = Omit<PersistedWorldV7, 'version' | 'entities'> & {
@@ -66,6 +75,7 @@ export type UpgradeableWorld =
   | PersistedWorldV5
   | PersistedWorldV6
   | PersistedWorldV7
+  | PersistedWorldV8
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -92,6 +102,13 @@ export function capturePersistedWorld(
       ageSeconds: Lifecycle.ageSeconds[eid],
       action: ACTION_IDS[Action.kind[eid]] ?? 'move',
       actionSeconds: Action.elapsed[eid],
+      cooldowns: {
+        idle: Action.cooldown.idle[eid],
+        move: Action.cooldown.move[eid],
+        eat: Action.cooldown.eat[eid],
+        rest: Action.cooldown.rest[eid],
+        drink: Action.cooldown.drink[eid],
+      },
     });
   }
 
@@ -203,13 +220,26 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 7) {
+    const withAction = {
+      ...persisted,
+      version: 8 as const,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        action: actionFromFlags(entity),
+        actionSeconds: 0,
+      })),
+    } as unknown as PersistedWorldV8;
+
+    return upgradePersistedWorld(withAction);
+  }
+
+  if (persisted.version === 8) {
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
       entities: persisted.entities.map((entity) => ({
         ...entity,
-        action: actionFromFlags(entity),
-        actionSeconds: 0,
+        cooldowns: emptyCooldowns(),
       })),
     };
   }

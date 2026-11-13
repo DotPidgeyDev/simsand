@@ -134,7 +134,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (![1, 2, 3, 4, 5, 6, 7, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
@@ -200,6 +200,22 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
       if (!isFiniteNumber(entity.actionSeconds) || entity.actionSeconds < 0) {
         throw new Error('Character action time is missing or invalid');
+      }
+    }
+  }
+
+  if (Number(world.version) >= 9) {
+    for (const entity of world.entities as { cooldowns?: unknown }[]) {
+      if (typeof entity.cooldowns !== 'object' || entity.cooldowns === null) {
+        throw new Error('Character cooldowns are missing');
+      }
+
+      const cooldowns = entity.cooldowns as Record<string, unknown>;
+
+      for (const id of ACTION_IDS) {
+        if (!isFiniteNumber(cooldowns[id]) || (cooldowns[id] as number) < 0) {
+          throw new Error(`Character cooldown for ${id} is missing or invalid`);
+        }
       }
     }
   }

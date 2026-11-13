@@ -9,7 +9,7 @@ import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
 import { createSimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
-import { MIN_ACTION_SECONDS, updateActions } from './actions.js';
+import { ACTION_COOLDOWN_SECONDS, MIN_ACTION_SECONDS, updateActions } from './actions.js';
 import { updateMovement } from './movement.js';
 import { updateNeeds } from './needs.js';
 
@@ -99,6 +99,34 @@ describe('updateActions', () => {
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('drink');
     expect(Position.x[eid]).toBe(10);
+    expect(Action.cooldown.move[eid]).toBe(ACTION_COOLDOWN_SECONDS);
+    expect(Action.cooldown.drink[eid]).toBe(0);
+  });
+
+  it('skips a cooled action even when it scores highest', () => {
+    const { world, eid } = character();
+    Action.elapsed[eid] = 0;
+    Action.cooldown.eat[eid] = 10;
+    Needs.hunger[eid] = 0.9;
+    Needs.thirst[eid] = 0.5;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('drink');
+    expect(Action.cooldown.eat[eid]).toBeCloseTo(9.9);
+  });
+
+  it('does not cool an action that finishes on its own', () => {
+    const { world, eid } = character();
+    Personality.curiosity[eid] = 1;
+    Action.kind[eid] = ACTION_IDS.indexOf('eat');
+    Action.elapsed[eid] = MIN_ACTION_SECONDS;
+    Needs.hunger[eid] = 0.3;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Action.cooldown.eat[eid]).toBe(0);
   });
 
   it('idles a dead character and leaves them where they are', () => {
