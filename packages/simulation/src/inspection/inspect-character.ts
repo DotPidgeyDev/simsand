@@ -1,6 +1,9 @@
 import type { EntityInspection } from '@simsand/shared';
 
 import { readCharacterProfile } from '../characters/profile.js';
+import { Condition } from '../components/condition.js';
+import { Attributes } from '../components/attributes.js';
+import { derivedStats } from '../systems/needs.js';
 import { getTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
@@ -32,6 +35,8 @@ export function inspectCharacter(
     color: Appearance.color[eid],
     sprite: Appearance.sprite[eid],
     ...readCharacterProfile(eid),
+    resting: Condition.resting[eid] === 1,
+    derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };
 }

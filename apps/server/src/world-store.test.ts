@@ -9,7 +9,7 @@ import { WorldStore } from './world-store.js';
 
 function world(tick: number): PersistedWorld {
   return {
-    version: 3,
+    version: 4,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -24,6 +24,7 @@ function world(tick: number): PersistedWorld {
         velocityY: -0.5,
         color: 3,
         sprite: 1,
+        resting: false,
         ...generateCharacterProfile(12345, 'character-0001'),
       },
     ],
@@ -121,6 +122,25 @@ describe('WorldStore', () => {
     insertRaw(db, 10, JSON.stringify({ ...saved, version: 2, entities }));
 
     expect(store.loadLatest()).toEqual(saved);
+  });
+
+  it('upgrades a version 3 snapshot by deriving resting from fatigue', () => {
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const saved = world(10);
+    const { resting: _resting, ...awake } = saved.entities[0];
+
+    insertRaw(db, 10, JSON.stringify({
+      ...saved,
+      version: 3,
+      entities: [{ ...awake, needs: { ...awake.needs, fatigue: 0.9 } }],
+    }));
+
+    const loaded = store.loadLatest();
+
+    expect(loaded?.version).toBe(4);
+    expect(loaded?.entities[0].resting).toBe(true);
+    expect(loaded?.entities[0].needs.fatigue).toBe(0.9);
   });
 
   it('rejects a snapshot whose character profile is out of range', () => {

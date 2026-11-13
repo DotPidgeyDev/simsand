@@ -18,6 +18,7 @@ describe('createWorldDelta', () => {
         y: 10,
         color: 0xffffff,
         sprite: 1,
+        resting: false,
       },
       {
         id: 'character-0002',
@@ -25,6 +26,7 @@ describe('createWorldDelta', () => {
         y: 20,
         color: 0xff0000,
         sprite: 1,
+        resting: false,
       },
     ],
   };
@@ -60,6 +62,7 @@ describe('createWorldDelta', () => {
           y: 30,
           color: 0x00ff00,
           sprite: 1,
+        resting: false,
         },
       ],
     };
@@ -82,6 +85,19 @@ describe('createWorldDelta', () => {
 
     expect(delta.entities).toHaveLength(0);
     expect(delta.removed).toEqual(['character-0001']);
+  });
+
+  it('includes a character who started or stopped resting without moving', () => {
+    const delta = createWorldDelta(previous, {
+      ...previous,
+      tick: 11,
+      entities: [
+        { ...previous.entities[0], resting: true },
+        previous.entities[1],
+      ],
+    });
+
+    expect(delta.entities.map((entity) => entity.id)).toEqual(['character-0001']);
   });
 
   it('returns an empty delta when nothing changed', () => {

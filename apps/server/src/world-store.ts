@@ -130,7 +130,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (world.version !== 1 && world.version !== 2 && world.version !== PERSISTED_WORLD_VERSION) {
+  if (world.version !== 1 && world.version !== 2 && world.version !== 3 && world.version !== PERSISTED_WORLD_VERSION) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
@@ -152,9 +152,17 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
     throw new Error('Snapshot entities are missing or invalid');
   }
 
-  if (world.version === PERSISTED_WORLD_VERSION) {
+  if (world.version === 3 || world.version === PERSISTED_WORLD_VERSION) {
     for (const entity of world.entities) {
       assertCharacterProfile(entity);
+    }
+  }
+
+  if (world.version === PERSISTED_WORLD_VERSION) {
+    for (const entity of world.entities as { resting?: unknown }[]) {
+      if (typeof entity.resting !== 'boolean') {
+        throw new Error('Character resting flag is missing');
+      }
     }
   }
 

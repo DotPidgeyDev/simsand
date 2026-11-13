@@ -7,6 +7,7 @@ import type { SimulationWorld } from '../core/world.js';
 
 import { Attributes } from '../components/attributes.js';
 import { Appearance } from '../components/appearance.js';
+import { Condition } from '../components/condition.js';
 import { Identity } from '../components/identity.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
@@ -22,6 +23,7 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   velocityY: number;
   color: number;
   sprite: number;
+  resting?: boolean;
 }
 
 // pass in the world and character attr, and get the id of a new char entity added to the world.
@@ -51,10 +53,12 @@ export function createCharacter(
     Personality,
     Needs,
     Lifecycle,
+    Condition,
   );
 
   Identity.id[eid] = definition.id;
   writeCharacterProfile(eid, profileFor(world, definition));
+  Condition.resting[eid] = definition.resting ? 1 : 0;
 
   Position.x[eid] = definition.x;
   Position.y[eid] = definition.y;

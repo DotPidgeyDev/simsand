@@ -9,8 +9,8 @@ const snapshot: WorldSnapshot = {
   elapsedSeconds: 1,
   map: { width: 1, height: 1, tiles: [0] },
   entities: [
-    { id: 'character-0001', x: 1, y: 2, color: 1, sprite: 0 },
-    { id: 'character-0002', x: 3, y: 4, color: 2, sprite: 0 },
+    { id: 'character-0001', x: 1, y: 2, color: 1, sprite: 0, resting: false },
+    { id: 'character-0002', x: 3, y: 4, color: 2, sprite: 0, resting: false },
   ],
 };
 
@@ -19,7 +19,7 @@ describe('applyDeltaToSnapshot', () => {
     const updated = applyDeltaToSnapshot(snapshot, {
       tick: 12,
       entities: [
-        { id: 'character-0001', x: 8, y: 9, color: 1, sprite: 0 },
+        { id: 'character-0001', x: 8, y: 9, color: 1, sprite: 0, resting: false },
       ],
       removed: [],
     });
@@ -28,7 +28,7 @@ describe('applyDeltaToSnapshot', () => {
     expect(updated.elapsedSeconds).toBe(1);
     expect(updated.map).toBe(snapshot.map);
     expect(updated.entities).toEqual([
-      { id: 'character-0001', x: 8, y: 9, color: 1, sprite: 0 },
+      { id: 'character-0001', x: 8, y: 9, color: 1, sprite: 0, resting: false },
       snapshot.entities[1],
     ]);
   });
@@ -39,7 +39,7 @@ describe('applyDeltaToSnapshot', () => {
       x: 5,
       y: 6,
       color: 3,
-      sprite: 0,
+      sprite: 0, resting: false,
     };
 
     const updated = applyDeltaToSnapshot(snapshot, {

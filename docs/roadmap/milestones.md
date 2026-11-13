@@ -118,13 +118,14 @@ A character now has a profile stored on its entity and saved with the world (per
 - Three basic needs (hunger, thirst and fatigue), from 0 (satisfied) to 1 (critical). New characters start comfortable.
 - A lifecycle state, `alive` or `dead`. Dead characters stay in the world but do not move.
 
-The profile is generated inside the simulation, validated when a character is created or a save is loaded, and returned by the inspection API. Version 2 saves gain profiles on load, generated from the seed, and the next save stores them. Needs do not change over time yet, and nothing in the simulation sets a character to dead.
+The profile is generated inside the simulation, validated when a character is created or a save is loaded, and returned by the inspection API. Version 2 saves gain profiles on load, generated from the seed, and the next save stores them.
+
+Fatigue rises while a character moves and falls while they rest. Constitution is the first derived statistic: it sets the fatigue rate, which inspection reports. A character rests at fatigue 0.8 and starts moving again at 0.3, shown as a circle instead of a square. The resting flag is saved (format version 4) so a restart does not wake them early. Hunger and thirst do not change yet, because nothing can feed a character, and a need that only rises would leave everyone at critical. Nothing in the simulation sets a character to dead.
 
 ### Remaining work
 
-- Derived statistics, once a system needs them.
 - Named sprite references. Appearance is still a colour and a numeric sprite index.
-- Needs changing over time, together with a way for them to recover.
+- Hunger and thirst changing, once something can feed a character.
 - Lifecycle transitions caused by the simulation.
 
 Initial scope:
@@ -146,10 +147,10 @@ Avoid implementing complex decision-making at this stage. The goal is to establi
 - [x] Characters have stable IDs and seeded names.
 - [ ] Appearance uses named sprite references.
 - [x] Core attributes are stored, validated and persisted.
-- [ ] Derived statistics are defined by a system that uses them.
+- [x] Derived statistics are defined by a system that uses them.
 - [x] Personality traits are stored, validated and persisted.
 - [x] Basic needs are stored, validated and persisted.
-- [ ] Needs change over time and can recover.
+- [x] Needs change over time and can recover. Fatigue does; hunger and thirst wait for food.
 - [x] Lifecycle state is stored, and dead characters do not move.
 - [ ] The simulation itself changes lifecycle state.
 - [x] Character creation fills in a valid profile.

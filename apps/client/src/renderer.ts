@@ -88,17 +88,31 @@ export async function createRenderer(container: HTMLElement) {
     });
   }
 
+  const restingDrawn = new Map<string, boolean>();
+
+  function drawCharacter(graphic: Graphics, color: number, resting: boolean): void {
+    graphic.clear();
+
+    if (resting) {
+      graphic.circle(0, 0, 3).fill(color);
+    } else {
+      graphic.rect(-4, -4, 8, 8).fill(color);
+    }
+  }
+
   function updateEntities(snapshots: EntitySnapshot[]): void {
     for (const entity of snapshots) {
       let graphic = entities.get(entity.id);
 
       if (!graphic) {
-        graphic = new Graphics()
-          .rect(-4, -4, 8, 8)
-          .fill(entity.color);
-
+        graphic = new Graphics();
         entities.set(entity.id, graphic);
         world.addChild(graphic);
+      }
+
+      if (restingDrawn.get(entity.id) !== entity.resting) {
+        drawCharacter(graphic, entity.color, entity.resting);
+        restingDrawn.set(entity.id, entity.resting);
       }
 
       graphic.position.set(
@@ -112,6 +126,7 @@ export async function createRenderer(container: HTMLElement) {
     for (const id of ids) {
       entities.get(id)?.destroy();
       entities.delete(id);
+      restingDrawn.delete(id);
     }
   }
 

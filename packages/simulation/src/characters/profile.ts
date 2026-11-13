@@ -22,8 +22,8 @@ import { Personality } from '../components/personality.js';
 
 const NAME_MAX_LENGTH = 64;
 
-// New characters start comfortable rather than desperate. Decay comes later,
-// with the actions that can bring a need back down.
+// New characters start comfortable rather than desperate. Fatigue rises and
+// recovers on its own. Hunger and thirst wait for something that can feed them.
 const INITIAL_NEED_MIN = 0.15;
 const INITIAL_NEED_SPAN = 0.3;
 

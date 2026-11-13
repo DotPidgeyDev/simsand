@@ -133,7 +133,11 @@ Attributes, personality, needs and lifecycle are component data because later sy
 
 `generateCharacterProfile(seed, id)` in `packages/simulation/src/characters/profile.ts` builds the profile from the world seed and the stable ID, using its own random stream, so it never changes where characters are placed. The same character therefore gets the same profile when an older save is upgraded. A profile supplied at creation, including one read back from a save, is checked with `assertCharacterProfile` and stored as given.
 
-Attributes are integers from 1 to 10. Personality traits are 0 to 1. Needs are 0 (satisfied) to 1 (critical); generated characters start between 0.15 and 0.45. Names come from a small placeholder list. No derived statistics are defined yet, because no system uses one. Needs do not change during a tick.
+Attributes are integers from 1 to 10. Personality traits are 0 to 1. Needs are 0 (satisfied) to 1 (critical); generated characters start between 0.15 and 0.45. Names come from a small placeholder list. The needs system runs at the start of every tick, before movement. Fatigue rises while a character is active and falls while they rest. They stop at 0.8 and resume at 0.3, so the same fatigue value means opposite things on the way up and the way down; the resting flag is saved for that reason. Constitution sets the gain: `packages/simulation/src/systems/needs.ts` uses `0.015 × (11 − constitution) / 10` per second, so constitution 10 tires at a tenth of the rate of constitution 1. Recovery is 0.025 per second. Inspection reports both rates as derived stats. They are computed, not stored.
+
+Hunger and thirst are stored but do not change. Nothing can feed a character yet, and letting those needs only rise would pin everyone at critical.
+
+The rates are provisional so a rest cycle is visible within a couple of minutes.
 
 ### Systems
 
@@ -146,7 +150,7 @@ The current simulation includes:
 - Queries entities containing `Position` and `Velocity`.
 - Calculates new positions using the fixed simulation timestep.
 - Bounces entities off the map edges: the distance past the edge is mirrored back inside, and that velocity component is reversed.
-- Skips dead characters, leaving their position and velocity unchanged.
+- Skips dead characters and resting characters, leaving their position and velocity unchanged.
 - Updates entity positions.
 
 Positions were originally clamped at the edge with velocity unchanged. In a long-running world that pinned every moving character in a corner. A movement test now runs 20 characters for 30,000 ticks to check that none end up in a corner.
@@ -542,6 +546,8 @@ Measure representative workloads again as systems are added, rather than assumin
 | Tick timing and dropped-tick tracking | Implemented |
 | Entity inspection | Implemented — read-only, via the server's inspection API |
 | Character profile | Implemented — name, attributes, personality, needs, lifecycle |
+| Needs system | Implemented — fatigue and rest; hunger and thirst are stored only |
+| Derived statistics | Implemented — fatigue rates from constitution |
 
 ---
 

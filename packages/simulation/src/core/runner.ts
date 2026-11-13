@@ -3,6 +3,7 @@ import type { SimulationClock } from './clock.js';
 
 import { advanceClock } from './clock.js';
 import { updateMovement } from '../systems/movement.js';
+import { updateNeeds } from '../systems/needs.js';
 
 export interface SimulationRunner {
   world: SimulationWorld;
@@ -29,6 +30,7 @@ export function tickSimulation(runner: SimulationRunner): void {
 
   const deltaSeconds = runner.clock.fixedDeltaSeconds;
 
+  updateNeeds(runner.world, deltaSeconds);
   updateMovement(runner.world, deltaSeconds);
   advanceClock(runner.clock);
 }

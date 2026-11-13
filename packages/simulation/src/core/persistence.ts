@@ -4,6 +4,8 @@ import { PERSISTED_WORLD_VERSION } from '@simsand/shared';
 import type { CharacterProfile, PersistedEntity, PersistedWorld } from '@simsand/shared';
 
 import { generateCharacterProfile, readCharacterProfile } from '../characters/profile.js';
+import { Condition } from '../components/condition.js';
+import { FATIGUE_REST_AT } from '../systems/needs.js';
 import type { SimulationClock } from './clock.js';
 import { createSimulationClock } from './clock.js';
 import { fromWorldMapData, generateWorldMap, toWorldMapData } from './map.js';
@@ -17,7 +19,13 @@ import { Appearance } from '../components/appearance.js';
 import { createCharacter } from '../entities/create-character.js';
 
 // Version 1 predates the tile map. Version 2 predates the character profile.
-type PersistedEntityV2 = Omit<PersistedEntity, keyof CharacterProfile>;
+// Version 3 predates the resting flag.
+type PersistedEntityV2 = Omit<PersistedEntity, keyof CharacterProfile | 'resting'>;
+
+export type PersistedWorldV3 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 3;
+  entities: Array<Omit<PersistedEntity, 'resting'>>;
+};
 
 export type PersistedWorldV2 = Omit<PersistedWorld, 'version' | 'entities'> & {
   version: 2;
@@ -26,7 +34,7 @@ export type PersistedWorldV2 = Omit<PersistedWorld, 'version' | 'entities'> & {
 
 export type PersistedWorldV1 = Omit<PersistedWorldV2, 'version' | 'map'> & { version: 1 };
 
-export type UpgradeableWorld = PersistedWorldV1 | PersistedWorldV2 | PersistedWorld;
+export type UpgradeableWorld = PersistedWorldV1 | PersistedWorldV2 | PersistedWorldV3 | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
 export function capturePersistedWorld(
@@ -43,9 +51,10 @@ export function capturePersistedWorld(
       y: Position.y[eid],
       velocityX: Velocity.x[eid],
       velocityY: Velocity.y[eid],
+      ...readCharacterProfile(eid),
       color: Appearance.color[eid],
       sprite: Appearance.sprite[eid],
-      ...readCharacterProfile(eid),
+      resting: Condition.resting[eid] === 1,
     });
   }
 
@@ -74,12 +83,25 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 2) {
+    const withProfile: PersistedWorldV3 = {
+      ...persisted,
+      version: 3,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        ...generateCharacterProfile(persisted.seed, entity.id),
+      })),
+    };
+
+    return upgradePersistedWorld(withProfile);
+  }
+
+  if (persisted.version === 3) {
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
       entities: persisted.entities.map((entity) => ({
         ...entity,
-        ...generateCharacterProfile(persisted.seed, entity.id),
+        resting: entity.needs.fatigue >= FATIGUE_REST_AT,
       })),
     };
   }

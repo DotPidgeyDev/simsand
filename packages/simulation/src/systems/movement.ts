@@ -4,6 +4,7 @@ import { LIFECYCLE_STATES } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
 
+import { Condition } from '../components/condition.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Position } from '../components/position.js';
 import { Velocity } from '../components/velocity.js';
@@ -20,7 +21,7 @@ export function updateMovement(
   const entities = query(world.ecs, [Position, Velocity]);
 
   for (const eid of entities) {
-    if (Lifecycle.state[eid] === DEAD) continue;
+    if (Lifecycle.state[eid] === DEAD || Condition.resting[eid] === 1) continue;
 
     const x = bounce(Position.x[eid] + Velocity.x[eid] * deltaSeconds, worldWidth);
     const y = bounce(Position.y[eid] + Velocity.y[eid] * deltaSeconds, worldHeight);

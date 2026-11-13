@@ -15,6 +15,7 @@ export { executeCommand } from './commands/execute-command.js';
 export { createPopulation } from './entities/create-population.js';
 
 export { updateMovement } from './systems/movement.js';
+export { updateNeeds, derivedStats, fatigueGainPerSecond } from './systems/needs.js';
 
 export { createSimulationClock, advanceClock } from './core/clock.js';
 export type { SimulationClock } from './core/clock.js';

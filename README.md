@@ -282,7 +282,7 @@ PixiJS currently renders:
 
 - A 64×64 tile map of grass, dirt and water, generated from the world seed and received from the server.
 - Grid lines.
-- Coloured square placeholders representing entities.
+- Coloured square placeholders representing entities. A resting entity is drawn as a circle.
 - Entity positions updated through incoming snapshots and deltas.
 
 Terrain is drawn as flat colours. Characters can currently cross water; collision comes with navigation. The current renderer is deliberately simple. Terrain tile art, character sprites, animations, camera controls and visual effects will be introduced later.

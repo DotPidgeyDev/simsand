@@ -12,7 +12,8 @@ function hasChanged(
     previous.x !== current.x ||
     previous.y !== current.y ||
     previous.color !== current.color ||
-    previous.sprite !== current.sprite
+    previous.sprite !== current.sprite ||
+    previous.resting !== current.resting
   );
 }
 

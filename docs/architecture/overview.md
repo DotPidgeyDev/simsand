@@ -207,7 +207,7 @@ Contains engine-independent simulation code:
 
 The package uses bitECS 0.4 and must remain independent of PixiJS, Vue, browser APIs and server-specific modules.
 
-Future functionality will include character behaviour, skills, inventory, relationships, navigation, world systems and other gameplay logic. Needs are stored but do not change yet.
+Future functionality will include character behaviour, skills, inventory, relationships, navigation, world systems and other gameplay logic. Fatigue rises and recovers with rest. Hunger and thirst are stored but do not change yet.
 
 ### Shared package
 

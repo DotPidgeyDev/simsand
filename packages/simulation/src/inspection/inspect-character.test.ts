@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { TERRAIN_TYPES } from '@simsand/shared';
 
 import { generateCharacterProfile } from '../characters/profile.js';
+import { derivedStats } from '../systems/needs.js';
 import { createWorldMap } from '../core/map.js';
 import { createSimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
@@ -33,6 +34,8 @@ describe('inspectCharacter', () => {
       color: 0x123456,
       sprite: 2,
       ...generateCharacterProfile(0, 'swimmer'),
+      resting: false,
+      derived: derivedStats(generateCharacterProfile(0, 'swimmer').attributes.constitution),
       tile: { x: 2, y: 3, terrain: 'water' },
     });
   });
