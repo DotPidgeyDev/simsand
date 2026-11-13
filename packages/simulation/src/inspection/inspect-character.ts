@@ -1,0 +1,35 @@
+import type { EntityInspection } from '@simsand/shared';
+
+import { getTile } from '../core/map.js';
+import type { SimulationWorld } from '../core/world.js';
+
+import { Position } from '../components/position.js';
+import { Velocity } from '../components/velocity.js';
+import { Appearance } from '../components/appearance.js';
+
+export function inspectCharacter(
+  world: SimulationWorld,
+  id: string,
+): EntityInspection | undefined {
+  const eid = world.entityIds.get(id);
+
+  if (eid === undefined) {
+    return undefined;
+  }
+
+  const x = Position.x[eid];
+  const y = Position.y[eid];
+  const tileX = Math.min(world.map.width - 1, Math.max(0, Math.floor(x)));
+  const tileY = Math.min(world.map.height - 1, Math.max(0, Math.floor(y)));
+
+  return {
+    id,
+    x,
+    y,
+    velocityX: Velocity.x[eid],
+    velocityY: Velocity.y[eid],
+    color: Appearance.color[eid],
+    sprite: Appearance.sprite[eid],
+    tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
+  };
+}

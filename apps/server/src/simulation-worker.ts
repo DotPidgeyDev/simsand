@@ -2,16 +2,20 @@ import { Worker } from 'node:worker_threads';
 
 import type {
   CommandResult,
+  EntityInspection,
   PersistedWorld,
+  SimulationStatus,
   ServerToWorkerMessage,
   SimulationCommand,
   WorkerToServerMessage,
 } from '@simsand/shared';
 
+import { log } from './logger.js';
+
 export class SimulationWorker {
   private worker: Worker | undefined;
 
-  private nextPersistRequestId = 1;
+  private nextRequestId = 1;
 
   private pendingReplies = new Map<string, (value: unknown) => void>();
 
@@ -50,11 +54,21 @@ export class SimulationWorker {
         return;
       }
 
+      if (message.type === 'world.status') {
+        this.resolveReply(`status:${message.data.requestId}`, message.data.status);
+        return;
+      }
+
+      if (message.type === 'world.inspected') {
+        this.resolveReply(`inspect:${message.data.requestId}`, message.data.entity);
+        return;
+      }
+
       this.onMessage(message);
     });
 
     this.worker.on('error', (error) => {
-      console.error('Simulation worker error:', error);
+      log.error('Simulation worker error:', error);
     });
 
     const worker = this.worker;
@@ -66,7 +80,7 @@ export class SimulationWorker {
       this.worker = undefined;
 
       if (code !== 0) {
-        console.error(`Simulation worker exited with code ${code}`);
+        log.error(`Simulation worker exited with code ${code}`);
       }
     });
 
@@ -89,7 +103,7 @@ export class SimulationWorker {
   }
 
   capturePersistedWorld(timeoutMs = 2000): Promise<PersistedWorld> {
-    const requestId = this.nextPersistRequestId++;
+    const requestId = this.nextRequestId++;
 
     return this.request<PersistedWorld>(
       `persist:${requestId}`,
@@ -97,6 +111,30 @@ export class SimulationWorker {
       timeoutMs,
       'a world snapshot',
     );
+  }
+
+  getStatus(timeoutMs = 2000): Promise<SimulationStatus> {
+    const requestId = this.nextRequestId++;
+
+    return this.request<SimulationStatus>(
+      `status:${requestId}`,
+      { type: 'world.status.request', data: { requestId } },
+      timeoutMs,
+      'its status',
+    );
+  }
+
+  async inspectEntity(entityId: string, timeoutMs = 2000): Promise<EntityInspection | undefined> {
+    const requestId = this.nextRequestId++;
+
+    const entity = await this.request<EntityInspection | null>(
+      `inspect:${requestId}`,
+      { type: 'world.inspect.request', data: { requestId, entityId } },
+      timeoutMs,
+      `details for entity ${entityId}`,
+    );
+
+    return entity ?? undefined;
   }
 
   executeCommand(command: SimulationCommand, timeoutMs = 2000): Promise<CommandResult> {

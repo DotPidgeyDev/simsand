@@ -14,6 +14,8 @@ import {
   restorePersistedWorld,
   executeCommand,
   generateWorldMap,
+  getSimulationLoopTiming,
+  inspectCharacter,
 } from '@simsand/simulation';
 
 import type {
@@ -146,6 +148,46 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
           data: {
             requestId: message.data.requestId,
             world: capturePersistedWorld(world, clock, seed),
+          },
+        });
+
+        break;
+      }
+
+      case 'world.status.request': {
+        if (!loop) {
+          throw new Error('Simulation has not started');
+        }
+
+        const { world, clock, paused } = loop.runner;
+
+        send({
+          type: 'world.status',
+          data: {
+            requestId: message.data.requestId,
+            status: {
+              tick: clock.tick,
+              elapsedSeconds: clock.elapsedSeconds,
+              paused,
+              population: world.entityIds.size,
+              ...getSimulationLoopTiming(loop),
+            },
+          },
+        });
+
+        break;
+      }
+
+      case 'world.inspect.request': {
+        if (!loop) {
+          throw new Error('Simulation has not started');
+        }
+
+        send({
+          type: 'world.inspected',
+          data: {
+            requestId: message.data.requestId,
+            entity: inspectCharacter(loop.runner.world, message.data.entityId) ?? null,
           },
         });
 

@@ -1,8 +1,8 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 01 in progress  
-**Version:** 1.1  
-**Last updated:** 2026-11-12
+**Status:** Active — Milestone 01 complete; Milestone 02 next  
+**Version:** 1.2  
+**Last updated:** 2026-11-13
 
 ## Guiding approach
 
@@ -20,7 +20,7 @@ The roadmap is a sequence of development goals, not a commitment to implement ev
 
 **Goal:** Start the server, open a browser and watch 20 independently simulated entities move around a top-down grid.
 
-**Status: In progress**
+**Status: Complete**
 
 ### Scope
 
@@ -51,7 +51,7 @@ The project currently has:
 - Identity, position, velocity and appearance components.
 - Seeded generation of 20 entities.
 - A fixed 100 ms simulation timestep.
-- A basic movement system with world boundaries.
+- A basic movement system in which entities bounce off the world boundaries.
 - A simulation loop with bounded catch-up ticks.
 - Full world snapshots and incremental entity deltas.
 - Shared TypeScript message contracts.
@@ -59,12 +59,20 @@ The project currently has:
 - Cached snapshots for newly connected browser clients.
 - A PixiJS browser renderer displaying the moving entities.
 - A seeded 64 × 64 tile map of grass, dirt and water, sent in snapshots and saved with the world.
+- SQLite snapshot persistence with periodic and shutdown saves.
+- A validated command contract (character create and remove) that produces domain events.
+- Timestamped server logging with a status line every minute and a warning when ticks are dropped.
+- A read-only inspection API on `127.0.0.1:8767` for status, the entity list and individual entities.
+- An end-to-end test that runs the real server with no browser, connects and disconnects a client, and confirms the simulation keeps advancing.
 
-### Remaining work
+### Carried forward
 
-- Fix characters getting stuck in map corners. Movement clamps position at the edge without changing velocity (see the known issue under the movement system in the simulation architecture).
-- Verify simulation continues independently of browser connections.
-- Establish minimal simulation logging and inspection.
+These were deliberately left out of Milestone 01:
+
+- A public entry point for commands, rate limits and deduplication (Milestone 07).
+- Durable storage and delivery of domain events (Milestone 06).
+- Terrain affecting movement, navigation and LDtk map loading.
+- Inspection beyond the read-only API, such as an admin UI (Milestones 02 and 10).
 
 ### Definition of done
 
@@ -84,6 +92,9 @@ The project currently has:
 - [x] A 1,000-entity test completes within an acceptable performance budget.
 - [x] Standard external command contracts are defined and tested.
 - [x] Initial domain-event contracts are defined.
+- [x] A basic tile map represents the world.
+- [x] An automated test confirms the simulation continues independently of browser connections.
+- [x] Minimal simulation logging and inspection are available.
 
 The milestone is complete when the foundational simulation can run independently, recover its state, and serve multiple browser clients without compromising authoritative state ownership.
 

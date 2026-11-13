@@ -123,6 +123,34 @@ export type CommandResult =
   | { commandId: string; status: 'applied'; tick: number; events: DomainEvent[] }
   | { commandId: string; status: 'rejected'; reason: CommandRejectionReason; message: string };
 
+export interface SimulationStatus {
+  tick: number;
+  elapsedSeconds: number;
+  paused: boolean;
+  population: number;
+  // Since the worker started.
+  ticksRun: number;
+  // Ticks skipped because the loop fell further behind than its catch-up limit.
+  ticksDropped: number;
+  // Over the most recent ticks, up to one minute's worth.
+  recentTicks: number;
+  meanTickMs: number;
+  maxTickMs: number;
+}
+
+export interface EntityInspection {
+  id: string;
+  x: number;
+  y: number;
+  velocityX: number;
+  velocityY: number;
+  color: number;
+  sprite: number;
+  // The tile containing the entity. An entity on the far edge of the map
+  // reports the last row or column.
+  tile: { x: number; y: number; terrain: TerrainType };
+}
+
 export type ServerToWorkerMessage =
   | {
       type: 'world.start';
@@ -136,7 +164,9 @@ export type ServerToWorkerMessage =
   | { type: 'world.resume' }
   | { type: 'world.snapshot.request' }
   | { type: 'world.persist.request'; data: { requestId: number } }
-  | { type: 'world.command'; data: SimulationCommand };
+  | { type: 'world.command'; data: SimulationCommand }
+  | { type: 'world.status.request'; data: { requestId: number } }
+  | { type: 'world.inspect.request'; data: { requestId: number; entityId: string } };
 
 export type WorkerToServerMessage =
   | {
@@ -163,6 +193,14 @@ export type WorkerToServerMessage =
   | {
       type: 'world.command.result';
       data: CommandResult;
+    }
+  | {
+      type: 'world.status';
+      data: { requestId: number; status: SimulationStatus };
+    }
+  | {
+      type: 'world.inspected';
+      data: { requestId: number; entity: EntityInspection | null };
     }
   | {
       type: 'world.error';

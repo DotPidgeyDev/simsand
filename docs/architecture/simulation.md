@@ -133,10 +133,10 @@ The current simulation includes:
 
 - Queries entities containing `Position` and `Velocity`.
 - Calculates new positions using the fixed simulation timestep.
-- Applies world boundary constraints.
+- Bounces entities off the map edges: the distance past the edge is mirrored back inside, and that velocity component is reversed.
 - Updates entity positions.
 
-**Known issue:** positions are clamped at the map edge, but velocity is left unchanged. A character that reaches an edge keeps pushing into it and slides along it until it reaches a corner, where it stays. In a long-running world every moving character ends up pinned in a corner: after about 8 hours of simulated time, all 20 characters were in the four corners. The fix is to reflect (or otherwise change) the velocity component that hit the boundary. The test that expects a clamped position with no change to velocity will need updating with it.
+Positions were originally clamped at the edge with velocity unchanged. In a long-running world that pinned every moving character in a corner. A movement test now runs 20 characters for 30,000 ticks to check that none end up in a corner.
 
 Future systems may include:
 
@@ -227,6 +227,7 @@ The current implementation:
 - Prevents unlimited catch-up work when the simulation falls behind.
 - Can be started and stopped.
 - Avoids starting duplicate loops.
+- Records ticks run, whole ticks dropped by the catch-up limit, and the duration of the most recent 600 ticks (one minute). `getSimulationLoopTiming(loop)` returns these totals plus the mean and maximum tick time. The worker reports them in `SimulationStatus`.
 
 The loop uses a fixed simulation delta regardless of how frequently the underlying timer executes.
 
@@ -460,17 +461,19 @@ Current test coverage includes foundational behaviour such as:
 - Seeded population generation: same seed gives the same world, IDs are unique, positions and velocities are in range, and two runs from one seed stay identical over 500 ticks.
 - Fixed clock progression and timestep validation.
 - Pause and resume.
-- Movement and world bounds.
-- Simulation loop execution, stopping, option validation, and bounded catch-up after a stall.
+- Movement and world bounds, including bouncing off edges over a long run.
+- Simulation loop execution, stopping, option validation, bounded catch-up after a stall, and tick timing and dropped-tick counts.
 - Snapshot and delta generation, including created and removed entities.
 - Stable-ID mapping and entity removal, including reused bitECS handles.
-- Persisted-world capture and restoration, including identical continuation after restore.
-- On the server: the snapshot cache and the SQLite world store's recovery rules.
+- Persisted-world capture and restoration, including identical continuation after restore, stored terrain, and upgrading version 1 saves.
+- Tile map generation, lookup and validation.
+- Command execution and character inspection.
+- On the server: the snapshot cache, the SQLite world store's recovery rules, the command gateway, and the inspection API.
+- End to end: the real server running with no browser, across a WebSocket connect and disconnect, through to a clean shutdown save.
 
 Future testing should include:
 
 - System ordering.
-- Command validation.
 - Domain store consistency.
 
 ### Performance test
@@ -522,6 +525,8 @@ Measure representative workloads again as systems are added, rather than assumin
 | Snapshot restoration | Implemented |
 | Deterministic replay | Not implemented |
 | 1,000-entity performance test | Implemented — within budget |
+| Tick timing and dropped-tick tracking | Implemented |
+| Entity inspection | Implemented — read-only, via the server's inspection API |
 
 ---
 

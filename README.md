@@ -197,6 +197,29 @@ You should see a tile map of grass, dirt and ponds with 20 coloured squares movi
 
 The server saves the world to `apps/server/data/simsand.sqlite` every 30 seconds and when stopped with Ctrl-C, then resumes from that save on the next start. Delete the `apps/server/data` directory to start a new world.
 
+### 4. Inspect the running simulation
+
+The server logs a status line every minute with the tick, population, connected browsers, tick timing and last save. It warns if the simulation falls behind and drops ticks.
+
+A read-only inspection API listens on `http://127.0.0.1:8767` (local connections only):
+
+```bash
+curl 127.0.0.1:8767/status                       # server and simulation status, tick timing
+curl 127.0.0.1:8767/entities                     # every entity's ID and position
+curl 127.0.0.1:8767/entities/character-0001      # one entity, with velocity and the tile under it
+```
+
+### Server configuration
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `SIMSAND_DB_PATH` | `apps/server/data/simsand.sqlite` | SQLite database file |
+| `SIMSAND_SAVE_INTERVAL_MS` | `30000` | Time between periodic saves |
+| `SIMSAND_STATUS_INTERVAL_MS` | `60000` | Time between status log lines |
+| `SIMSAND_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
+| `SIMSAND_WS_PORT` | `8766` | Browser WebSocket port |
+| `SIMSAND_INSPECT_PORT` | `8767` | Inspection API port |
+
 ---
 
 ## Development commands
@@ -251,7 +274,7 @@ The current communication flow supports:
 - Multiple simultaneous browser clients.
 - Sending the latest cached snapshot to newly connected clients.
 
-This allows the simulation to continue running even when no browser clients are connected.
+This allows the simulation to continue running even when no browser clients are connected. An end-to-end test (`apps/server/src/headless.e2e.test.ts`) starts the real server with no browser, connects and disconnects a WebSocket client, and checks that the tick keeps advancing throughout.
 
 ### Rendering
 
@@ -272,7 +295,7 @@ The first milestone is focused on establishing a reliable simulation foundation.
 
 | Milestone | Description | Status |
 |---|---|---|
-| 01 | Simulation foundation and browser rendering | In progress |
+| 01 | Simulation foundation and browser rendering | Complete |
 | 02 | World maps, terrain and navigation | Planned |
 | 03 | Character attributes, needs and behaviours | Planned |
 | 04 | Actions, skills, inventory and items | Planned |

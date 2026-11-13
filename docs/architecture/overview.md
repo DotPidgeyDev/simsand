@@ -159,10 +159,12 @@ The Node.js server currently:
 - Continues running independently of browser connections.
 - Saves and restores world snapshots in SQLite.
 - Validates external commands (schema, protocol version and source permissions) and routes accepted commands to the simulation through `CommandGateway`.
+- Logs a status line every minute and warns when the simulation drops ticks.
+- Serves a read-only Fastify inspection API on `127.0.0.1` (status, entity list, single entity).
 
 Planned responsibilities:
 
-- Fastify HTTP endpoints, including a public command entry point.
+- Public Fastify HTTP endpoints, including a command entry point.
 - Livestream platform integrations.
 - Identity-based permissions, rate limiting and deduplication.
 
@@ -274,7 +276,7 @@ SQLite with WAL is the initial storage solution. Basic snapshot save and restore
 | Package manager | pnpm | Implemented |
 | Monorepo | pnpm workspaces | Implemented |
 | Server | Node.js | Implemented |
-| HTTP framework | Fastify | Planned |
+| HTTP framework | Fastify | Implemented — read-only inspection API |
 | Simulation architecture | ECS | Implemented |
 | ECS library | bitECS 0.4 | Implemented |
 | Worker | `worker_threads` | Implemented |
@@ -289,7 +291,7 @@ SQLite with WAL is the initial storage solution. Basic snapshot save and restore
 
 TypeScript is sufficient for the initial target. Reconsider another runtime, including Rust, only if profiling demonstrates a material bottleneck.
 
-The initial implementation deliberately uses a simple Node.js server rather than introducing Fastify before HTTP functionality is needed.
+Fastify was introduced for the first HTTP need, the local read-only inspection API. Browser updates still use the separate `ws` WebSocket server.
 
 ---
 

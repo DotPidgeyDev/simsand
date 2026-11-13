@@ -30,12 +30,16 @@ export {
   createSimulationLoop,
   startSimulationLoop,
   stopSimulationLoop,
+  getSimulationLoopTiming,
 } from './core/loop.js';
 
 export type {
   SimulationLoop,
   SimulationLoopOptions,
+  SimulationLoopTiming,
 } from './core/loop.js';
+
+export { inspectCharacter } from './inspection/inspect-character.js';
 
 export {
   capturePersistedWorld,

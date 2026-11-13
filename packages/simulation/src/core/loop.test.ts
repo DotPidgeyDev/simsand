@@ -5,6 +5,7 @@ import { createSimulationClock } from './clock.js';
 import { createSimulationRunner } from './runner.js';
 import {
   createSimulationLoop,
+  getSimulationLoopTiming,
   startSimulationLoop,
   stopSimulationLoop,
 } from './loop.js';
@@ -67,6 +68,7 @@ describe('simulation loop', () => {
 
     expect(clock.tick).toBe(5);
     expect(loop.accumulatorSeconds).toBeCloseTo(0.05);
+    expect(getSimulationLoopTiming(loop)).toMatchObject({ ticksRun: 5, ticksDropped: 15 });
 
     nowMs = 2060;
     vi.advanceTimersByTime(10);
@@ -75,6 +77,33 @@ describe('simulation loop', () => {
 
     stopSimulationLoop(loop);
     vi.restoreAllMocks();
+  });
+
+  it('reports tick timing over the most recent minute of ticks', () => {
+    vi.useFakeTimers();
+
+    const loop = createSimulationLoop(
+      createSimulationRunner(createSimulationWorld(), createSimulationClock()),
+    );
+
+    expect(getSimulationLoopTiming(loop)).toEqual({
+      ticksRun: 0,
+      ticksDropped: 0,
+      recentTicks: 0,
+      meanTickMs: 0,
+      maxTickMs: 0,
+    });
+
+    startSimulationLoop(loop);
+    vi.advanceTimersByTime(70_000);
+    stopSimulationLoop(loop);
+
+    const timing = getSimulationLoopTiming(loop);
+
+    expect(timing.ticksRun).toBeGreaterThanOrEqual(699);
+    expect(timing.recentTicks).toBe(600);
+    expect(timing.ticksDropped).toBe(0);
+    expect(timing.maxTickMs).toBeGreaterThanOrEqual(timing.meanTickMs);
   });
 
   it('rejects invalid loop options', () => {

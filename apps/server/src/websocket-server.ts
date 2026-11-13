@@ -1,7 +1,10 @@
+import type { AddressInfo } from 'node:net';
+
 import { WebSocket, WebSocketServer } from 'ws';
 
 import type { WorldSnapshot, WorldDelta } from '@simsand/shared';
 
+import { log } from './logger.js';
 import { applyDeltaToSnapshot } from './snapshot-cache.js';
 
 export type ClientMessage =
@@ -13,27 +16,45 @@ export class BrowserWebSocketServer {
 
   private latestSnapshot: WorldSnapshot | undefined;
 
-constructor(port = 8766) {
-  this.server = new WebSocketServer({ port });
+  readonly listening: Promise<number>;
 
-  this.server.on('connection', (socket) => {
-    console.log('Browser client connected');
-    console.log('Cached snapshot exists:', this.latestSnapshot !== undefined);
+  constructor(port = 8766) {
+    this.server = new WebSocketServer({ port });
 
-    if (this.latestSnapshot) {
-      socket.send(JSON.stringify({
-        type: 'world.snapshot',
-        data: this.latestSnapshot,
-      }));
-    }
-
-    socket.on('close', () => {
-      console.log('Browser client disconnected');
+    this.listening = new Promise((resolve, reject) => {
+      this.server.once('listening', () => {
+        const actualPort = (this.server.address() as AddressInfo).port;
+        log.info(`WebSocket server listening on port ${actualPort}`);
+        resolve(actualPort);
+      });
+      this.server.once('error', reject);
     });
-  });
 
-  console.log(`WebSocket server listening on port ${port}`);
-}
+    this.server.on('connection', (socket) => {
+      log.info(`Browser client connected (${this.clientCount} connected)`);
+
+      if (this.latestSnapshot) {
+        socket.send(JSON.stringify({
+          type: 'world.snapshot',
+          data: this.latestSnapshot,
+        }));
+      } else {
+        log.warn('No world snapshot cached yet; client will wait for the next one');
+      }
+
+      socket.on('close', () => {
+        log.info(`Browser client disconnected (${this.clientCount} connected)`);
+      });
+    });
+  }
+
+  get clientCount(): number {
+    return this.server.clients.size;
+  }
+
+  getLatestSnapshot(): WorldSnapshot | undefined {
+    return this.latestSnapshot;
+  }
 
   broadcast(message: ClientMessage): void {
     const payload = JSON.stringify(message);
@@ -47,7 +68,6 @@ constructor(port = 8766) {
 
   setLatestSnapshot(snapshot: WorldSnapshot): void {
     this.latestSnapshot = snapshot;
-    console.log('Caching snapshot with entities:', snapshot.entities.length);
   }
 
   applyDelta(delta: WorldDelta): void {

@@ -24,6 +24,7 @@ A public entry point for commands (HTTP API or platform adapter) and streaming-p
 |---|---|---|---|
 | Server ↔ simulation worker | Node.js worker message channel | Lifecycle, snapshots, deltas and errors | Implemented |
 | Browser ↔ server | WebSockets (`ws`) | Initial state and incremental updates | Implemented |
+| Local tools ↔ server | HTTP (Fastify), `127.0.0.1` only | Read-only inspection of status and entities | Implemented |
 | Browser ↔ server APIs | HTTP | Configuration and non-streaming operations | Planned |
 | Platform ↔ server | Platform-specific SDK/API or connection | Receive chat and platform events | Planned |
 | Server ↔ persistence | `node:sqlite` in the server process | Save and restore durable world state | Implemented — snapshots |
@@ -33,6 +34,22 @@ The browser never communicates directly with the worker.
 Platform adapters must never directly mutate simulation state.
 
 The server distributes simulation updates but does not own or modify authoritative gameplay state.
+
+### Inspection API
+
+`apps/server/src/inspection-server.ts` is a read-only Fastify server on `127.0.0.1:8767` (`SIMSAND_INSPECT_PORT`). It has no authentication, so it must not be bound to a public interface.
+
+| Route | Source | Response |
+|---|---|---|
+| `GET /status` | Worker `world.status.request`, plus server state | Uptime, browser clients, last save, and the `SimulationStatus` |
+| `GET /entities` | The server's cached snapshot | Tick, count, and each entity's ID and position |
+| `GET /entities/:id` | Worker `world.inspect.request` | `EntityInspection`, or 404 |
+
+If the worker doesn't answer within 2 seconds, the routes that query it return 503 with `simulation_unavailable`.
+
+### Logging
+
+The server writes timestamped log lines through `apps/server/src/logger.ts`, filtered by `SIMSAND_LOG_LEVEL` (default `info`). Every minute (`SIMSAND_STATUS_INTERVAL_MS`) it logs one status line: tick, population, browser clients, mean and maximum tick time, and last save. If ticks were dropped since the previous report, it also logs a warning. Periodic saves and snapshot receipt are logged at `debug`.
 
 ---
 
@@ -82,6 +99,8 @@ The message contracts are defined in `packages/shared`.
 | `world.snapshot.request` | Request a full world snapshot |
 | `world.persist.request` | Request the complete state needed to save the world, tagged with a `requestId` |
 | `world.command` | A validated `SimulationCommand` for the simulation to apply or reject |
+| `world.status.request` | Request the current `SimulationStatus`, tagged with a `requestId` |
+| `world.inspect.request` | Request full details for one entity by stable ID, tagged with a `requestId` |
 
 The `world.start` message optionally includes:
 
@@ -100,6 +119,8 @@ Without `restore`, the worker uses `seed` and `population` to generate a new wor
 | `world.delta` | Incremental entity updates |
 | `world.persisted` | The `PersistedWorld` for a `world.persist.request`, with the same `requestId` |
 | `world.command.result` | The `CommandResult` for a `world.command`, matched by `commandId` |
+| `world.status` | Tick, clock, pause state, population and tick timing for a `world.status.request` |
+| `world.inspected` | An `EntityInspection`, or `null` if no entity has that ID |
 | `world.error` | Simulation error information |
 
 The current message types are represented as TypeScript discriminated unions.
@@ -116,6 +137,8 @@ The shared package currently defines the following concepts:
 - `PersistedWorld` and `PersistedEntity`
 - `CommandRequest`, `SimulationCommand` and `CommandResult`
 - `DomainEvent`
+- `SimulationStatus` and `EntityInspection`
+- `WorldMapData` and `TERRAIN_TYPES`
 
 The exact definitions are maintained in:
 
@@ -462,9 +485,10 @@ The server can start the simulation worker, receive snapshots and deltas, cache 
 
 The browser receives the initial snapshot and subsequent deltas and uses them to update the PixiJS renderer.
 
+An end-to-end test (`apps/server/src/headless.e2e.test.ts`) runs the real server on random ports with a temporary database. With no browser attached, it checks that the tick advances. It then connects a WebSocket client, receives the snapshot, disconnects, and checks that the tick keeps advancing. Finally it checks for a clean save and exit on SIGTERM.
+
 The remaining communication work includes:
 
-- Testing continued simulation without connected clients.
 - Runtime validation for browser messages.
 - A versioned envelope for worker and browser messages.
 - A public entry point for commands.

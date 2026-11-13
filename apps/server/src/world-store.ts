@@ -7,6 +7,8 @@ import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/sha
 import { fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { PersistedWorldV1 } from '@simsand/simulation';
 
+import { log } from './logger.js';
+
 const SCHEMA_VERSION = 1;
 
 // A failed or corrupt write must never leave the store without a valid
@@ -64,7 +66,7 @@ export class WorldStore {
         return parsePersistedWorld(row.payload);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
-        console.error(`Skipping invalid world snapshot ${row.id} (tick ${row.tick}): ${reason}`);
+        log.error(`Skipping invalid world snapshot ${row.id} (tick ${row.tick}): ${reason}`);
       }
     }
 
