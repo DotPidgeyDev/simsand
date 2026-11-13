@@ -3,7 +3,7 @@ import { query } from 'bitecs';
 import { PERSISTED_WORLD_VERSION } from '@simsand/shared';
 import type { CharacterProfile, PersistedEntity, PersistedWorld } from '@simsand/shared';
 
-import { generateCharacterProfile, readCharacterProfile, spriteIdFor } from '../characters/profile.js';
+import { generateCharacterProfile, readCharacterProfile, spriteIdFor, startingAgeSeconds } from '../characters/profile.js';
 import { Condition } from '../components/condition.js';
 import { FATIGUE_REST_AT, HUNGER_EAT_AT, THIRST_DRINK_AT } from '../systems/needs.js';
 import type { SimulationClock } from './clock.js';
@@ -12,6 +12,7 @@ import { fromWorldMapData, generateWorldMap, toWorldMapData } from './map.js';
 import type { SimulationWorld } from './world.js';
 import { createSimulationWorld } from './world.js';
 
+import { Lifecycle } from '../components/lifecycle.js';
 import { Identity } from '../components/identity.js';
 import { Position } from '../components/position.js';
 import { Velocity } from '../components/velocity.js';
@@ -20,12 +21,17 @@ import { createCharacter } from '../entities/create-character.js';
 
 // Version 1 predates the tile map. Version 2 predates the character profile.
 // Version 3 predates the resting flag. Version 4 stores a numeric sprite.
-// Version 5 predates the eating and drinking flags.
-type PersistedEntityV2 = Omit<PersistedEntity, keyof CharacterProfile | 'resting' | 'eating' | 'drinking'>;
+// Version 5 predates the eating and drinking flags. Version 6 predates age.
+type PersistedEntityV2 = Omit<PersistedEntity, keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds'>;
 
-export type PersistedWorldV5 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV6 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 6;
+  entities: Array<Omit<PersistedEntity, 'ageSeconds'>>;
+};
+
+export type PersistedWorldV5 = Omit<PersistedWorldV6, 'version' | 'entities'> & {
   version: 5;
-  entities: Array<Omit<PersistedEntity, 'eating' | 'drinking'>>;
+  entities: Array<Omit<PersistedWorldV6['entities'][number], 'eating' | 'drinking'>>;
 };
 
 export type PersistedWorldV4 = Omit<PersistedWorldV5, 'version' | 'entities'> & {
@@ -51,6 +57,7 @@ export type UpgradeableWorld =
   | PersistedWorldV3
   | PersistedWorldV4
   | PersistedWorldV5
+  | PersistedWorldV6
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -74,6 +81,7 @@ export function capturePersistedWorld(
       resting: Condition.resting[eid] === 1,
       eating: Condition.eating[eid] === 1,
       drinking: Condition.drinking[eid] === 1,
+      ageSeconds: Lifecycle.ageSeconds[eid],
     });
   }
 
@@ -141,13 +149,26 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 5) {
+    const withSustenance = {
+      ...persisted,
+      version: 6 as const,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        eating: entity.needs.hunger >= HUNGER_EAT_AT,
+        drinking: entity.needs.thirst >= THIRST_DRINK_AT,
+      })),
+    } as unknown as PersistedWorldV6;
+
+    return upgradePersistedWorld(withSustenance);
+  }
+
+  if (persisted.version === 6) {
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
       entities: persisted.entities.map((entity) => ({
         ...entity,
-        eating: entity.needs.hunger >= HUNGER_EAT_AT,
-        drinking: entity.needs.thirst >= THIRST_DRINK_AT,
+        ageSeconds: startingAgeSeconds(persisted.seed, entity.id, entity.attributes.constitution),
       })),
     };
   }

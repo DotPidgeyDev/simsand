@@ -15,6 +15,7 @@ export { executeCommand } from './commands/execute-command.js';
 export { createPopulation } from './entities/create-population.js';
 
 export { updateMovement } from './systems/movement.js';
+export { updateLifecycle, lifespanSeconds } from './systems/lifecycle.js';
 export { updateNeeds, derivedStats, fatigueGainPerSecond } from './systems/needs.js';
 
 export { createSimulationClock, advanceClock } from './core/clock.js';
@@ -48,6 +49,7 @@ export {
   generateCharacterProfile,
   readCharacterProfile,
   spriteIdFor,
+  startingAgeSeconds,
 } from './characters/profile.js';
 
 export {

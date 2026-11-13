@@ -15,6 +15,7 @@ export interface EntitySnapshot {
   resting: boolean;
   eating: boolean;
   drinking: boolean;
+  lifecycle: LifecycleState;
 }
 
 // A tile's terrain is stored as its index in this list, so entries may be
@@ -43,7 +44,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 6;
+export const PERSISTED_WORLD_VERSION = 7;
 
 export const ATTRIBUTE_NAMES = [
   'strength',
@@ -104,6 +105,7 @@ export interface CharacterProfile {
 export interface DerivedStats {
   fatigueGainPerSecond: number;
   fatigueRecoveryPerSecond: number;
+  lifespanSeconds: number;
 }
 
 export interface PersistedEntity extends CharacterProfile {
@@ -119,6 +121,8 @@ export interface PersistedEntity extends CharacterProfile {
   resting: boolean;
   eating: boolean;
   drinking: boolean;
+  // Seeded for a new character, then increased while they are alive.
+  ageSeconds: number;
 }
 
 // Everything needed to resume the simulation. Unlike WorldSnapshot, which
@@ -224,6 +228,7 @@ export interface EntityInspection extends CharacterProfile {
   resting: boolean;
   eating: boolean;
   drinking: boolean;
+  ageSeconds: number;
   derived: DerivedStats;
   // The tile containing the entity. An entity on the far edge of the map
   // reports the last row or column.

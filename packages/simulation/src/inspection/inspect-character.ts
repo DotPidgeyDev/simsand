@@ -2,6 +2,7 @@ import type { EntityInspection } from '@simsand/shared';
 
 import { readCharacterProfile } from '../characters/profile.js';
 import { Condition } from '../components/condition.js';
+import { Lifecycle } from '../components/lifecycle.js';
 import { Attributes } from '../components/attributes.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile } from '../core/map.js';
@@ -38,6 +39,7 @@ export function inspectCharacter(
     resting: Condition.resting[eid] === 1,
     eating: Condition.eating[eid] === 1,
     drinking: Condition.drinking[eid] === 1,
+    ageSeconds: Lifecycle.ageSeconds[eid],
     derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };

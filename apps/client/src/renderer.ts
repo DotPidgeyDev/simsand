@@ -91,15 +91,23 @@ export async function createRenderer(container: HTMLElement) {
   const appearanceDrawn = new Map<string, string>();
 
   // Placeholder shapes until there is real sprite art. Resting overrides the
-  // shape, and a ring shows a character who has stopped to eat or drink.
+  // shape, a ring shows a character who has stopped to eat or drink, and a
+  // dead character is an X.
   function drawCharacter(
     graphic: Graphics,
     color: number,
     sprite: SpriteId,
     resting: boolean,
     sustaining: boolean,
+    dead: boolean,
   ): void {
     graphic.clear();
+
+    if (dead) {
+      graphic.moveTo(-5, -5).lineTo(5, 5).stroke({ color, width: 2 });
+      graphic.moveTo(-5, 5).lineTo(5, -5).stroke({ color, width: 2 });
+      return;
+    }
 
     if (resting) {
       graphic.circle(0, 0, 3).fill(color);
@@ -126,11 +134,12 @@ export async function createRenderer(container: HTMLElement) {
         world.addChild(graphic);
       }
 
-      const sustaining = entity.eating || entity.drinking;
-      const appearance = `${entity.sprite}:${entity.resting}:${sustaining}`;
+      const dead = entity.lifecycle === 'dead';
+      const sustaining = !dead && (entity.eating || entity.drinking);
+      const appearance = `${entity.sprite}:${entity.resting}:${sustaining}:${entity.lifecycle}`;
 
       if (appearanceDrawn.get(entity.id) !== appearance) {
-        drawCharacter(graphic, entity.color, entity.sprite, entity.resting, sustaining);
+        drawCharacter(graphic, entity.color, entity.sprite, entity.resting, sustaining, dead);
         appearanceDrawn.set(entity.id, appearance);
       }
 

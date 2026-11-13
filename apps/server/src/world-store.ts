@@ -134,7 +134,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (![1, 2, 3, 4, 5, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
+  if (![1, 2, 3, 4, 5, 6, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
@@ -180,6 +180,14 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
     for (const entity of world.entities as { eating?: unknown; drinking?: unknown }[]) {
       if (typeof entity.eating !== 'boolean' || typeof entity.drinking !== 'boolean') {
         throw new Error('Character sustenance flags are missing');
+      }
+    }
+  }
+
+  if (Number(world.version) >= 7) {
+    for (const entity of world.entities as { ageSeconds?: unknown }[]) {
+      if (!isFiniteNumber(entity.ageSeconds) || entity.ageSeconds < 0) {
+        throw new Error('Character age is missing or invalid');
       }
     }
   }

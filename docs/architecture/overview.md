@@ -381,7 +381,7 @@ These are initial engineering targets, not guaranteed capacity limits.
 | Movement | Implemented |
 | World dimensions | 64 × 64 tile map |
 | Browser renderer | PixiJS |
-| Entity representation | Named sprite shapes (square, diamond, triangle; circle while resting; ring while eating or drinking) |
+| Entity representation | Named sprite shapes (square, diamond, triangle; circle while resting; ring while eating or drinking; X when dead) |
 | Snapshot and delta communication | Implemented |
 | Multiple browser clients | Supported by WebSocket server |
 

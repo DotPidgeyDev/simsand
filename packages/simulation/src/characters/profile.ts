@@ -16,6 +16,7 @@ import type {
 } from '@simsand/shared';
 
 import { createRandom } from '../core/random.js';
+import { lifespanSeconds } from '../systems/lifecycle.js';
 import { Attributes } from '../components/attributes.js';
 import { Identity } from '../components/identity.js';
 import { Lifecycle } from '../components/lifecycle.js';
@@ -24,9 +25,10 @@ import { Personality } from '../components/personality.js';
 
 const NAME_MAX_LENGTH = 64;
 const SPRITE_SEED_SALT = 0x85ebca6b;
+const AGE_SEED_SALT = 0xc2b2ae35;
 
-// New characters start comfortable rather than desperate. Fatigue rises and
-// recovers on its own. Hunger and thirst wait for something that can feed them.
+// New characters start comfortable rather than desperate. Needs rise and recover
+// on their own; age is tracked separately and can end the life.
 const INITIAL_NEED_MIN = 0.15;
 const INITIAL_NEED_SPAN = 0.3;
 
@@ -59,6 +61,14 @@ export function spriteIdFor(worldSeed: number, id: string): SpriteId {
   const random = createRandom(profileSeed(worldSeed ^ SPRITE_SEED_SALT, id));
 
   return SPRITE_IDS[Math.floor(random() * SPRITE_IDS.length)];
+}
+
+// Separate from the profile and sprite streams. The fraction is in [0, 1),
+// so a new character is never born already dead.
+export function startingAgeSeconds(worldSeed: number, id: string, constitution: number): number {
+  const random = createRandom(profileSeed(worldSeed ^ AGE_SEED_SALT, id));
+
+  return random() * lifespanSeconds(constitution);
 }
 
 export function assertSpriteId(value: unknown): SpriteId {

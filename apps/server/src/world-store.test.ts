@@ -3,13 +3,15 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PersistedWorld } from '@simsand/shared';
-import { generateCharacterProfile, generateWorldMap, spriteIdFor, toWorldMapData } from '@simsand/simulation';
+import { generateCharacterProfile, generateWorldMap, spriteIdFor, startingAgeSeconds, toWorldMapData } from '@simsand/simulation';
 
 import { WorldStore } from './world-store.js';
 
 function world(tick: number): PersistedWorld {
+  const profile = generateCharacterProfile(12345, 'character-0001');
+
   return {
-    version: 6,
+    version: 7,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -27,7 +29,8 @@ function world(tick: number): PersistedWorld {
         resting: false,
         eating: false,
         drinking: false,
-        ...generateCharacterProfile(12345, 'character-0001'),
+        ...profile,
+        ageSeconds: startingAgeSeconds(12345, 'character-0001', profile.attributes.constitution),
       },
     ],
   };
@@ -140,7 +143,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(6);
+    expect(loaded?.version).toBe(7);
     expect(loaded?.entities[0].eating).toBe(false);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].resting).toBe(true);
@@ -162,10 +165,27 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(6);
+    expect(loaded?.version).toBe(7);
     expect(loaded?.entities[0].eating).toBe(true);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].needs.hunger).toBe(0.9);
+    expect(loaded?.entities[0].ageSeconds).toBe(
+      startingAgeSeconds(12345, 'character-0001', saved.entities[0].attributes.constitution),
+    );
+  });
+
+  it('upgrades a version 6 snapshot with a seeded age', () => {
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const saved = world(10);
+    const { ageSeconds: _ageSeconds, ...withoutAge } = saved.entities[0];
+
+    insertRaw(db, 10, JSON.stringify({ ...saved, version: 6, entities: [withoutAge] }));
+
+    const loaded = store.loadLatest();
+
+    expect(loaded?.version).toBe(7);
+    expect(loaded?.entities[0].ageSeconds).toBe(saved.entities[0].ageSeconds);
   });
 
   it('rejects a snapshot whose character profile is out of range', () => {

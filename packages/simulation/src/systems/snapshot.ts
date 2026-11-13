@@ -1,14 +1,16 @@
 import { query } from 'bitecs';
 
+import { LIFECYCLE_STATES } from '@simsand/shared';
+import type { EntitySnapshot, WorldSnapshot } from '@simsand/shared';
+
 import { toWorldMapData } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Condition } from '../components/condition.js';
 import { Identity } from '../components/identity.js';
+import { Lifecycle } from '../components/lifecycle.js';
 import { Position } from '../components/position.js';
 import { Appearance } from '../components/appearance.js';
-
-import type { EntitySnapshot, WorldSnapshot } from '@simsand/shared';
 
 export function createWorldSnapshot(
   world: SimulationWorld,
@@ -33,6 +35,7 @@ export function createWorldSnapshot(
       resting: Condition.resting[eid] === 1,
       eating: Condition.eating[eid] === 1,
       drinking: Condition.drinking[eid] === 1,
+      lifecycle: LIFECYCLE_STATES[Lifecycle.state[eid]],
     });
   }
 

@@ -21,6 +21,7 @@ describe('createWorldDelta', () => {
         resting: false,
         eating: false,
         drinking: false,
+        lifecycle: 'alive',
       },
       {
         id: 'character-0002',
@@ -31,6 +32,7 @@ describe('createWorldDelta', () => {
         resting: false,
         eating: false,
         drinking: false,
+        lifecycle: 'alive',
       },
     ],
   };
@@ -69,6 +71,7 @@ describe('createWorldDelta', () => {
           resting: false,
           eating: false,
           drinking: false,
+          lifecycle: 'alive',
         },
       ],
     };
@@ -91,6 +94,19 @@ describe('createWorldDelta', () => {
 
     expect(delta.entities).toHaveLength(0);
     expect(delta.removed).toEqual(['character-0001']);
+  });
+
+  it('includes a character who died without moving', () => {
+    const delta = createWorldDelta(previous, {
+      ...previous,
+      tick: 11,
+      entities: [
+        { ...previous.entities[0], lifecycle: 'dead', resting: false },
+        previous.entities[1],
+      ],
+    });
+
+    expect(delta.entities.map((entity) => entity.id)).toEqual(['character-0001']);
   });
 
   it('includes a character who started or stopped resting without moving', () => {

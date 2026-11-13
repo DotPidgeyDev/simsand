@@ -4,6 +4,7 @@ import { ATTRIBUTE_MAX, LIFECYCLE_STATES } from '@simsand/shared';
 import type { DerivedStats } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
+import { lifespanSeconds } from './lifecycle.js';
 
 import { Attributes } from '../components/attributes.js';
 import { Condition } from '../components/condition.js';
@@ -40,6 +41,7 @@ export function derivedStats(constitution: number): DerivedStats {
   return {
     fatigueGainPerSecond: fatigueGainPerSecond(constitution),
     fatigueRecoveryPerSecond: FATIGUE_RECOVERY_PER_SECOND,
+    lifespanSeconds: lifespanSeconds(constitution),
   };
 }
 

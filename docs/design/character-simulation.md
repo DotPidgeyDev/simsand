@@ -197,5 +197,6 @@ attributes, the ten personality traits, hunger, thirst and fatigue, and
 a lifecycle of alive or dead. Fatigue rises with movement and recovers
 while the character rests; constitution sets the rate. Hunger and thirst
 rise over time, and the world feeds or waters a character once that need
-is pressing. Skills, inventory,
+is pressing. Age increases while a character is alive, and constitution
+sets when that life ends. Skills, inventory,
 relationships, memories and goals stay later.

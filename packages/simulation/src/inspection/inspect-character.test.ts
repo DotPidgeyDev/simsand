@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TERRAIN_TYPES } from '@simsand/shared';
 
-import { generateCharacterProfile } from '../characters/profile.js';
+import { generateCharacterProfile, startingAgeSeconds } from '../characters/profile.js';
 import { derivedStats } from '../systems/needs.js';
 import { createWorldMap } from '../core/map.js';
 import { createSimulationWorld } from '../core/world.js';
@@ -37,6 +37,7 @@ describe('inspectCharacter', () => {
       resting: false,
       eating: false,
       drinking: false,
+      ageSeconds: startingAgeSeconds(0, 'swimmer', generateCharacterProfile(0, 'swimmer').attributes.constitution),
       derived: derivedStats(generateCharacterProfile(0, 'swimmer').attributes.constitution),
       tile: { x: 2, y: 3, terrain: 'water' },
     });

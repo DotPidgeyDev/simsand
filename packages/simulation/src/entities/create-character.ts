@@ -2,7 +2,7 @@ import { addEntity, addComponents } from 'bitecs';
 
 import type { CharacterProfile, SpriteId } from '@simsand/shared';
 
-import { assertCharacterProfile, assertSpriteId, generateCharacterProfile, writeCharacterProfile } from '../characters/profile.js';
+import { assertCharacterProfile, assertSpriteId, generateCharacterProfile, startingAgeSeconds, writeCharacterProfile } from '../characters/profile.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Attributes } from '../components/attributes.js';
@@ -26,6 +26,7 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   resting?: boolean;
   eating?: boolean;
   drinking?: boolean;
+  ageSeconds?: number;
 }
 
 // pass in the world and character attr, and get the id of a new char entity added to the world.
@@ -59,7 +60,13 @@ export function createCharacter(
   );
 
   Identity.id[eid] = definition.id;
-  writeCharacterProfile(eid, profileFor(world, definition));
+  const profile = profileFor(world, definition);
+  writeCharacterProfile(eid, profile);
+  Lifecycle.ageSeconds[eid] = definition.ageSeconds ?? startingAgeSeconds(
+    world.seed,
+    definition.id,
+    profile.attributes.constitution,
+  );
   Condition.resting[eid] = definition.resting ? 1 : 0;
   Condition.eating[eid] = definition.eating ? 1 : 0;
   Condition.drinking[eid] = definition.drinking ? 1 : 0;

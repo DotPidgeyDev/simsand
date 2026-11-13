@@ -15,7 +15,8 @@ function hasChanged(
     previous.sprite !== current.sprite ||
     previous.resting !== current.resting ||
     previous.eating !== current.eating ||
-    previous.drinking !== current.drinking
+    previous.drinking !== current.drinking ||
+    previous.lifecycle !== current.lifecycle
   );
 }
 

@@ -57,7 +57,7 @@ describe('executeCommand', () => {
       },
     ]);
     expect(createWorldSnapshot(world, 0, 0).entities).toEqual([
-      { id: 'visitor-0001', x: 10, y: 20, color: 0xffffff, sprite: spriteIdFor(0, 'visitor-0001'), resting: false, eating: false, drinking: false },
+      { id: 'visitor-0001', x: 10, y: 20, color: 0xffffff, sprite: spriteIdFor(0, 'visitor-0001'), resting: false, eating: false, drinking: false, lifecycle: 'alive' },
     ]);
   });
 

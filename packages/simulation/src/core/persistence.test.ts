@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { TERRAIN_TYPES } from '@simsand/shared';
 
+import { startingAgeSeconds } from '../characters/profile.js';
 import { createCharacter } from '../entities/create-character.js';
 import { createPopulation } from '../entities/create-population.js';
 import { removeCharacter } from '../entities/remove-character.js';
@@ -51,7 +52,7 @@ describe('world persistence', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(0.05), 99);
 
     expect(persisted).toMatchObject({
-      version: 6,
+      version: 7,
       seed: 99,
       tick: 0,
       fixedDeltaSeconds: 0.05,
@@ -94,7 +95,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld({ ...current, version: 1 });
 
-    expect(upgraded.version).toBe(6);
+    expect(upgraded.version).toBe(7);
     expect(upgraded.map).toEqual(toWorldMapData(generateWorldMap(42)));
     expect(() => restorePersistedWorld(upgraded)).not.toThrow();
   });
@@ -114,7 +115,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutProfiles);
 
-    expect(upgraded.version).toBe(6);
+    expect(upgraded.version).toBe(7);
     expect(upgraded.entities.map((entity) => entity.name)).toEqual(
       persisted.entities.map((entity) => entity.name),
     );
@@ -159,18 +160,38 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutSustenance);
 
-    expect(upgraded.version).toBe(6);
+    expect(upgraded.version).toBe(7);
     expect(upgraded.entities[0].eating).toBe(true);
     expect(upgraded.entities[0].drinking).toBe(false);
     expect(upgraded.entities[0].needs.hunger).toBe(0.9);
+    expect(upgraded.entities[0].ageSeconds).toBe(startingAgeSeconds(1, 'diner', 5));
+  });
+
+  it('upgrades a version 6 world with a seeded age', () => {
+    const world = createSimulationWorld();
+    createPopulation(world, 1, 42);
+    const persisted = capturePersistedWorld(world, createSimulationClock(), 42);
+    const withoutAge = {
+      ...persisted,
+      version: 6 as const,
+      entities: persisted.entities.map((entity) => {
+        const { ageSeconds: _ageSeconds, ...rest } = entity;
+        return rest;
+      }),
+    };
+
+    const upgraded = upgradePersistedWorld(withoutAge);
+
+    expect(upgraded.version).toBe(7);
+    expect(upgraded.entities[0].ageSeconds).toBe(persisted.entities[0].ageSeconds);
   });
 
   it('rejects an unsupported format version', () => {
     const world = createSimulationWorld();
     const persisted = capturePersistedWorld(world, createSimulationClock(), 1);
 
-    expect(() => restorePersistedWorld({ ...persisted, version: 7 })).toThrow(
-      'Unsupported persisted world version: 7',
+    expect(() => restorePersistedWorld({ ...persisted, version: 8 })).toThrow(
+      'Unsupported persisted world version: 8',
     );
   });
 });
