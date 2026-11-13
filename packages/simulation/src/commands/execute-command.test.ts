@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SimulationCommand } from '@simsand/shared';
 
+import { spriteIdFor } from '../characters/profile.js';
 import { createSimulationClock } from '../core/clock.js';
 import { createSimulationWorld } from '../core/world.js';
 import { createWorldSnapshot } from '../systems/snapshot.js';
@@ -56,7 +57,7 @@ describe('executeCommand', () => {
       },
     ]);
     expect(createWorldSnapshot(world, 0, 0).entities).toEqual([
-      { id: 'visitor-0001', x: 10, y: 20, color: 0xffffff, sprite: 1, resting: false },
+      { id: 'visitor-0001', x: 10, y: 20, color: 0xffffff, sprite: spriteIdFor(0, 'visitor-0001'), resting: false },
     ]);
   });
 

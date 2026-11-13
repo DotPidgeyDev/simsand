@@ -22,7 +22,7 @@ describe('inspectCharacter', () => {
       velocityX: 0.25,
       velocityY: -0.5,
       color: 0x123456,
-      sprite: 2,
+      sprite: 'scout',
     });
 
     expect(inspectCharacter(world, 'swimmer')).toEqual({
@@ -32,7 +32,7 @@ describe('inspectCharacter', () => {
       velocityX: 0.25,
       velocityY: -0.5,
       color: 0x123456,
-      sprite: 2,
+      sprite: 'scout',
       ...generateCharacterProfile(0, 'swimmer'),
       resting: false,
       derived: derivedStats(generateCharacterProfile(0, 'swimmer').attributes.constitution),
@@ -43,7 +43,7 @@ describe('inspectCharacter', () => {
   it('reports the last tile for a character on the far edge of the map', () => {
     const world = createSimulationWorld(createWorldMap(8, 8, 'dirt'));
 
-    createCharacter(world, { id: 'edge', x: 8, y: 8, velocityX: 0, velocityY: 0, color: 0, sprite: 1 });
+    createCharacter(world, { id: 'edge', x: 8, y: 8, velocityX: 0, velocityY: 0, color: 0, sprite: 'elder' });
 
     expect(inspectCharacter(world, 'edge')?.tile).toEqual({ x: 7, y: 7, terrain: 'dirt' });
   });

@@ -1,8 +1,8 @@
 import { addEntity, addComponents } from 'bitecs';
 
-import type { CharacterProfile } from '@simsand/shared';
+import type { CharacterProfile, SpriteId } from '@simsand/shared';
 
-import { assertCharacterProfile, generateCharacterProfile, writeCharacterProfile } from '../characters/profile.js';
+import { assertCharacterProfile, assertSpriteId, generateCharacterProfile, writeCharacterProfile } from '../characters/profile.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Attributes } from '../components/attributes.js';
@@ -22,7 +22,7 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   velocityX: number;
   velocityY: number;
   color: number;
-  sprite: number;
+  sprite: SpriteId;
   resting?: boolean;
 }
 
@@ -67,7 +67,7 @@ export function createCharacter(
   Velocity.y[eid] = definition.velocityY;
 
   Appearance.color[eid] = definition.color;
-  Appearance.sprite[eid] = definition.sprite;
+  Appearance.sprite[eid] = assertSpriteId(definition.sprite);
 
   return eid;
 }

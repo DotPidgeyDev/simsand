@@ -199,17 +199,20 @@ model incrementally as simulation systems become real.
     is stored in `PRAGMA user_version`. A database from a newer schema
     is refused.
 -   **Snapshot format:** `PersistedWorld` in `packages/shared`, version
-    4: seed, tick, elapsed time, fixed timestep, the tile map and every
-    entity's stable ID, position, velocity, appearance, character
-    profile (name, attributes, personality, needs and lifecycle) and
-    whether the character is resting. It is separate from the
-    render-oriented `WorldSnapshot`, which carries position, appearance
-    and the resting flag, but not the rest of the profile or velocity.
-    Older snapshots are still accepted and upgraded on load. Version 1
-    gains the map generated from its seed. Version 2 gains each
-    character's profile, also generated from the seed and the
-    character's ID. Version 3 gains the resting flag, set when fatigue
-    is already at the rest threshold. The next save writes version 4.
+    5: seed, tick, elapsed time, fixed timestep, the tile map and every
+    entity's stable ID, position, velocity, appearance (colour and a
+    named sprite), character profile (name, attributes, personality,
+    needs and lifecycle) and whether the character is resting. It is
+    separate from the render-oriented `WorldSnapshot`, which carries
+    position, appearance and the resting flag, but not the rest of the
+    profile or velocity. Older snapshots are still accepted and
+    upgraded on load. Version 1 gains the map generated from its seed.
+    Version 2 gains each character's profile, also generated from the
+    seed and the character's ID. Version 3 gains the resting flag, set
+    when fatigue is already at the rest threshold. Version 4 replaces
+    the numeric sprite, which was always 1, with a name from the sprite
+    catalog, chosen from the seed and the character's ID. The next save
+    writes version 5.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot alter an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker

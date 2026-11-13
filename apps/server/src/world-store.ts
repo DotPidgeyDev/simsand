@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { PERSISTED_WORLD_VERSION } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
-import { assertCharacterProfile, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
+import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
 
 import { log } from './logger.js';
@@ -109,15 +109,18 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
 }
 
-function isPersistedEntity(value: unknown): value is PersistedEntity {
+function isPersistedEntity(value: unknown, version: number): value is PersistedEntity {
   if (typeof value !== 'object' || value === null) return false;
 
   const entity = value as Record<string, unknown>;
+  const numeric = ['x', 'y', 'velocityX', 'velocityY', 'color'];
+
+  if (version < PERSISTED_WORLD_VERSION) numeric.push('sprite');
 
   return (
     typeof entity.id === 'string' &&
     entity.id.length > 0 &&
-    ['x', 'y', 'velocityX', 'velocityY', 'color', 'sprite'].every((key) => isFiniteNumber(entity[key]))
+    numeric.every((key) => isFiniteNumber(entity[key]))
   );
 }
 
@@ -130,7 +133,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (world.version !== 1 && world.version !== 2 && world.version !== 3 && world.version !== PERSISTED_WORLD_VERSION) {
+  if (![1, 2, 3, 4, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
@@ -148,21 +151,27 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
     }
   }
 
-  if (!Array.isArray(world.entities) || !world.entities.every(isPersistedEntity)) {
+  if (!Array.isArray(world.entities) || !world.entities.every((entity) => isPersistedEntity(entity, Number(world.version)))) {
     throw new Error('Snapshot entities are missing or invalid');
   }
 
-  if (world.version === 3 || world.version === PERSISTED_WORLD_VERSION) {
+  if (Number(world.version) >= 3) {
     for (const entity of world.entities) {
       assertCharacterProfile(entity);
     }
   }
 
-  if (world.version === PERSISTED_WORLD_VERSION) {
+  if (Number(world.version) >= 4) {
     for (const entity of world.entities as { resting?: unknown }[]) {
       if (typeof entity.resting !== 'boolean') {
         throw new Error('Character resting flag is missing');
       }
+    }
+  }
+
+  if (world.version === PERSISTED_WORLD_VERSION) {
+    for (const entity of world.entities as { sprite?: unknown }[]) {
+      assertSpriteId(entity.sprite);
     }
   }
 

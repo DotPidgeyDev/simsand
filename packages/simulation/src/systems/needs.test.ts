@@ -29,7 +29,7 @@ function character(constitution = 5, fatigue = 0.2) {
     velocityX: 1,
     velocityY: 0,
     color: 0xffffff,
-    sprite: 1,
+    sprite: 'wanderer',
   });
 
   Attributes.constitution[eid] = constitution;
@@ -61,7 +61,7 @@ describe('updateNeeds', () => {
         velocityX: 1,
         velocityY: 0,
         color: 0xffffff,
-        sprite: 1,
+        sprite: 'wanderer',
       });
 
       Attributes.constitution[eid] = constitution;

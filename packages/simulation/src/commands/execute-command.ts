@@ -7,12 +7,11 @@ import type {
 
 import type { SimulationClock } from '../core/clock.js';
 import type { SimulationWorld } from '../core/world.js';
-import { generateCharacterProfile } from '../characters/profile.js';
+import { generateCharacterProfile, spriteIdFor } from '../characters/profile.js';
 import { createCharacter } from '../entities/create-character.js';
 import { removeCharacter } from '../entities/remove-character.js';
 
 const DEFAULT_COLOR = 0xffffff;
-const DEFAULT_SPRITE = 1;
 
 type EventFor<TType extends DomainEvent['type']> = Extract<DomainEvent, { type: TType }>;
 
@@ -67,7 +66,7 @@ export function executeCommand(
         velocityX,
         velocityY,
         color,
-        sprite: DEFAULT_SPRITE,
+        sprite: spriteIdFor(world.seed, characterId),
         ...generateCharacterProfile(world.seed, characterId),
       });
 

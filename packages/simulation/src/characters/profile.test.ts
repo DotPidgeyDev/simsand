@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import { ATTRIBUTE_NAMES, BASIC_NEEDS, PERSONALITY_TRAITS } from '@simsand/shared';
 
-import { assertCharacterProfile, generateCharacterProfile } from './profile.js';
+import { assertCharacterProfile, assertSpriteId, generateCharacterProfile, spriteIdFor } from './profile.js';
+import { SPRITE_IDS } from '@simsand/shared';
 
 describe('generateCharacterProfile', () => {
   it('is determined by the world seed and the character ID', () => {
@@ -36,6 +37,17 @@ describe('generateCharacterProfile', () => {
 
     expect(assertCharacterProfile(profile)).toEqual(profile);
     expect(JSON.parse(JSON.stringify(profile))).toEqual(profile);
+  });
+});
+
+describe('spriteIdFor', () => {
+  it('picks a stable catalog name from the seed and the character ID', () => {
+    const sprite = spriteIdFor(12345, 'character-0001');
+
+    expect(SPRITE_IDS).toContain(sprite);
+    expect(spriteIdFor(12345, 'character-0001')).toBe(sprite);
+    expect(assertSpriteId(sprite)).toBe(sprite);
+    expect(() => assertSpriteId(1)).toThrow('Unknown sprite: 1');
   });
 });
 

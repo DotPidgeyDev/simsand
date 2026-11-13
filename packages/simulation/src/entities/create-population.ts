@@ -1,3 +1,4 @@
+import { spriteIdFor } from '../characters/profile.js';
 import { createRandom } from '../core/random.js';
 import type { SimulationWorld } from '../core/world.js';
 import { createCharacter } from './create-character.js';
@@ -22,7 +23,7 @@ export function createPopulation(
       velocityY: (random() - 0.5) * 2,
 
       color: Math.floor(random() * 0xFFFFFF),
-      sprite: 1,
+      sprite: spriteIdFor(seed, `character-${String(i + 1).padStart(4, '0')}`),
     });
 
     entities.push(eid);

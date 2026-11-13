@@ -14,7 +14,7 @@ function character(id: string, x = 1): CharacterDefinition {
     velocityX: 0,
     velocityY: 0,
     color: 0xffffff,
-    sprite: 1,
+    sprite: 'wanderer',
   };
 }
 

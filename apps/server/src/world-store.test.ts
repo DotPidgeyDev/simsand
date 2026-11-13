@@ -3,13 +3,13 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PersistedWorld } from '@simsand/shared';
-import { generateCharacterProfile, generateWorldMap, toWorldMapData } from '@simsand/simulation';
+import { generateCharacterProfile, generateWorldMap, spriteIdFor, toWorldMapData } from '@simsand/simulation';
 
 import { WorldStore } from './world-store.js';
 
 function world(tick: number): PersistedWorld {
   return {
-    version: 4,
+    version: 5,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -23,7 +23,7 @@ function world(tick: number): PersistedWorld {
         velocityX: 0.5,
         velocityY: -0.5,
         color: 3,
-        sprite: 1,
+        sprite: spriteIdFor(12345, 'character-0001'),
         resting: false,
         ...generateCharacterProfile(12345, 'character-0001'),
       },
@@ -99,7 +99,7 @@ describe('WorldStore', () => {
     const { map: _map, ...withoutMap } = world(10);
     const entities = withoutMap.entities.map((entity) => {
       const { name: _name, attributes: _attributes, personality: _personality, needs: _needs, lifecycle: _lifecycle, ...base } = entity;
-      return base;
+      return { ...base, sprite: 1 };
     });
 
     insertRaw(db, 10, JSON.stringify({ ...withoutMap, version: 1, entities }));
@@ -116,7 +116,7 @@ describe('WorldStore', () => {
     const saved = world(10);
     const entities = saved.entities.map((entity) => {
       const { name: _name, attributes: _attributes, personality: _personality, needs: _needs, lifecycle: _lifecycle, ...base } = entity;
-      return base;
+      return { ...base, sprite: 1 };
     });
 
     insertRaw(db, 10, JSON.stringify({ ...saved, version: 2, entities }));
@@ -133,14 +133,15 @@ describe('WorldStore', () => {
     insertRaw(db, 10, JSON.stringify({
       ...saved,
       version: 3,
-      entities: [{ ...awake, needs: { ...awake.needs, fatigue: 0.9 } }],
+      entities: [{ ...awake, sprite: 1, needs: { ...awake.needs, fatigue: 0.9 } }],
     }));
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(4);
+    expect(loaded?.version).toBe(5);
     expect(loaded?.entities[0].resting).toBe(true);
     expect(loaded?.entities[0].needs.fatigue).toBe(0.9);
+    expect(loaded?.entities[0].sprite).toBe(spriteIdFor(12345, 'character-0001'));
   });
 
   it('rejects a snapshot whose character profile is out of range', () => {

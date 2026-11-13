@@ -5,7 +5,9 @@ import {
   BASIC_NEEDS,
   LIFECYCLE_STATES,
   PERSONALITY_TRAITS,
+  SPRITE_IDS,
 } from '@simsand/shared';
+import type { SpriteId } from '@simsand/shared';
 import type {
   CharacterAttributes,
   CharacterNeeds,
@@ -21,6 +23,7 @@ import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 
 const NAME_MAX_LENGTH = 64;
+const SPRITE_SEED_SALT = 0x85ebca6b;
 
 // New characters start comfortable rather than desperate. Fatigue rises and
 // recovers on its own. Hunger and thirst wait for something that can feed them.
@@ -48,6 +51,22 @@ function profileSeed(worldSeed: number, id: string): number {
   }
 
   return hash >>> 0;
+}
+
+// Separate from the profile stream, so choosing a sprite never changes a
+// character's name or attributes. The old numeric sprite was always 1.
+export function spriteIdFor(worldSeed: number, id: string): SpriteId {
+  const random = createRandom(profileSeed(worldSeed ^ SPRITE_SEED_SALT, id));
+
+  return SPRITE_IDS[Math.floor(random() * SPRITE_IDS.length)];
+}
+
+export function assertSpriteId(value: unknown): SpriteId {
+  if (!(SPRITE_IDS as readonly string[]).includes(String(value))) {
+    throw new Error(`Unknown sprite: ${String(value)}`);
+  }
+
+  return value as SpriteId;
 }
 
 export function generateCharacterProfile(worldSeed: number, id: string): CharacterProfile {

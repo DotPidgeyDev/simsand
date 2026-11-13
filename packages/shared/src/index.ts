@@ -1,11 +1,17 @@
 export const PROJECT_NAME = 'simsand';
 
+// Append only. Saved worlds store the name, so order is not load-bearing,
+// but removing or renaming an entry invalidates existing saves.
+export const SPRITE_IDS = ['wanderer', 'scout', 'elder'] as const;
+
+export type SpriteId = (typeof SPRITE_IDS)[number];
+
 export interface EntitySnapshot {
   id: string;
   x: number;
   y: number;
   color: number;
-  sprite: number;
+  sprite: SpriteId;
   resting: boolean;
 }
 
@@ -35,7 +41,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 4;
+export const PERSISTED_WORLD_VERSION = 5;
 
 export const ATTRIBUTE_NAMES = [
   'strength',
@@ -105,7 +111,7 @@ export interface PersistedEntity extends CharacterProfile {
   velocityX: number;
   velocityY: number;
   color: number;
-  sprite: number;
+  sprite: SpriteId;
   // Remembered so a save during the rest gap resumes resting. Fatigue alone
   // cannot say, because the same value occurs on the way up and the way down.
   resting: boolean;
@@ -210,7 +216,7 @@ export interface EntityInspection extends CharacterProfile {
   velocityX: number;
   velocityY: number;
   color: number;
-  sprite: number;
+  sprite: SpriteId;
   resting: boolean;
   derived: DerivedStats;
   // The tile containing the entity. An entity on the far edge of the map

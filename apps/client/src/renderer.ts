@@ -1,7 +1,7 @@
 import { Application, Container, Graphics } from 'pixi.js';
 
 import { TERRAIN_TYPES } from '@simsand/shared';
-import type { EntitySnapshot, TerrainType, WorldMapData } from '@simsand/shared';
+import type { EntitySnapshot, SpriteId, TerrainType, WorldMapData } from '@simsand/shared';
 
 const TILE_SIZE = 16;
 const INITIAL_MAP_SIZE = 64;
@@ -88,13 +88,22 @@ export async function createRenderer(container: HTMLElement) {
     });
   }
 
-  const restingDrawn = new Map<string, boolean>();
+  const appearanceDrawn = new Map<string, string>();
 
-  function drawCharacter(graphic: Graphics, color: number, resting: boolean): void {
+  // Placeholder shapes until there is real sprite art. Resting overrides the
+  // shape so the state stays readable.
+  function drawCharacter(graphic: Graphics, color: number, sprite: SpriteId, resting: boolean): void {
     graphic.clear();
 
     if (resting) {
       graphic.circle(0, 0, 3).fill(color);
+      return;
+    }
+
+    if (sprite === 'scout') {
+      graphic.poly([-5, 0, 0, -5, 5, 0, 0, 5]).fill(color);
+    } else if (sprite === 'elder') {
+      graphic.poly([0, -6, 5, 4, -5, 4]).fill(color);
     } else {
       graphic.rect(-4, -4, 8, 8).fill(color);
     }
@@ -110,9 +119,11 @@ export async function createRenderer(container: HTMLElement) {
         world.addChild(graphic);
       }
 
-      if (restingDrawn.get(entity.id) !== entity.resting) {
-        drawCharacter(graphic, entity.color, entity.resting);
-        restingDrawn.set(entity.id, entity.resting);
+      const appearance = `${entity.sprite}:${entity.resting}`;
+
+      if (appearanceDrawn.get(entity.id) !== appearance) {
+        drawCharacter(graphic, entity.color, entity.sprite, entity.resting);
+        appearanceDrawn.set(entity.id, appearance);
       }
 
       graphic.position.set(
@@ -126,7 +137,7 @@ export async function createRenderer(container: HTMLElement) {
     for (const id of ids) {
       entities.get(id)?.destroy();
       entities.delete(id);
-      restingDrawn.delete(id);
+      appearanceDrawn.delete(id);
     }
   }
 

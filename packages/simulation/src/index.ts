@@ -44,8 +44,10 @@ export { inspectCharacter } from './inspection/inspect-character.js';
 
 export {
   assertCharacterProfile,
+  assertSpriteId,
   generateCharacterProfile,
   readCharacterProfile,
+  spriteIdFor,
 } from './characters/profile.js';
 
 export {

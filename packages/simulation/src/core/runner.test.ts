@@ -21,7 +21,7 @@ describe('simulation runner', () => {
       velocityX: 1,
       velocityY: 0,
       color: 0xffffff,
-      sprite: 1,
+      sprite: 'wanderer',
     });
 
     const clock = createSimulationClock();

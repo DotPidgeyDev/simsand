@@ -23,7 +23,7 @@ describe('updateMovement', () => {
       velocityX: 2,
       velocityY: -1,
       color: 0xffffff,
-      sprite: 1,
+      sprite: 'wanderer',
     });
 
     updateMovement(world, 0.5);
@@ -42,7 +42,7 @@ describe('updateMovement', () => {
       velocityX: 2,
       velocityY: -2,
       color: 0xffffff,
-      sprite: 1,
+      sprite: 'wanderer',
     });
 
     updateMovement(world, 1);
@@ -63,7 +63,7 @@ describe('updateMovement', () => {
       velocityX: 5,
       velocityY: 5,
       color: 0xffffff,
-      sprite: 1,
+      sprite: 'wanderer',
     });
 
     updateMovement(world, 1);
@@ -82,7 +82,7 @@ describe('updateMovement', () => {
       velocityX: 100,
       velocityY: -100,
       color: 0xffffff,
-      sprite: 1,
+      sprite: 'wanderer',
     });
 
     updateMovement(world, 1);
@@ -101,7 +101,7 @@ describe('updateMovement', () => {
       velocityX: 2,
       velocityY: 2,
       color: 0xffffff,
-      sprite: 1,
+      sprite: 'wanderer',
     });
 
     Lifecycle.state[eid] = LIFECYCLE_STATES.indexOf('dead');

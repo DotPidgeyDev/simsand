@@ -50,7 +50,7 @@ describe('world persistence', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(0.05), 99);
 
     expect(persisted).toMatchObject({
-      version: 4,
+      version: 5,
       seed: 99,
       tick: 0,
       fixedDeltaSeconds: 0.05,
@@ -93,7 +93,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld({ ...current, version: 1 });
 
-    expect(upgraded.version).toBe(4);
+    expect(upgraded.version).toBe(5);
     expect(upgraded.map).toEqual(toWorldMapData(generateWorldMap(42)));
     expect(() => restorePersistedWorld(upgraded)).not.toThrow();
   });
@@ -113,7 +113,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutProfiles);
 
-    expect(upgraded.version).toBe(4);
+    expect(upgraded.version).toBe(5);
     expect(upgraded.entities.map((entity) => entity.name)).toEqual(
       persisted.entities.map((entity) => entity.name),
     );
@@ -128,8 +128,8 @@ describe('world persistence', () => {
     const world = createSimulationWorld();
     const persisted = capturePersistedWorld(world, createSimulationClock(), 1);
 
-    expect(() => restorePersistedWorld({ ...persisted, version: 5 })).toThrow(
-      'Unsupported persisted world version: 5',
+    expect(() => restorePersistedWorld({ ...persisted, version: 6 })).toThrow(
+      'Unsupported persisted world version: 6',
     );
   });
 });

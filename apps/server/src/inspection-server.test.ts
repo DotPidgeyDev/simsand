@@ -25,7 +25,7 @@ const entity: EntityInspection = {
   velocityX: 0.1,
   velocityY: -0.2,
   color: 0xff0000,
-  sprite: 1,
+  sprite: 'wanderer',
   ...generateCharacterProfile(1, 'character-0001'),
   resting: false,
   derived: derivedStats(generateCharacterProfile(1, 'character-0001').attributes.constitution),
@@ -37,8 +37,8 @@ const snapshot: WorldSnapshot = {
   elapsedSeconds: 11.8,
   map: { width: 1, height: 1, tiles: [0] },
   entities: [
-    { id: 'character-0001', x: 1.5, y: 2.5, color: 0xff0000, sprite: 1, resting: false },
-    { id: 'character-0002', x: 3, y: 4, color: 0x00ff00, sprite: 1, resting: false },
+    { id: 'character-0001', x: 1.5, y: 2.5, color: 0xff0000, sprite: 'wanderer', resting: false },
+    { id: 'character-0002', x: 3, y: 4, color: 0x00ff00, sprite: 'wanderer', resting: false },
   ],
 };
 
