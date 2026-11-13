@@ -7,6 +7,7 @@ import { applyDeltaToSnapshot } from './snapshot-cache.js';
 const snapshot: WorldSnapshot = {
   tick: 10,
   elapsedSeconds: 1,
+  map: { width: 1, height: 1, tiles: [0] },
   entities: [
     { id: 'character-0001', x: 1, y: 2, color: 1, sprite: 0 },
     { id: 'character-0002', x: 3, y: 4, color: 2, sprite: 0 },
@@ -25,6 +26,7 @@ describe('applyDeltaToSnapshot', () => {
 
     expect(updated.tick).toBe(12);
     expect(updated.elapsedSeconds).toBe(1);
+    expect(updated.map).toBe(snapshot.map);
     expect(updated.entities).toEqual([
       { id: 'character-0001', x: 8, y: 9, color: 1, sprite: 0 },
       snapshot.entities[1],

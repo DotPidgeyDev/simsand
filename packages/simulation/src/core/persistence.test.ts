@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
+import { TERRAIN_TYPES } from '@simsand/shared';
+
 import { createPopulation } from '../entities/create-population.js';
 import { removeCharacter } from '../entities/remove-character.js';
 import { createWorldSnapshot } from '../systems/snapshot.js';
 import { createSimulationClock } from './clock.js';
-import { capturePersistedWorld, restorePersistedWorld } from './persistence.js';
+import { generateWorldMap, getTile, toWorldMapData } from './map.js';
+import {
+  capturePersistedWorld,
+  restorePersistedWorld,
+  upgradePersistedWorld,
+} from './persistence.js';
 import { createSimulationRunner, tickSimulation } from './runner.js';
 import { createSimulationWorld } from './world.js';
 
@@ -43,7 +50,7 @@ describe('world persistence', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(0.05), 99);
 
     expect(persisted).toMatchObject({
-      version: 1,
+      version: 2,
       seed: 99,
       tick: 0,
       fixedDeltaSeconds: 0.05,
@@ -64,12 +71,39 @@ describe('world persistence', () => {
       .toEqual(['character-0002']);
   });
 
+  it('restores the saved terrain rather than regenerating it', () => {
+    const map = generateWorldMap(7);
+    map.tiles[0] = TERRAIN_TYPES.indexOf('water');
+    const world = createSimulationWorld(map);
+
+    const { world: restoredWorld } = restorePersistedWorld(
+      structuredClone(capturePersistedWorld(world, createSimulationClock(), 7)),
+    );
+
+    expect(getTile(restoredWorld.map, 0, 0)).toBe('water');
+    expect(restoredWorld.map.tiles).toEqual(map.tiles);
+  });
+
+  it('upgrades a version 1 world with the map generated from its seed', () => {
+    const { map: _map, ...current } = capturePersistedWorld(
+      createSimulationWorld(),
+      createSimulationClock(),
+      42,
+    );
+
+    const upgraded = upgradePersistedWorld({ ...current, version: 1 });
+
+    expect(upgraded.version).toBe(2);
+    expect(upgraded.map).toEqual(toWorldMapData(generateWorldMap(42)));
+    expect(() => restorePersistedWorld(upgraded)).not.toThrow();
+  });
+
   it('rejects an unsupported format version', () => {
     const world = createSimulationWorld();
     const persisted = capturePersistedWorld(world, createSimulationClock(), 1);
 
-    expect(() => restorePersistedWorld({ ...persisted, version: 2 })).toThrow(
-      'Unsupported persisted world version: 2',
+    expect(() => restorePersistedWorld({ ...persisted, version: 3 })).toThrow(
+      'Unsupported persisted world version: 3',
     );
   });
 });

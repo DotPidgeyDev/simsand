@@ -234,7 +234,7 @@ The browser client currently:
 - Receives an initial world snapshot.
 - Receives subsequent incremental updates.
 - Renders the world using PixiJS.
-- Displays a basic grid and coloured entity placeholders.
+- Displays the terrain from the snapshot's tile map and coloured entity placeholders.
 - Updates entity positions as simulation data changes.
 
 The browser never directly mutates authoritative simulation state.
@@ -376,13 +376,13 @@ These are initial engineering targets, not guaranteed capacity limits.
 | Simulation timestep | 100 ms |
 | Simulation loop | Implemented |
 | Movement | Implemented |
-| World dimensions | 64 × 64 coordinate bounds |
+| World dimensions | 64 × 64 tile map |
 | Browser renderer | PixiJS |
 | Entity representation | Coloured square placeholders |
 | Snapshot and delta communication | Implemented |
 | Multiple browser clients | Supported by WebSocket server |
 
-The 64 × 64 dimensions currently define the movement bounds and visual grid. A complete terrain tilemap and navigation system have not yet been implemented.
+The simulation owns a 64 × 64 tile map of grass, dirt and water, generated from the world seed. The map's dimensions define the movement bounds. Terrain does not yet affect movement, and navigation has not been implemented.
 
 Use profiling and representative workloads before increasing complexity.
 

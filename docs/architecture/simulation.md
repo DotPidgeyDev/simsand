@@ -136,6 +136,8 @@ The current simulation includes:
 - Applies world boundary constraints.
 - Updates entity positions.
 
+**Known issue:** positions are clamped at the map edge, but velocity is left unchanged. A character that reaches an edge keeps pushing into it and slides along it until it reaches a corner, where it stays. In a long-running world every moving character ends up pinned in a corner: after about 8 hours of simulated time, all 20 characters were in the four corners. The fix is to reflect (or otherwise change) the velocity component that hit the boundary. The test that expects a clamped position with no change to velocity will need updating with it.
+
 Future systems may include:
 
 - Needs system.
@@ -157,6 +159,16 @@ Sparse or graph-shaped data such as family trees, memories, detailed relationshi
 No separate domain stores currently exist.
 
 When introduced, these stores must have clearly defined ownership and must be included in consistent world snapshots where their state is required for recovery.
+
+### World map
+
+Terrain is static data held on the simulation world (`world.map`) rather than as ECS entities. `packages/simulation/src/core/map.ts` defines it as a width, a height and a row-major `Uint8Array` of indices into `TERRAIN_TYPES` (`grass`, `dirt`, `water`) from `packages/shared`.
+
+New worlds get their terrain from `generateWorldMap(seed)`, which layers seeded value noise. Water is the lowest 12% of tiles, with dirt banks around it and a few dirt patches elsewhere. The same seed always produces the same map, so tests and new worlds are reproducible.
+
+The map's width and height are the movement boundaries and the bounds for `character.create`. Terrain does not yet affect movement: characters can cross water. Collision, movement cost and pathfinding are left for the navigation work.
+
+The map is saved with the world and included in every full snapshot, but not in deltas, because it doesn't change. Loading LDtk maps can be added later as another way to produce the same `WorldMap`.
 
 ---
 
@@ -356,6 +368,7 @@ A snapshot contains:
 
 - Simulation tick.
 - Elapsed simulation seconds.
+- The tile map (`WorldMapData`: width, height and terrain indices).
 - Entity data.
 
 The current entity snapshot includes:
@@ -495,6 +508,7 @@ Measure representative workloads again as systems are added, rather than assumin
 | World boundary constraints | Implemented |
 | World snapshots | Implemented |
 | Incremental world deltas | Implemented |
+| Tile map | Implemented — seeded static terrain, no collision |
 | Worker communication | Implemented |
 | ECS abstraction | Not implemented |
 | General-purpose system scheduler | Not implemented |

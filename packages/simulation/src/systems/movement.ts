@@ -10,9 +10,8 @@ import { Velocity } from '../components/velocity.js';
 export function updateMovement(
   world: SimulationWorld,
   deltaSeconds: number,
-  worldWidth = 64,
-  worldHeight = 64,
 ): void {
+  const { width: worldWidth, height: worldHeight } = world.map;
   const entities = query(world.ecs, [Position, Velocity]);
 
   for (const eid of entities) {

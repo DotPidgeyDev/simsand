@@ -1,5 +1,6 @@
 import { query } from 'bitecs';
 
+import { toWorldMapData } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Identity } from '../components/identity.js';
@@ -34,6 +35,7 @@ export function createWorldSnapshot(
   return {
     tick,
     elapsedSeconds,
+    map: toWorldMapData(world.map),
     entities: entitySnapshots,
   };
 }

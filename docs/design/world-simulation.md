@@ -38,6 +38,10 @@ tiles.
 LDtk is the selected initial map editor. Keep map loading and
 representation independent of PixiJS.
 
+Current state: the map is generated from the world seed (grass, dirt
+banks and ponds) and saved with the world. Movement is free over all
+terrain. LDtk loading is not yet implemented.
+
 ## 4. Economy
 
 The economy must have both sources and sinks.

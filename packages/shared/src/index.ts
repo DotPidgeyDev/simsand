@@ -8,9 +8,23 @@ export interface EntitySnapshot {
   sprite: number;
 }
 
+// A tile's terrain is stored as its index in this list, so entries may be
+// appended but never reordered or removed.
+export const TERRAIN_TYPES = ['grass', 'dirt', 'water'] as const;
+
+export type TerrainType = (typeof TERRAIN_TYPES)[number];
+
+export interface WorldMapData {
+  width: number;
+  height: number;
+  // Row-major indices into TERRAIN_TYPES: tile (x, y) is tiles[y * width + x].
+  tiles: number[];
+}
+
 export interface WorldSnapshot {
   tick: number;
   elapsedSeconds: number;
+  map: WorldMapData;
   entities: EntitySnapshot[];
 }
 
@@ -20,7 +34,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 1;
+export const PERSISTED_WORLD_VERSION = 2;
 
 export interface PersistedEntity {
   id: string;
@@ -40,6 +54,7 @@ export interface PersistedWorld {
   tick: number;
   elapsedSeconds: number;
   fixedDeltaSeconds: number;
+  map: WorldMapData;
   entities: PersistedEntity[];
 }
 

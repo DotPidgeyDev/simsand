@@ -13,6 +13,7 @@ import {
   capturePersistedWorld,
   restorePersistedWorld,
   executeCommand,
+  generateWorldMap,
 } from '@simsand/simulation';
 
 import type {
@@ -65,7 +66,7 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
           seed = restore.seed;
         } else {
           seed = message.data?.seed ?? 12345;
-          world = createSimulationWorld();
+          world = createSimulationWorld(generateWorldMap(seed));
           clock = createSimulationClock();
           createPopulation(world, message.data?.population ?? 20, seed);
         }

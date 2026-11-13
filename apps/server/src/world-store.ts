@@ -3,7 +3,9 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { PERSISTED_WORLD_VERSION } from '@simsand/shared';
-import type { PersistedEntity, PersistedWorld } from '@simsand/shared';
+import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
+import { fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
+import type { PersistedWorldV1 } from '@simsand/simulation';
 
 const SCHEMA_VERSION = 1;
 
@@ -126,8 +128,16 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (world.version !== PERSISTED_WORLD_VERSION) {
+  if (world.version !== 1 && world.version !== PERSISTED_WORLD_VERSION) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
+  }
+
+  if (world.version === PERSISTED_WORLD_VERSION) {
+    if (typeof world.map !== 'object' || world.map === null) {
+      throw new Error('Snapshot map is missing');
+    }
+
+    fromWorldMapData(world.map as WorldMapData);
   }
 
   for (const key of ['seed', 'tick', 'elapsedSeconds', 'fixedDeltaSeconds']) {
@@ -146,5 +156,5 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
     throw new Error('Snapshot contains duplicate entity IDs');
   }
 
-  return world as unknown as PersistedWorld;
+  return upgradePersistedWorld(world as unknown as PersistedWorldV1 | PersistedWorld);
 }

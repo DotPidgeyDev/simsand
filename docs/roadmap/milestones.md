@@ -58,10 +58,11 @@ The project currently has:
 - A WebSocket server on port 8766.
 - Cached snapshots for newly connected browser clients.
 - A PixiJS browser renderer displaying the moving entities.
+- A seeded 64 × 64 tile map of grass, dirt and water, sent in snapshots and saved with the world.
 
 ### Remaining work
 
-- Introduce a basic tile map representation.
+- Fix characters getting stuck in map corners. Movement clamps position at the edge without changing velocity (see the known issue under the movement system in the simulation architecture).
 - Verify simulation continues independently of browser connections.
 - Establish minimal simulation logging and inspection.
 

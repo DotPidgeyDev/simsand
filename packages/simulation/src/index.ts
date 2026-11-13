@@ -40,10 +40,21 @@ export type {
 export {
   capturePersistedWorld,
   restorePersistedWorld,
+  upgradePersistedWorld,
 } from './core/persistence.js';
+
+export type { PersistedWorldV1 } from './core/persistence.js';
 
 export { createWorldSnapshot } from './systems/snapshot.js';
 export { createWorldDelta } from './systems/delta.js';
 
-export { createWorldMap, getTile } from './core/map.js';
-export type { WorldMap, TileType } from './core/map.js';
+export {
+  DEFAULT_MAP_WIDTH,
+  DEFAULT_MAP_HEIGHT,
+  createWorldMap,
+  generateWorldMap,
+  getTile,
+  toWorldMapData,
+  fromWorldMapData,
+} from './core/map.js';
+export type { WorldMap } from './core/map.js';

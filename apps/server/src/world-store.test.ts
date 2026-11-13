@@ -3,16 +3,18 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PersistedWorld } from '@simsand/shared';
+import { generateWorldMap, toWorldMapData } from '@simsand/simulation';
 
 import { WorldStore } from './world-store.js';
 
 function world(tick: number): PersistedWorld {
   return {
-    version: 1,
+    version: 2,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
     fixedDeltaSeconds: 0.1,
+    map: { width: 2, height: 2, tiles: [0, 1, 2, 0] },
     entities: [
       { id: 'character-0001', x: 1, y: 2, velocityX: 0.5, velocityY: -0.5, color: 3, sprite: 1 },
     ],
@@ -79,6 +81,30 @@ describe('WorldStore', () => {
     insertRaw(db, 20, JSON.stringify({ ...world(20), entities: [{ id: '' }] }));
 
     expect(() => store.loadLatest()).toThrow('No valid world snapshot among 2 saved snapshots');
+  });
+
+  it('upgrades a version 1 snapshot by generating the map from its seed', () => {
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const { map: _map, ...withoutMap } = world(10);
+
+    insertRaw(db, 10, JSON.stringify({ ...withoutMap, version: 1 }));
+
+    expect(store.loadLatest()).toEqual({
+      ...world(10),
+      map: toWorldMapData(generateWorldMap(12345)),
+    });
+  });
+
+  it('rejects a snapshot whose map does not match its dimensions', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+
+    insertRaw(db, 10, JSON.stringify({ ...world(10), map: { width: 2, height: 2, tiles: [0] } }));
+
+    expect(() => store.loadLatest()).toThrow('No valid world snapshot');
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Map has 1 tiles; expected 4'));
   });
 
   it('refuses a database created by a newer schema', () => {

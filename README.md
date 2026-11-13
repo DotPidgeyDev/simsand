@@ -28,7 +28,7 @@ The initial implementation consists of:
 - **Seeded population:** Creates an initial population of 20 entities.
 - **Movement system:** Entities move independently within the world boundaries.
 - **WebSocket communication:** Sends initial world snapshots and incremental updates to connected clients.
-- **PixiJS renderer:** Displays the world as a top-down grid with moving coloured entity sprites.
+- **PixiJS renderer:** Displays the world as a top-down tile map with moving coloured entity sprites.
 
 The browser is currently a visual representation of the simulation. It does not own or modify authoritative simulation state.
 
@@ -193,7 +193,7 @@ http://localhost:5173
 
 Open that URL in your browser.
 
-You should see the world grid with 20 coloured squares moving around independently.
+You should see a tile map of grass, dirt and ponds with 20 coloured squares moving around independently.
 
 The server saves the world to `apps/server/data/simsand.sqlite` every 30 seconds and when stopped with Ctrl-C, then resumes from that save on the next start. Delete the `apps/server/data` directory to start a new world.
 
@@ -257,13 +257,12 @@ This allows the simulation to continue running even when no browser clients are 
 
 PixiJS currently renders:
 
-- A 64×64 world grid.
-- A basic grass-coloured background.
+- A 64×64 tile map of grass, dirt and water, generated from the world seed and received from the server.
 - Grid lines.
 - Coloured square placeholders representing entities.
 - Entity positions updated through incoming snapshots and deltas.
 
-The current renderer is deliberately simple. Actual terrain tiles, character sprites, animations, camera controls and visual effects will be introduced later.
+Terrain is drawn as flat colours. Characters can currently cross water; collision comes with navigation. The current renderer is deliberately simple. Terrain tile art, character sprites, animations, camera controls and visual effects will be introduced later.
 
 ---
 

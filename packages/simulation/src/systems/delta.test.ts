@@ -5,9 +5,12 @@ import { createWorldDelta } from './delta.js';
 import type { WorldSnapshot } from '@simsand/shared';
 
 describe('createWorldDelta', () => {
+  const map = { width: 1, height: 1, tiles: [0] };
+
   const previous: WorldSnapshot = {
     tick: 10,
     elapsedSeconds: 1,
+    map,
     entities: [
       {
         id: 'character-0001',
@@ -30,6 +33,7 @@ describe('createWorldDelta', () => {
     const current: WorldSnapshot = {
       tick: 11,
       elapsedSeconds: 1.1,
+      map,
       entities: [
         { ...previous.entities[0], x: 11 },
         previous.entities[1],
@@ -47,6 +51,7 @@ describe('createWorldDelta', () => {
     const current: WorldSnapshot = {
       tick: 11,
       elapsedSeconds: 1.1,
+      map,
       entities: [
         ...previous.entities,
         {
@@ -69,6 +74,7 @@ describe('createWorldDelta', () => {
     const current: WorldSnapshot = {
       tick: 11,
       elapsedSeconds: 1.1,
+      map,
       entities: [previous.entities[1]],
     };
 

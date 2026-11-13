@@ -13,6 +13,7 @@ connectToSimulation((message) => {
   switch (message.type) {
     case 'world.snapshot':
       console.log('World snapshot received at tick', message.data.tick);
+      renderer.setMap(message.data.map);
       renderer.replaceEntities(message.data.entities);
       break;
 

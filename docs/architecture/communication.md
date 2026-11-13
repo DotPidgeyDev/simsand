@@ -314,6 +314,8 @@ The simulation continues independently of browser connections.
 
 ### Initial snapshots
 
+A full snapshot includes the static tile map, which the client draws as terrain. Deltas never carry the map.
+
 The server caches the latest full snapshot received from the simulation worker, then folds each broadcast delta into that cache. Deltas carry absolute entity positions, so the cache stays aligned with the worker without a new full snapshot on every tick.
 
 A client that connects later receives this current snapshot, then the same subsequent deltas as every other client. It does not have to reconstruct the world from the startup snapshot plus a partial delta history.

@@ -1,66 +1,92 @@
 import { Application, Container, Graphics } from 'pixi.js';
 
-import type { EntitySnapshot } from '@simsand/shared';
+import { TERRAIN_TYPES } from '@simsand/shared';
+import type { EntitySnapshot, TerrainType, WorldMapData } from '@simsand/shared';
 
-const WORLD_WIDTH = 64;
-const WORLD_HEIGHT = 64;
 const TILE_SIZE = 16;
-const WORLD_PIXEL_WIDTH = WORLD_WIDTH * TILE_SIZE;
-const WORLD_PIXEL_HEIGHT = WORLD_HEIGHT * TILE_SIZE;
+const INITIAL_MAP_SIZE = 64;
+
+const TERRAIN_COLORS: Record<TerrainType, number> = {
+  grass: 0x526b45,
+  dirt: 0x8a7148,
+  water: 0x3d6e8f,
+};
 
 export async function createRenderer(container: HTMLElement) {
   const app = new Application();
 
   await app.init({
-    width: WORLD_PIXEL_WIDTH,
-    height: WORLD_PIXEL_HEIGHT,
+    width: INITIAL_MAP_SIZE * TILE_SIZE,
+    height: INITIAL_MAP_SIZE * TILE_SIZE,
     backgroundColor: 0x26382b,
     antialias: false,
     resolution: window.devicePixelRatio || 1,
     autoDensity: true,
   });
 
-  app.canvas.style.width = '100%';
-  app.canvas.style.height = 'auto';
+  // Resizing the renderer sets a fixed pixel size on the canvas element.
+  function fitCanvasToContainer(): void {
+    app.canvas.style.width = '100%';
+    app.canvas.style.height = 'auto';
+  }
+
+  fitCanvasToContainer();
   container.appendChild(app.canvas);
 
   const world = new Container();
   app.stage.addChild(world);
 
-  // Draw the background and grid.
-  const grid = new Graphics();
-
-  grid.rect(
-    0,
-    0,
-    WORLD_PIXEL_WIDTH,
-    WORLD_PIXEL_HEIGHT,
-  ).fill(0x526b45);
-
-  for (let x = 0; x <= WORLD_WIDTH; x++) {
-    const position = x * TILE_SIZE;
-
-    grid.moveTo(position, 0);
-    grid.lineTo(position, WORLD_PIXEL_HEIGHT);
-  }
-
-  for (let y = 0; y <= WORLD_HEIGHT; y++) {
-    const position = y * TILE_SIZE;
-
-    grid.moveTo(0, position);
-    grid.lineTo(WORLD_PIXEL_WIDTH, position);
-  }
-
-  grid.stroke({
-    color: 0x354b32,
-    alpha: 0.5,
-    width: 1,
-  });
-
-  world.addChild(grid);
+  const terrain = new Graphics();
+  world.addChild(terrain);
 
   // Store graphics objects so we can update existing entities.
   const entities = new Map<string, Graphics>();
+
+  let currentMap: WorldMapData | undefined;
+
+  // Terrain is static, so it is only redrawn when a snapshot brings a
+  // different map.
+  function setMap(map: WorldMapData): void {
+    if (currentMap && sameMap(currentMap, map)) {
+      return;
+    }
+
+    currentMap = map;
+
+    const pixelWidth = map.width * TILE_SIZE;
+    const pixelHeight = map.height * TILE_SIZE;
+
+    if (app.screen.width !== pixelWidth || app.screen.height !== pixelHeight) {
+      app.renderer.resize(pixelWidth, pixelHeight);
+      fitCanvasToContainer();
+    }
+
+    terrain.clear();
+
+    for (let y = 0; y < map.height; y++) {
+      for (let x = 0; x < map.width; x++) {
+        const type = TERRAIN_TYPES[map.tiles[y * map.width + x]] ?? 'grass';
+
+        terrain
+          .rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+          .fill(TERRAIN_COLORS[type]);
+      }
+    }
+
+    for (let x = 0; x <= map.width; x++) {
+      terrain.moveTo(x * TILE_SIZE, 0).lineTo(x * TILE_SIZE, pixelHeight);
+    }
+
+    for (let y = 0; y <= map.height; y++) {
+      terrain.moveTo(0, y * TILE_SIZE).lineTo(pixelWidth, y * TILE_SIZE);
+    }
+
+    terrain.stroke({
+      color: 0x354b32,
+      alpha: 0.35,
+      width: 1,
+    });
+  }
 
   function updateEntities(snapshots: EntitySnapshot[]): void {
     for (const entity of snapshots) {
@@ -97,9 +123,18 @@ export async function createRenderer(container: HTMLElement) {
   }
 
   return {
+    setMap,
     updateEntities,
     removeEntities,
     replaceEntities,
     destroy: () => app.destroy(true),
   };
+}
+
+function sameMap(a: WorldMapData, b: WorldMapData): boolean {
+  return (
+    a.width === b.width &&
+    a.height === b.height &&
+    a.tiles.every((tile, i) => tile === b.tiles[i])
+  );
 }

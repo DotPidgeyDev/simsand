@@ -10,8 +10,6 @@ import type { SimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
 import { removeCharacter } from '../entities/remove-character.js';
 
-const WORLD_WIDTH = 64;
-const WORLD_HEIGHT = 64;
 const DEFAULT_COLOR = 0xffffff;
 const DEFAULT_SPRITE = 1;
 
@@ -57,7 +55,7 @@ export function executeCommand(
         return rejected(command, 'character_exists', `Character ${characterId} already exists`);
       }
 
-      if (x < 0 || x > WORLD_WIDTH || y < 0 || y > WORLD_HEIGHT) {
+      if (x < 0 || x > world.map.width || y < 0 || y > world.map.height) {
         return rejected(command, 'out_of_bounds', `Position (${x}, ${y}) is outside the world`);
       }
 
