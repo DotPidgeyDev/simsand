@@ -5,11 +5,13 @@ import type { ActionCooldowns, ActionId } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
 
+import { Identity } from '../components/identity.js';
 import { Action } from '../components/action.js';
 import { Condition } from '../components/condition.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
+import { createRandom } from '../core/random.js';
 import {
   FATIGUE_REST_AT,
   FATIGUE_RESUME_AT,
@@ -28,6 +30,12 @@ export const MIN_ACTION_SECONDS = 5;
 // An interrupted action sits out about as long as a recovery takes to matter,
 // so thirst cannot yank someone off a meal and straight back again.
 export const ACTION_COOLDOWN_SECONDS = 20;
+
+// Small enough that a pressing need still wins, large enough to break a tie
+// between two characters who otherwise want the same thing. Stable per
+// character, from its own salt, so it never shifts the profile.
+export const ACTION_BIAS = 0.05;
+const ACTION_BIAS_SALT = 0x27d4eb2f;
 
 export function emptyCooldowns(): ActionCooldowns {
   return { idle: 0, move: 0, eat: 0, rest: 0, drink: 0 };
@@ -51,6 +59,36 @@ export function actionUtilities(input: {
     eat: input.hunger,
     rest: input.fatigue,
     drink: input.thirst,
+  };
+}
+
+export function actionBias(worldSeed: number, characterId: string): Record<ActionId, number> {
+  let hash = (worldSeed ^ ACTION_BIAS_SALT) | 0;
+
+  for (let i = 0; i < characterId.length; i++) {
+    hash = Math.imul(hash ^ characterId.charCodeAt(i), 0x5bd1e995);
+  }
+
+  const random = createRandom(hash >>> 0);
+  const bias = emptyCooldowns();
+
+  for (const id of ACTION_IDS) {
+    bias[id] = (random() * 2 - 1) * ACTION_BIAS;
+  }
+
+  return bias;
+}
+
+export function biasedUtilities(
+  utilities: Record<ActionId, number>,
+  bias: Record<ActionId, number>,
+): Record<ActionId, number> {
+  return {
+    idle: utilities.idle + bias.idle,
+    move: utilities.move + bias.move,
+    eat: utilities.eat + bias.eat,
+    rest: utilities.rest + bias.rest,
+    drink: utilities.drink + bias.drink,
   };
 }
 
@@ -127,7 +165,7 @@ function applyAction(eid: number, action: ActionId): void {
 // 0.8 interrupts, and the action it cuts off cannot be chosen again until
 // its cooldown elapses. Finishing a meal, drink or rest does not cool it.
 export function updateActions(world: SimulationWorld, deltaSeconds: number): void {
-  const entities = query(world.ecs, [Action, Needs, Personality, Condition, Lifecycle]);
+  const entities = query(world.ecs, [Action, Needs, Personality, Condition, Lifecycle, Identity]);
 
   for (const eid of entities) {
     tickCooldowns(eid, deltaSeconds);
@@ -143,12 +181,15 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
     const hunger = Needs.hunger[eid];
     const thirst = Needs.thirst[eid];
     const fatigue = Needs.fatigue[eid];
-    const utilities = actionUtilities({
-      hunger,
-      thirst,
-      fatigue,
-      curiosity: Personality.curiosity[eid],
-    });
+    const utilities = biasedUtilities(
+      actionUtilities({
+        hunger,
+        thirst,
+        fatigue,
+        curiosity: Personality.curiosity[eid],
+      }),
+      actionBias(world.seed, Identity.id[eid]),
+    );
     const current = ACTION_IDS[Action.kind[eid]] ?? 'move';
 
     if (Action.elapsed[eid] > 0 && continueAction(current, Action.elapsed[eid], hunger, thirst, fatigue)) {

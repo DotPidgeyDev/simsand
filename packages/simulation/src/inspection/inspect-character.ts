@@ -8,7 +8,7 @@ import { Personality } from '../components/personality.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Attributes } from '../components/attributes.js';
-import { actionUtilities, emptyCooldowns } from '../systems/actions.js';
+import { actionBias, actionUtilities, biasedUtilities, emptyCooldowns } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
@@ -46,12 +46,15 @@ export function inspectCharacter(
     drinking: Condition.drinking[eid] === 1,
     ageSeconds: Lifecycle.ageSeconds[eid],
     action: ACTION_IDS[Action.kind[eid]] ?? 'move',
-    utilities: actionUtilities({
-      hunger: Needs.hunger[eid],
-      thirst: Needs.thirst[eid],
-      fatigue: Needs.fatigue[eid],
-      curiosity: Personality.curiosity[eid],
-    }),
+    utilities: biasedUtilities(
+      actionUtilities({
+        hunger: Needs.hunger[eid],
+        thirst: Needs.thirst[eid],
+        fatigue: Needs.fatigue[eid],
+        curiosity: Personality.curiosity[eid],
+      }),
+      actionBias(world.seed, id),
+    ),
     cooldowns: {
       ...emptyCooldowns(),
       idle: Action.cooldown.idle[eid],

@@ -150,7 +150,7 @@ The current simulation includes:
 **Action system**
 
 - Runs after lifecycle and before needs.
-- Scores `idle`, `move`, `eat`, `rest` and `drink` from needs and curiosity.
+- Scores `idle`, `move`, `eat`, `rest` and `drink` from needs and curiosity, then adds a stable bias of at most 0.05 per action. The bias comes from the world seed and the character id, on its own salt, and is not saved. Inspection shows the biased scores. A pressing need still outranks the bias.
 - Keeps the choice for at least 5 seconds. Eat, drink and rest then continue until that need falls to 0.3.
 - A need at 0.8 interrupts the current choice. The interrupted action cannot be chosen again for 20 seconds. Finishing it does not start that cooldown. Only one recovery runs at a time.
 - Writes the resting, eating and drinking flags that needs and movement read.
@@ -565,7 +565,7 @@ Measure representative workloads again as systems are added, rather than assumin
 | Character profile | Implemented — name, attributes, personality, needs, lifecycle |
 | Lifecycle system | Implemented — age increases, and constitution's lifespan ends the life |
 | Needs system | Implemented — fatigue, hunger and thirst each rise and recover |
-| Action system | Implemented — idle, move, eat, rest and drink, chosen from needs and curiosity |
+| Action system | Implemented — idle, move, eat, rest and drink, chosen from needs, curiosity and a stable personal bias |
 | Derived statistics | Implemented — fatigue rates from constitution |
 
 ---

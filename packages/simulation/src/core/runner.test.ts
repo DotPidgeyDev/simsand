@@ -8,6 +8,8 @@ import {
 
 import { createSimulationWorld } from './world.js';
 import { createCharacter } from '../entities/create-character.js';
+import { Needs } from '../components/needs.js';
+import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
 
 describe('simulation runner', () => {
@@ -23,6 +25,11 @@ describe('simulation runner', () => {
       color: 0xffffff,
       sprite: 'wanderer',
     });
+
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 1;
 
     const clock = createSimulationClock();
     const runner = createSimulationRunner(world, clock);
