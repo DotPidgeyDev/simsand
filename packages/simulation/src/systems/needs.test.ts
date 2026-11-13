@@ -15,11 +15,9 @@ import { updateMovement } from './movement.js';
 import {
   FATIGUE_RECOVERY_PER_SECOND,
   FATIGUE_REST_AT,
-  FATIGUE_RESUME_AT,
   HUNGER_EAT_AT,
   HUNGER_GAIN_PER_SECOND,
   HUNGER_RECOVERY_PER_SECOND,
-  HUNGER_RESUME_AT,
   THIRST_DRINK_AT,
   THIRST_GAIN_PER_SECOND,
   THIRST_RECOVERY_PER_SECOND,
@@ -89,77 +87,35 @@ describe('updateNeeds', () => {
     expect(fatigueGainPerSecond(1)).toBeCloseTo(fatigueGainPerSecond(10) * 10);
   });
 
-  it('stops a character at the rest threshold and then lets them recover', () => {
-    const { world, eid } = character(5, FATIGUE_REST_AT - 0.001);
-
-    updateNeeds(world, 1);
-    expect(Condition.resting[eid]).toBe(1);
-
-    const beforeMove = Position.x[eid];
-    updateMovement(world, 1);
-    expect(Position.x[eid]).toBe(beforeMove);
-
-    const restingFatigue = Needs.fatigue[eid];
-    updateNeeds(world, 1);
-    expect(Needs.fatigue[eid]).toBeCloseTo(restingFatigue - FATIGUE_RECOVERY_PER_SECOND);
-    expect(Condition.resting[eid]).toBe(1);
-  });
-
-  it('resumes movement only after fatigue falls to the resume threshold', () => {
-    const { world, eid } = character(5, FATIGUE_RESUME_AT + 0.001);
+  it('recovers a need only while its flag is set, and leaves the flag alone', () => {
+    const { world, eid } = character(5, 0.5);
+    Needs.hunger[eid] = 0.5;
+    Needs.thirst[eid] = 0.5;
     Condition.resting[eid] = 1;
-
-    updateNeeds(world, 1);
-    expect(Condition.resting[eid]).toBe(0);
-
-    updateMovement(world, 1);
-    expect(Position.x[eid]).toBe(11);
-  });
-
-  it('stops a character to eat and then lets hunger recover', () => {
-    const { world, eid } = character(5, 0.2);
-    Needs.hunger[eid] = HUNGER_EAT_AT - 0.001;
-
-    updateNeeds(world, 1);
-    expect(Condition.eating[eid]).toBe(1);
-
-    const beforeMove = Position.x[eid];
-    updateMovement(world, 1);
-    expect(Position.x[eid]).toBe(beforeMove);
-
-    const eatingHunger = Needs.hunger[eid];
-    updateNeeds(world, 1);
-    expect(Needs.hunger[eid]).toBeCloseTo(eatingHunger - HUNGER_RECOVERY_PER_SECOND);
-    expect(Condition.eating[eid]).toBe(1);
-  });
-
-  it('resumes movement only after hunger falls to the resume threshold', () => {
-    const { world, eid } = character(5, 0.2);
-    Needs.hunger[eid] = HUNGER_RESUME_AT + 0.001;
     Condition.eating[eid] = 1;
+    Condition.drinking[eid] = 1;
 
     updateNeeds(world, 1);
-    expect(Condition.eating[eid]).toBe(0);
 
-    updateMovement(world, 1);
-    expect(Position.x[eid]).toBe(11);
+    expect(Needs.fatigue[eid]).toBeCloseTo(0.5 - FATIGUE_RECOVERY_PER_SECOND);
+    expect(Needs.hunger[eid]).toBeCloseTo(0.5 - HUNGER_RECOVERY_PER_SECOND);
+    expect(Needs.thirst[eid]).toBeCloseTo(0.5 - THIRST_RECOVERY_PER_SECOND);
+    expect(Condition.resting[eid]).toBe(1);
+    expect(Condition.eating[eid]).toBe(1);
+    expect(Condition.drinking[eid]).toBe(1);
   });
 
-  it('stops a character to drink and then lets thirst recover', () => {
-    const { world, eid } = character(5, 0.2);
-    Needs.thirst[eid] = THIRST_DRINK_AT - 0.001;
+  it('does not start a recovery when a need crosses the old threshold', () => {
+    const { world, eid } = character(5, FATIGUE_REST_AT);
+    Needs.hunger[eid] = HUNGER_EAT_AT;
+    Needs.thirst[eid] = THIRST_DRINK_AT;
 
     updateNeeds(world, 1);
-    expect(Condition.drinking[eid]).toBe(1);
 
-    const beforeMove = Position.x[eid];
-    updateMovement(world, 1);
-    expect(Position.x[eid]).toBe(beforeMove);
-
-    const drinkingThirst = Needs.thirst[eid];
-    updateNeeds(world, 1);
-    expect(Needs.thirst[eid]).toBeCloseTo(drinkingThirst - THIRST_RECOVERY_PER_SECOND);
-    expect(Condition.drinking[eid]).toBe(1);
+    expect(Condition.resting[eid]).toBe(0);
+    expect(Condition.eating[eid]).toBe(0);
+    expect(Condition.drinking[eid]).toBe(0);
+    expect(Needs.fatigue[eid]).toBeGreaterThan(FATIGUE_REST_AT);
   });
 
   it('does not change the needs of a dead character', () => {
@@ -177,23 +133,16 @@ describe('updateNeeds', () => {
     expect(Condition.drinking[eid]).toBe(0);
   });
 
-  it('keeps fatigue inside the range and cycles out of rest over a long run', () => {
+  it('keeps fatigue inside the range when nobody chooses to rest', () => {
     const { world, eid } = character(1, 0.2);
-    let sawRest = false;
 
     for (let i = 0; i < 2_000; i++) {
       updateNeeds(world, 0.1);
-      if (Condition.resting[eid] === 1) sawRest = true;
       expect(Needs.fatigue[eid]).toBeGreaterThanOrEqual(0);
       expect(Needs.fatigue[eid]).toBeLessThanOrEqual(1);
     }
 
-    expect(sawRest).toBe(true);
-
-    for (let i = 0; i < 500 && Condition.resting[eid] === 1; i++) {
-      updateNeeds(world, 0.1);
-    }
-
+    expect(Needs.fatigue[eid]).toBeCloseTo(1);
     expect(Condition.resting[eid]).toBe(0);
   });
 
@@ -216,24 +165,17 @@ describe('updateNeeds', () => {
     expect(Position.x[restoredId!]).toBe(10);
   });
 
-  it('keeps hunger inside the range and finishes a meal', () => {
+  it('keeps hunger inside the range when nobody chooses to eat', () => {
     const { world, eid } = character(5, 0.2);
     Needs.hunger[eid] = 0.2;
-    let sawMeal = false;
 
     for (let i = 0; i < 2_000; i++) {
       updateNeeds(world, 0.1);
-      if (Condition.eating[eid] === 1) sawMeal = true;
       expect(Needs.hunger[eid]).toBeGreaterThanOrEqual(0);
       expect(Needs.hunger[eid]).toBeLessThanOrEqual(1);
     }
 
-    expect(sawMeal).toBe(true);
-
-    for (let i = 0; i < 500 && Condition.eating[eid] === 1; i++) {
-      updateNeeds(world, 0.1);
-    }
-
+    expect(Needs.hunger[eid]).toBeCloseTo(1);
     expect(Condition.eating[eid]).toBe(0);
   });
 

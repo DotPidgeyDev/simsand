@@ -1,6 +1,6 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 02 complete  
+**Status:** Active — Milestone 03 in progress  
 **Version:** 1.3  
 **Last updated:** 2026-11-13
 
@@ -159,9 +159,13 @@ Avoid implementing complex decision-making at this stage. The goal is to establi
 
 ## Milestone 03 — Autonomous behaviour
 
-**Status: Planned**
+**Status: In progress**
 
 Implement a small utility-based action system with a few actions such as idle, move, eat, rest and work.
+
+### Current implementation
+
+A living character chooses one action: `idle`, `move`, `eat`, `rest` or `drink`. The score for eat, rest and drink is that need. Idle and move share whatever comfort is left, split by curiosity, so an incurious character stands and a curious one walks. Ties go to eat, then drink, then rest, then move. The choice is kept for at least 5 seconds, and a meal, drink or rest continues until that need falls to 0.3. A need at 0.8 interrupts immediately. Only one of those recoveries happens at a time. The needs system applies the rates and no longer starts or stops the choice. Inspection shows the action and the five scores. The choice is saved (format version 8). A version 7 save takes the action that matches its flags, preferring whichever need is higher when more than one flag is set. Work is not a choice yet, because there is nothing to work at.
 
 Initial scope:
 

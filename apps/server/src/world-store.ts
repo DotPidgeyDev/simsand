@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { PERSISTED_WORLD_VERSION } from '@simsand/shared';
+import { ACTION_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
@@ -134,7 +134,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (![1, 2, 3, 4, 5, 6, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
+  if (![1, 2, 3, 4, 5, 6, 7, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
@@ -188,6 +188,18 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
     for (const entity of world.entities as { ageSeconds?: unknown }[]) {
       if (!isFiniteNumber(entity.ageSeconds) || entity.ageSeconds < 0) {
         throw new Error('Character age is missing or invalid');
+      }
+    }
+  }
+
+  if (Number(world.version) >= 8) {
+    for (const entity of world.entities as { action?: unknown; actionSeconds?: unknown }[]) {
+      if (!(ACTION_IDS as readonly string[]).includes(String(entity.action))) {
+        throw new Error(`Unknown action: ${String(entity.action)}`);
+      }
+
+      if (!isFiniteNumber(entity.actionSeconds) || entity.actionSeconds < 0) {
+        throw new Error('Character action time is missing or invalid');
       }
     }
   }

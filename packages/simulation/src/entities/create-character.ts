@@ -1,10 +1,12 @@
 import { addEntity, addComponents } from 'bitecs';
 
-import type { CharacterProfile, SpriteId } from '@simsand/shared';
+import { ACTION_IDS } from '@simsand/shared';
+import type { ActionId, CharacterProfile, SpriteId } from '@simsand/shared';
 
 import { assertCharacterProfile, assertSpriteId, generateCharacterProfile, startingAgeSeconds, writeCharacterProfile } from '../characters/profile.js';
 import type { SimulationWorld } from '../core/world.js';
 
+import { Action } from '../components/action.js';
 import { Attributes } from '../components/attributes.js';
 import { Appearance } from '../components/appearance.js';
 import { Condition } from '../components/condition.js';
@@ -27,6 +29,8 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   eating?: boolean;
   drinking?: boolean;
   ageSeconds?: number;
+  action?: ActionId;
+  actionSeconds?: number;
 }
 
 // pass in the world and character attr, and get the id of a new char entity added to the world.
@@ -57,6 +61,7 @@ export function createCharacter(
     Needs,
     Lifecycle,
     Condition,
+    Action,
   );
 
   Identity.id[eid] = definition.id;
@@ -70,6 +75,8 @@ export function createCharacter(
   Condition.resting[eid] = definition.resting ? 1 : 0;
   Condition.eating[eid] = definition.eating ? 1 : 0;
   Condition.drinking[eid] = definition.drinking ? 1 : 0;
+  Action.kind[eid] = ACTION_IDS.indexOf(definition.action ?? 'move');
+  Action.elapsed[eid] = definition.actionSeconds ?? 0;
 
   Position.x[eid] = definition.x;
   Position.y[eid] = definition.y;

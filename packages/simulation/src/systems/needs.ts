@@ -45,68 +45,46 @@ export function derivedStats(constitution: number): DerivedStats {
   };
 }
 
-// The same need value occurs on the way up and the way down, so the flag is
-// what says which side of the gap the character is on.
-function trackNeed(
+function applyNeed(
   value: number,
   active: number,
   gainPerSecond: number,
   recoveryPerSecond: number,
-  startAt: number,
-  resumeAt: number,
   deltaSeconds: number,
-): { value: number; active: number } {
-  if (active === 1) {
-    const next = Math.max(0, value - recoveryPerSecond * deltaSeconds);
-    return { value: next, active: next <= resumeAt ? 0 : 1 };
-  }
+): number {
+  if (active === 1) return Math.max(0, value - recoveryPerSecond * deltaSeconds);
 
-  const next = Math.min(1, value + gainPerSecond * deltaSeconds);
-  return { value: next, active: next >= startAt ? 1 : 0 };
+  return Math.min(1, value + gainPerSecond * deltaSeconds);
 }
 
-// Runs before movement. Crossing a threshold stops the character on the same
-// tick, and recovering past the resume threshold lets them move again.
+// Runs after the action choice. The flags say which need is recovering.
+// This system does not start or stop an action.
 export function updateNeeds(world: SimulationWorld, deltaSeconds: number): void {
   const entities = query(world.ecs, [Needs, Attributes, Lifecycle, Condition]);
 
   for (const eid of entities) {
     if (Lifecycle.state[eid] === DEAD) continue;
 
-    const fatigue = trackNeed(
+    Needs.fatigue[eid] = applyNeed(
       Needs.fatigue[eid],
       Condition.resting[eid],
       fatigueGainPerSecond(Attributes.constitution[eid]),
       FATIGUE_RECOVERY_PER_SECOND,
-      FATIGUE_REST_AT,
-      FATIGUE_RESUME_AT,
       deltaSeconds,
     );
-    Needs.fatigue[eid] = fatigue.value;
-    Condition.resting[eid] = fatigue.active;
-
-    const hunger = trackNeed(
+    Needs.hunger[eid] = applyNeed(
       Needs.hunger[eid],
       Condition.eating[eid],
       HUNGER_GAIN_PER_SECOND,
       HUNGER_RECOVERY_PER_SECOND,
-      HUNGER_EAT_AT,
-      HUNGER_RESUME_AT,
       deltaSeconds,
     );
-    Needs.hunger[eid] = hunger.value;
-    Condition.eating[eid] = hunger.active;
-
-    const thirst = trackNeed(
+    Needs.thirst[eid] = applyNeed(
       Needs.thirst[eid],
       Condition.drinking[eid],
       THIRST_GAIN_PER_SECOND,
       THIRST_RECOVERY_PER_SECOND,
-      THIRST_DRINK_AT,
-      THIRST_RESUME_AT,
       deltaSeconds,
     );
-    Needs.thirst[eid] = thirst.value;
-    Condition.drinking[eid] = thirst.active;
   }
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { TERRAIN_TYPES } from '@simsand/shared';
 
 import { generateCharacterProfile, startingAgeSeconds } from '../characters/profile.js';
+import { actionUtilities } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { createWorldMap } from '../core/map.js';
 import { createSimulationWorld } from '../core/world.js';
@@ -38,6 +39,11 @@ describe('inspectCharacter', () => {
       eating: false,
       drinking: false,
       ageSeconds: startingAgeSeconds(0, 'swimmer', generateCharacterProfile(0, 'swimmer').attributes.constitution),
+      action: 'move',
+      utilities: actionUtilities({
+        ...generateCharacterProfile(0, 'swimmer').needs,
+        curiosity: generateCharacterProfile(0, 'swimmer').personality.curiosity,
+      }),
       derived: derivedStats(generateCharacterProfile(0, 'swimmer').attributes.constitution),
       tile: { x: 2, y: 3, terrain: 'water' },
     });

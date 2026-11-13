@@ -1,0 +1,128 @@
+import { describe, expect, it } from 'vitest';
+
+import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
+
+import { Action } from '../components/action.js';
+import { Lifecycle } from '../components/lifecycle.js';
+import { Needs } from '../components/needs.js';
+import { Personality } from '../components/personality.js';
+import { Position } from '../components/position.js';
+import { createSimulationWorld } from '../core/world.js';
+import { createCharacter } from '../entities/create-character.js';
+import { MIN_ACTION_SECONDS, updateActions } from './actions.js';
+import { updateMovement } from './movement.js';
+import { updateNeeds } from './needs.js';
+
+function character() {
+  const world = createSimulationWorld();
+  const eid = createCharacter(world, {
+    id: 'chooser',
+    x: 10,
+    y: 10,
+    velocityX: 1,
+    velocityY: 0,
+    color: 0xffffff,
+    sprite: 'wanderer',
+  });
+
+  Needs.hunger[eid] = 0.2;
+  Needs.thirst[eid] = 0.2;
+  Needs.fatigue[eid] = 0.2;
+  Lifecycle.ageSeconds[eid] = 0;
+  return { world, eid };
+}
+
+describe('updateActions', () => {
+  it('sends a curious, comfortable character walking', () => {
+    const { world, eid } = character();
+    Personality.curiosity[eid] = 1;
+
+    updateActions(world, 0.1);
+    updateMovement(world, 1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Position.x[eid]).toBe(11);
+  });
+
+  it('keeps an incurious, comfortable character idle', () => {
+    const { world, eid } = character();
+    Personality.curiosity[eid] = 0;
+
+    updateActions(world, 0.1);
+    updateMovement(world, 1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+    expect(Position.x[eid]).toBe(10);
+  });
+
+  it('chooses the pressing need and holds it until the need recovers', () => {
+    const { world, eid } = character();
+    Personality.curiosity[eid] = 1;
+    Needs.hunger[eid] = 0.6;
+
+    updateActions(world, 0.1);
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('eat');
+
+    for (let i = 0; i < 30 && Needs.hunger[eid] > 0.3; i++) {
+      updateActions(world, 1);
+      updateNeeds(world, 1);
+    }
+
+    expect(Needs.hunger[eid]).toBeLessThanOrEqual(0.3);
+    expect(Needs.hunger[eid]).toBeGreaterThan(0);
+
+    updateActions(world, 1);
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+  });
+
+  it('does not abandon a choice before the commitment ends', () => {
+    const { world, eid } = character();
+    Personality.curiosity[eid] = 1;
+    Action.kind[eid] = 1;
+    Action.elapsed[eid] = 1;
+    Needs.hunger[eid] = 0.6;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Action.elapsed[eid]).toBeCloseTo(1.1);
+  });
+
+  it('lets an urgent need interrupt the commitment', () => {
+    const { world, eid } = character();
+    Action.kind[eid] = 1;
+    Action.elapsed[eid] = 1;
+    Needs.thirst[eid] = 0.85;
+
+    updateActions(world, 0.1);
+    updateMovement(world, 1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('drink');
+    expect(Position.x[eid]).toBe(10);
+  });
+
+  it('idles a dead character and leaves them where they are', () => {
+    const { world, eid } = character();
+    Lifecycle.state[eid] = LIFECYCLE_STATES.indexOf('dead');
+    Action.kind[eid] = 1;
+    Action.elapsed[eid] = 3;
+
+    updateActions(world, 1);
+    updateMovement(world, 1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+    expect(Action.elapsed[eid]).toBe(0);
+    expect(Position.x[eid]).toBe(10);
+  });
+
+  it('reconsiders idle and move once the commitment has elapsed', () => {
+    const { world, eid } = character();
+    Personality.curiosity[eid] = 0;
+    Action.kind[eid] = 1;
+    Action.elapsed[eid] = MIN_ACTION_SECONDS;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+  });
+});

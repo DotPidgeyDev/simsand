@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { EntityInspection, SimulationStatus, WorldSnapshot } from '@simsand/shared';
-import { derivedStats, generateCharacterProfile } from '@simsand/simulation';
+import { actionUtilities, derivedStats, generateCharacterProfile } from '@simsand/simulation';
 
 import { createInspectionServer } from './inspection-server.js';
 import type { InspectionSource } from './inspection-server.js';
@@ -29,6 +29,11 @@ const entity: EntityInspection = {
   ...generateCharacterProfile(1, 'character-0001'),
   resting: false, eating: false, drinking: false,
   ageSeconds: 12,
+  action: 'move',
+  utilities: actionUtilities({
+    ...generateCharacterProfile(1, 'character-0001').needs,
+    curiosity: generateCharacterProfile(1, 'character-0001').personality.curiosity,
+  }),
   derived: derivedStats(generateCharacterProfile(1, 'character-0001').attributes.constitution),
   tile: { x: 1, y: 2, terrain: 'grass' },
 };

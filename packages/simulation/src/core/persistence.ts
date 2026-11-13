@@ -1,9 +1,10 @@
 import { query } from 'bitecs';
 
-import { PERSISTED_WORLD_VERSION } from '@simsand/shared';
-import type { CharacterProfile, PersistedEntity, PersistedWorld } from '@simsand/shared';
+import { ACTION_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
+import type { ActionId, CharacterProfile, PersistedEntity, PersistedWorld } from '@simsand/shared';
 
 import { generateCharacterProfile, readCharacterProfile, spriteIdFor, startingAgeSeconds } from '../characters/profile.js';
+import { Action } from '../components/action.js';
 import { Condition } from '../components/condition.js';
 import { FATIGUE_REST_AT, HUNGER_EAT_AT, THIRST_DRINK_AT } from '../systems/needs.js';
 import type { SimulationClock } from './clock.js';
@@ -22,11 +23,17 @@ import { createCharacter } from '../entities/create-character.js';
 // Version 1 predates the tile map. Version 2 predates the character profile.
 // Version 3 predates the resting flag. Version 4 stores a numeric sprite.
 // Version 5 predates the eating and drinking flags. Version 6 predates age.
-type PersistedEntityV2 = Omit<PersistedEntity, keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds'>;
+// Version 7 predates the chosen action.
+type PersistedEntityV2 = Omit<PersistedEntity, keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds'>;
 
-export type PersistedWorldV6 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV7 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 7;
+  entities: Array<Omit<PersistedEntity, 'action' | 'actionSeconds'>>;
+};
+
+export type PersistedWorldV6 = Omit<PersistedWorldV7, 'version' | 'entities'> & {
   version: 6;
-  entities: Array<Omit<PersistedEntity, 'ageSeconds'>>;
+  entities: Array<Omit<PersistedWorldV7['entities'][number], 'ageSeconds'>>;
 };
 
 export type PersistedWorldV5 = Omit<PersistedWorldV6, 'version' | 'entities'> & {
@@ -58,6 +65,7 @@ export type UpgradeableWorld =
   | PersistedWorldV4
   | PersistedWorldV5
   | PersistedWorldV6
+  | PersistedWorldV7
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -82,6 +90,8 @@ export function capturePersistedWorld(
       eating: Condition.eating[eid] === 1,
       drinking: Condition.drinking[eid] === 1,
       ageSeconds: Lifecycle.ageSeconds[eid],
+      action: ACTION_IDS[Action.kind[eid]] ?? 'move',
+      actionSeconds: Action.elapsed[eid],
     });
   }
 
@@ -94,6 +104,23 @@ export function capturePersistedWorld(
     map: toWorldMapData(world.map),
     entities,
   };
+}
+
+function actionFromFlags(entity: {
+  eating: boolean;
+  drinking: boolean;
+  resting: boolean;
+  needs: { hunger: number; thirst: number; fatigue: number };
+}): ActionId {
+  const ranked: Array<[ActionId, number]> = [];
+
+  if (entity.eating) ranked.push(['eat', entity.needs.hunger]);
+  if (entity.drinking) ranked.push(['drink', entity.needs.thirst]);
+  if (entity.resting) ranked.push(['rest', entity.needs.fatigue]);
+  if (ranked.length === 0) return 'move';
+
+  ranked.sort((left, right) => right[1] - left[1]);
+  return ranked[0][0];
 }
 
 // Older saves are filled in from their seed: version 1 gets its map, and
@@ -163,12 +190,26 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 6) {
+    const withAge = {
+      ...persisted,
+      version: 7 as const,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        ageSeconds: startingAgeSeconds(persisted.seed, entity.id, entity.attributes.constitution),
+      })),
+    } as unknown as PersistedWorldV7;
+
+    return upgradePersistedWorld(withAge);
+  }
+
+  if (persisted.version === 7) {
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
       entities: persisted.entities.map((entity) => ({
         ...entity,
-        ageSeconds: startingAgeSeconds(persisted.seed, entity.id, entity.attributes.constitution),
+        action: actionFromFlags(entity),
+        actionSeconds: 0,
       })),
     };
   }

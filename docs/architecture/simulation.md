@@ -135,7 +135,7 @@ Attributes, personality, needs and lifecycle are component data because later sy
 
 Attributes are integers from 1 to 10. Personality traits are 0 to 1. Needs are 0 (satisfied) to 1 (critical); generated characters start between 0.15 and 0.45. Names come from a small placeholder list. The needs system runs at the start of every tick, before movement. Fatigue rises while a character is active and falls while they rest. They stop at 0.8 and resume at 0.3, so the same fatigue value means opposite things on the way up and the way down; the resting flag is saved for that reason. Constitution sets the gain: `packages/simulation/src/systems/needs.ts` uses `0.015 × (11 − constitution) / 10` per second, so constitution 10 tires at a tenth of the rate of constitution 1. Recovery is 0.025 per second. Inspection reports both rates as derived stats. They are computed, not stored.
 
-Hunger and thirst rise while a character is not already recovering that need. At 0.8 they stop and the world feeds or waters them, until the need falls to 0.3. Both can happen together; choosing between them comes later. The gain is 0.004 per second and recovery is 0.02 per second, so a meal is visible within a few minutes and does not last as long as the climb. Dead characters are left unchanged. Age increases only while a character is alive. `packages/simulation/src/systems/lifecycle.ts` ends the life when age reaches `600 × constitution` seconds, then clears rest, eating and drinking. The span is provisional so a death is observable. A new character's starting age comes from `startingAgeSeconds`, which does not touch the profile's random stream, and is always below the span. Inspection reports the span as a derived stat.
+Hunger and thirst rise while a character is not already recovering that need. The action system chooses when to eat, drink or rest. A meal or drink recovers at 0.02 per second until the need falls to 0.3, and a need at 0.8 interrupts whatever else they were doing. Only one of those recoveries runs at a time. The gain is 0.004 per second, so a meal is visible within a few minutes and does not last as long as the climb. Dead characters are left unchanged, and their action becomes idle. Age increases only while a character is alive. `packages/simulation/src/systems/lifecycle.ts` ends the life when age reaches `600 × constitution` seconds, then clears rest, eating and drinking. The span is provisional so a death is observable. A new character's starting age comes from `startingAgeSeconds`, which does not touch the profile's random stream, and is always below the span. Inspection reports the span as a derived stat.
 
 `spriteIdFor(seed, id)` picks a name from `SPRITE_IDS` (`wanderer`, `scout`, `elder`) with its own salt, so the choice never shifts the profile stream. `assertSpriteId` rejects anything outside the catalog when a character is created or a current save is loaded. The client draws wanderer as a square, scout as a diamond and elder as a triangle. Resting overrides that shape with a circle. Eating or drinking draws a ring around the character. A dead character is an X.
 
@@ -147,9 +147,17 @@ Systems process entities with relevant component combinations.
 
 The current simulation includes:
 
+**Action system**
+
+- Runs after lifecycle and before needs.
+- Scores `idle`, `move`, `eat`, `rest` and `drink` from needs and curiosity.
+- Keeps the choice for at least 5 seconds. Eat, drink and rest then continue until that need falls to 0.3.
+- A need at 0.8 interrupts the current choice. Only one recovery runs at a time.
+- Writes the resting, eating and drinking flags that needs and movement read.
+
 **Lifecycle system**
 
-- Runs before needs and movement.
+- Runs before actions, needs and movement.
 - Ages each living character by the tick length.
 - Sets a character to dead when their age reaches the lifespan constitution gives them.
 - Clears resting, eating and drinking at that moment, and does not age the dead.
@@ -159,7 +167,7 @@ The current simulation includes:
 - Queries entities containing `Position` and `Velocity`.
 - Calculates new positions using the fixed simulation timestep.
 - Bounces entities off the map edges: the distance past the edge is mirrored back inside, and that velocity component is reversed.
-- Skips dead characters and characters who are resting, eating or drinking, leaving their position and velocity unchanged.
+- Skips dead characters and characters who are idle, resting, eating or drinking, leaving their position and velocity unchanged.
 - Updates entity positions.
 
 Positions were originally clamped at the edge with velocity unchanged. In a long-running world that pinned every moving character in a corner. A movement test now runs 20 characters for 30,000 ticks to check that none end up in a corner.
@@ -557,6 +565,7 @@ Measure representative workloads again as systems are added, rather than assumin
 | Character profile | Implemented — name, attributes, personality, needs, lifecycle |
 | Lifecycle system | Implemented — age increases, and constitution's lifespan ends the life |
 | Needs system | Implemented — fatigue, hunger and thirst each rise and recover |
+| Action system | Implemented — idle, move, eat, rest and drink, chosen from needs and curiosity |
 | Derived statistics | Implemented — fatigue rates from constitution |
 
 ---

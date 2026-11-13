@@ -1,15 +1,17 @@
 import { query } from 'bitecs';
 
-import { LIFECYCLE_STATES } from '@simsand/shared';
+import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
 
+import { Action } from '../components/action.js';
 import { Condition } from '../components/condition.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Position } from '../components/position.js';
 import { Velocity } from '../components/velocity.js';
 
 const DEAD = LIFECYCLE_STATES.indexOf('dead');
+const MOVE = ACTION_IDS.indexOf('move');
 
 // update the movement of every char in the world
 // we have their current pos and their vel, and bounce them off the map edges.
@@ -21,8 +23,11 @@ export function updateMovement(
   const entities = query(world.ecs, [Position, Velocity]);
 
   for (const eid of entities) {
+    // Idle, rest, eat and drink all hold the character still. The recovery
+    // flags are checked as well so a saved rest stops them on the first tick.
     if (
       Lifecycle.state[eid] === DEAD
+      || Action.kind[eid] !== MOVE
       || Condition.resting[eid] === 1
       || Condition.eating[eid] === 1
       || Condition.drinking[eid] === 1

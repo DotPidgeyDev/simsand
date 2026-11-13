@@ -52,7 +52,7 @@ describe('world persistence', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(0.05), 99);
 
     expect(persisted).toMatchObject({
-      version: 7,
+      version: 8,
       seed: 99,
       tick: 0,
       fixedDeltaSeconds: 0.05,
@@ -95,7 +95,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld({ ...current, version: 1 });
 
-    expect(upgraded.version).toBe(7);
+    expect(upgraded.version).toBe(8);
     expect(upgraded.map).toEqual(toWorldMapData(generateWorldMap(42)));
     expect(() => restorePersistedWorld(upgraded)).not.toThrow();
   });
@@ -115,7 +115,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutProfiles);
 
-    expect(upgraded.version).toBe(7);
+    expect(upgraded.version).toBe(8);
     expect(upgraded.entities.map((entity) => entity.name)).toEqual(
       persisted.entities.map((entity) => entity.name),
     );
@@ -160,11 +160,13 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutSustenance);
 
-    expect(upgraded.version).toBe(7);
+    expect(upgraded.version).toBe(8);
     expect(upgraded.entities[0].eating).toBe(true);
     expect(upgraded.entities[0].drinking).toBe(false);
     expect(upgraded.entities[0].needs.hunger).toBe(0.9);
     expect(upgraded.entities[0].ageSeconds).toBe(startingAgeSeconds(1, 'diner', 5));
+    expect(upgraded.entities[0].action).toBe('eat');
+    expect(upgraded.entities[0].actionSeconds).toBe(0);
   });
 
   it('upgrades a version 6 world with a seeded age', () => {
@@ -182,16 +184,17 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutAge);
 
-    expect(upgraded.version).toBe(7);
+    expect(upgraded.version).toBe(8);
     expect(upgraded.entities[0].ageSeconds).toBe(persisted.entities[0].ageSeconds);
+    expect(upgraded.entities[0].action).toBe('move');
   });
 
   it('rejects an unsupported format version', () => {
     const world = createSimulationWorld();
     const persisted = capturePersistedWorld(world, createSimulationClock(), 1);
 
-    expect(() => restorePersistedWorld({ ...persisted, version: 8 })).toThrow(
-      'Unsupported persisted world version: 8',
+    expect(() => restorePersistedWorld({ ...persisted, version: 9 })).toThrow(
+      'Unsupported persisted world version: 9',
     );
   });
 });

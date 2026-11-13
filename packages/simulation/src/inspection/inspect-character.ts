@@ -1,9 +1,14 @@
+import { ACTION_IDS } from '@simsand/shared';
 import type { EntityInspection } from '@simsand/shared';
 
 import { readCharacterProfile } from '../characters/profile.js';
+import { Action } from '../components/action.js';
 import { Condition } from '../components/condition.js';
+import { Personality } from '../components/personality.js';
 import { Lifecycle } from '../components/lifecycle.js';
+import { Needs } from '../components/needs.js';
 import { Attributes } from '../components/attributes.js';
+import { actionUtilities } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
@@ -40,6 +45,13 @@ export function inspectCharacter(
     eating: Condition.eating[eid] === 1,
     drinking: Condition.drinking[eid] === 1,
     ageSeconds: Lifecycle.ageSeconds[eid],
+    action: ACTION_IDS[Action.kind[eid]] ?? 'move',
+    utilities: actionUtilities({
+      hunger: Needs.hunger[eid],
+      thirst: Needs.thirst[eid],
+      fatigue: Needs.fatigue[eid],
+      curiosity: Personality.curiosity[eid],
+    }),
     derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };

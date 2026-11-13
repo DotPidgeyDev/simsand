@@ -198,5 +198,7 @@ a lifecycle of alive or dead. Fatigue rises with movement and recovers
 while the character rests; constitution sets the rate. Hunger and thirst
 rise over time, and the world feeds or waters a character once that need
 is pressing. Age increases while a character is alive, and constitution
-sets when that life ends. Skills, inventory,
+sets when that life ends. A character chooses idle, move, eat, rest or
+drink from those needs and from curiosity, and keeps the choice until
+it is finished or a need becomes urgent. Skills, inventory,
 relationships, memories and goals stay later.
