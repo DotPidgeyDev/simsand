@@ -15,7 +15,7 @@ export { executeCommand } from './commands/execute-command.js';
 export { createPopulation } from './entities/create-population.js';
 
 export { updateMovement } from './systems/movement.js';
-export { updateActions, actionUtilities, actionBias, biasedUtilities, chooseAction, assertActionId, emptyCooldowns } from './systems/actions.js';
+export { updateActions, actionUtilities, actionAvailability, actionBias, biasedUtilities, chooseAction, assertActionId, emptyCooldowns } from './systems/actions.js';
 export { updateLifecycle, lifespanSeconds } from './systems/lifecycle.js';
 export { updateNeeds, derivedStats, fatigueGainPerSecond } from './systems/needs.js';
 

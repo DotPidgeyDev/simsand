@@ -244,6 +244,8 @@ export interface EntityInspection extends CharacterProfile {
   action: ActionId;
   utilities: Record<ActionId, number>;
   cooldowns: ActionCooldowns;
+  // Which actions can be chosen right now. Idle is always available.
+  available: Record<ActionId, boolean>;
   derived: DerivedStats;
   // The tile containing the entity. An entity on the far edge of the map
   // reports the last row or column.

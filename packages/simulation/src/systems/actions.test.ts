@@ -14,6 +14,7 @@ import {
   ACTION_BIAS,
   ACTION_COOLDOWN_SECONDS,
   MIN_ACTION_SECONDS,
+  actionAvailability,
   actionBias,
   actionUtilities,
   biasedUtilities,
@@ -204,10 +205,48 @@ describe('updateActions', () => {
 
     expect(ACTION_IDS[Action.kind[walker]]).toBe('move');
     expect(ACTION_IDS[Action.kind[stander]]).toBe('idle');
-    expect(ACTION_IDS[Action.kind[walker]]).toBe(chooseAction(biasedUtilities(
-      actionUtilities({ hunger: 0.2, thirst: 0.2, fatigue: 0.2, curiosity: 0.5 }),
-      actionBias(12345, Identity.id[walker]),
-    )));
+    expect(ACTION_IDS[Action.kind[walker]]).toBe(chooseAction(
+      biasedUtilities(
+        actionUtilities({ hunger: 0.2, thirst: 0.2, fatigue: 0.2, curiosity: 0.5 }),
+        actionBias(12345, Identity.id[walker]),
+      ),
+      actionAvailability({ alive: true, hunger: 0.2, thirst: 0.2, fatigue: 0.2 }),
+    ));
+  });
+
+  it('will not start a recovery that is already at its stopping point', () => {
+    const { world, eid } = character();
+    Action.elapsed[eid] = 0;
+    Needs.hunger[eid] = 0.3;
+    Needs.thirst[eid] = 0.1;
+    Needs.fatigue[eid] = 0.1;
+    Personality.curiosity[eid] = 1;
+
+    for (const id of ACTION_IDS) {
+      if (id !== 'eat') Action.cooldown[id][eid] = 20;
+    }
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+    expect(Action.cooldown.eat[eid]).toBe(0);
+  });
+
+  it('starts a recovery once the need is above its stopping point', () => {
+    const { world, eid } = character();
+    Action.elapsed[eid] = 0;
+    Needs.hunger[eid] = 0.31;
+    Needs.thirst[eid] = 0.1;
+    Needs.fatigue[eid] = 0.1;
+    Personality.curiosity[eid] = 1;
+
+    for (const id of ACTION_IDS) {
+      if (id !== 'eat') Action.cooldown[id][eid] = 20;
+    }
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('eat');
   });
 
   it('lets a pressing need outrank the personal bias', () => {

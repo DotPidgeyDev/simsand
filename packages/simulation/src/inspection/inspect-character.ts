@@ -1,4 +1,4 @@
-import { ACTION_IDS } from '@simsand/shared';
+import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
 import type { EntityInspection } from '@simsand/shared';
 
 import { readCharacterProfile } from '../characters/profile.js';
@@ -8,7 +8,7 @@ import { Personality } from '../components/personality.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Attributes } from '../components/attributes.js';
-import { actionBias, actionUtilities, biasedUtilities, emptyCooldowns } from '../systems/actions.js';
+import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
@@ -31,6 +31,14 @@ export function inspectCharacter(
   const y = Position.y[eid];
   const tileX = Math.min(world.map.width - 1, Math.max(0, Math.floor(x)));
   const tileY = Math.min(world.map.height - 1, Math.max(0, Math.floor(y)));
+  const cooldowns = {
+    ...emptyCooldowns(),
+    idle: Action.cooldown.idle[eid],
+    move: Action.cooldown.move[eid],
+    eat: Action.cooldown.eat[eid],
+    rest: Action.cooldown.rest[eid],
+    drink: Action.cooldown.drink[eid],
+  };
 
   return {
     id,
@@ -55,14 +63,14 @@ export function inspectCharacter(
       }),
       actionBias(world.seed, id),
     ),
-    cooldowns: {
-      ...emptyCooldowns(),
-      idle: Action.cooldown.idle[eid],
-      move: Action.cooldown.move[eid],
-      eat: Action.cooldown.eat[eid],
-      rest: Action.cooldown.rest[eid],
-      drink: Action.cooldown.drink[eid],
-    },
+    cooldowns,
+    available: actionAvailability({
+      alive: Lifecycle.state[eid] !== LIFECYCLE_STATES.indexOf('dead'),
+      hunger: Needs.hunger[eid],
+      thirst: Needs.thirst[eid],
+      fatigue: Needs.fatigue[eid],
+      cooldowns,
+    }),
     derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };

@@ -92,15 +92,42 @@ export function biasedUtilities(
   };
 }
 
+// Idle is always available, including for the dead. A meal, drink or rest is
+// only available while that need is still above the point where the recovery
+// would keep going, so a small bias cannot start one they would not keep.
+export function actionAvailability(input: {
+  alive: boolean;
+  hunger: number;
+  thirst: number;
+  fatigue: number;
+  cooldowns?: ActionCooldowns;
+}): Record<ActionId, boolean> {
+  const cooldowns = input.cooldowns ?? emptyCooldowns();
+  const open = (id: ActionId) => input.alive && cooldowns[id] <= 0;
+
+  return {
+    idle: true,
+    move: open('move'),
+    eat: open('eat') && input.hunger > HUNGER_RESUME_AT,
+    rest: open('rest') && input.fatigue > FATIGUE_RESUME_AT,
+    drink: open('drink') && input.thirst > THIRST_RESUME_AT,
+  };
+}
+
 export function chooseAction(
   utilities: Record<ActionId, number>,
-  cooldowns: ActionCooldowns = emptyCooldowns(),
+  available: Record<ActionId, boolean> = actionAvailability({
+    alive: true,
+    hunger: 1,
+    thirst: 1,
+    fatigue: 1,
+  }),
 ): ActionId {
-  const available = TIE_BREAK.filter((id) => cooldowns[id] <= 0);
+  const candidates = TIE_BREAK.filter((id) => available[id]);
 
-  if (available.length === 0) return 'idle';
+  if (candidates.length === 0) return 'idle';
 
-  return available.reduce((best, id) => (utilities[id] > utilities[best] ? id : best));
+  return candidates.reduce((best, id) => (utilities[id] > utilities[best] ? id : best));
 }
 
 export function assertActionId(value: unknown): ActionId {
@@ -202,7 +229,13 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       Action.cooldown[current][eid] = ACTION_COOLDOWN_SECONDS;
     }
 
-    const next = chooseAction(utilities, readCooldowns(eid));
+    const next = chooseAction(utilities, actionAvailability({
+      alive: true,
+      hunger,
+      thirst,
+      fatigue,
+      cooldowns: readCooldowns(eid),
+    }));
     Action.kind[eid] = ACTION_IDS.indexOf(next);
     Action.elapsed[eid] = deltaSeconds;
     applyAction(eid, next);
