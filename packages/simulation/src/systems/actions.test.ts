@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
+import { ACTION_IDS, LIFECYCLE_STATES, TERRAIN_TYPES } from '@simsand/shared';
 
 import { Action } from '../components/action.js';
 import { Identity } from '../components/identity.js';
@@ -9,6 +9,7 @@ import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
 import { createSimulationWorld } from '../core/world.js';
+import type { SimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
 import {
   ACTION_BIAS,
@@ -25,6 +26,10 @@ import {
 } from './actions.js';
 import { updateMovement } from './movement.js';
 import { updateNeeds } from './needs.js';
+
+function setTile(world: SimulationWorld, x: number, y: number, terrain: 'grass' | 'dirt' | 'water') {
+  world.map.tiles[Math.floor(y) * world.map.width + Math.floor(x)] = TERRAIN_TYPES.indexOf(terrain);
+}
 
 function character() {
   const world = createSimulationWorld();
@@ -109,6 +114,7 @@ describe('updateActions', () => {
 
   it('lets an urgent need interrupt the commitment', () => {
     const { world, eid } = character();
+    setTile(world, 10, 10, 'water');
     Action.kind[eid] = 1;
     Action.elapsed[eid] = 1;
     Needs.thirst[eid] = 0.85;
@@ -125,6 +131,7 @@ describe('updateActions', () => {
 
   it('skips a cooled action even when it scores highest', () => {
     const { world, eid } = character();
+    setTile(world, 10, 10, 'water');
     Action.elapsed[eid] = 0;
     Action.cooldown.eat[eid] = 10;
     Needs.hunger[eid] = 0.9;
@@ -282,5 +289,56 @@ describe('updateActions', () => {
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
     expect(readActionOutcome(eid)).toEqual({ action: 'move', result: 'completed' });
+  });
+
+  it('walks on dry ground instead of drinking, even when thirst is urgent', () => {
+    const { world, eid } = character();
+    Personality.curiosity[eid] = 0;
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.85;
+    Needs.fatigue[eid] = 0.1;
+    Action.kind[eid] = ACTION_IDS.indexOf('move');
+    Action.elapsed[eid] = 1;
+
+    updateActions(world, 0.1);
+    updateMovement(world, 1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Position.x[eid]).toBe(11);
+    expect(Action.cooldown.move[eid]).toBe(0);
+    expect(actionAvailability({
+      alive: true,
+      hunger: 0.1,
+      thirst: 0.85,
+      fatigue: 0.1,
+      onWater: false,
+    })).toEqual({
+      idle: false,
+      move: true,
+      eat: false,
+      rest: false,
+      drink: false,
+    });
+  });
+
+  it('drinks once a thirsty character is standing in water', () => {
+    const { world, eid } = character();
+    setTile(world, 10, 10, 'water');
+    Personality.curiosity[eid] = 0;
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.4;
+    Needs.fatigue[eid] = 0.1;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('drink');
+    expect(actionAvailability({
+      alive: true,
+      hunger: 0.1,
+      thirst: 0.4,
+      fatigue: 0.1,
+      onWater: true,
+    }).move).toBe(false);
   });
 });

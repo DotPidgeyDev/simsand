@@ -200,5 +200,7 @@ rise over time, and the world feeds or waters a character once that need
 is pressing. Age increases while a character is alive, and constitution
 sets when that life ends. A character chooses idle, move, eat, rest or
 drink from those needs and from curiosity, and keeps the choice until
-it is finished or a need becomes urgent. Skills, inventory,
+it is finished or a need becomes urgent. A drink happens only while
+they are standing on water; until then a thirsty character walks.
+Skills, inventory,
 relationships, memories and goals stay later.

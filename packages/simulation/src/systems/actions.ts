@@ -11,6 +11,8 @@ import { Condition } from '../components/condition.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
+import { Position } from '../components/position.js';
+import { getTile } from '../core/map.js';
 import { createRandom } from '../core/random.js';
 import {
   FATIGUE_REST_AT,
@@ -46,6 +48,8 @@ interface NeedState {
   thirst: number;
   fatigue: number;
   curiosity: number;
+  alive: boolean;
+  onWater: boolean;
 }
 
 function comfort(state: NeedState): number {
@@ -85,9 +89,10 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     id: 'drink',
     score: (state) => state.thirst,
     requiresLife: true,
-    ready: (state) => state.thirst > THIRST_RESUME_AT,
+    // Water is the only source on the map. A drink anywhere else cannot happen.
+    ready: (state) => state.onWater && state.thirst > THIRST_RESUME_AT,
     sustain: (state) => state.thirst > THIRST_RESUME_AT,
-    urgent: (state) => state.thirst >= THIRST_DRINK_AT,
+    urgent: (state) => state.onWater && state.thirst >= THIRST_DRINK_AT,
     resting: false,
     eating: false,
     drinking: true,
@@ -107,7 +112,9 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     id: 'move',
     score: (state) => state.curiosity * comfort(state),
     requiresLife: true,
-    ready: () => true,
+    // In the water with a thirst to deal with, walking would carry them off
+    // the only place they can drink.
+    ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT),
     sustain: () => false,
     urgent: () => false,
     resting: false,
@@ -118,7 +125,8 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     id: 'idle',
     score: (state) => (1 - state.curiosity) * comfort(state),
     requiresLife: false,
-    ready: () => true,
+    // A living character who is thirsty has to walk or drink, not stand.
+    ready: (state) => !state.alive || state.thirst <= THIRST_RESUME_AT,
     sustain: () => false,
     urgent: () => false,
     resting: false,
@@ -139,14 +147,25 @@ function needState(input: {
   hunger: number;
   thirst: number;
   fatigue: number;
-  curiosity: number;
+  curiosity?: number;
+  alive?: boolean;
+  onWater?: boolean;
 }): NeedState {
   return {
     hunger: input.hunger,
     thirst: input.thirst,
     fatigue: input.fatigue,
-    curiosity: Math.min(1, Math.max(0, input.curiosity)),
+    curiosity: Math.min(1, Math.max(0, input.curiosity ?? 0)),
+    alive: input.alive ?? true,
+    onWater: input.onWater ?? false,
   };
+}
+
+export function standingOnWater(world: SimulationWorld, x: number, y: number): boolean {
+  const tileX = Math.min(world.map.width - 1, Math.max(0, Math.floor(x)));
+  const tileY = Math.min(world.map.height - 1, Math.max(0, Math.floor(y)));
+
+  return getTile(world.map, tileX, tileY) === 'water';
 }
 
 export function actionUtilities(input: {
@@ -195,18 +214,20 @@ export function biasedUtilities(
   };
 }
 
-// Idle is always available, including for the dead. A meal, drink or rest is
-// only available while that need is still above the point where the recovery
-// would keep going, so a small bias cannot start one they would not keep.
+// Idle is always available to the dead, and to the living when they are not
+// thirsty. A meal or rest is available while that need is above the point
+// where the recovery would keep going. A drink also requires water underfoot,
+// so a small bias cannot start a recovery the character would not keep.
 export function actionAvailability(input: {
   alive: boolean;
   hunger: number;
   thirst: number;
   fatigue: number;
+  onWater?: boolean;
   cooldowns?: ActionCooldowns;
 }): Record<ActionId, boolean> {
   const cooldowns = input.cooldowns ?? emptyCooldowns();
-  const state = needState({ ...input, curiosity: 0 });
+  const state = needState(input);
   const available = { idle: false, move: false, eat: false, rest: false, drink: false };
 
   for (const definition of actionDefinitions) {
@@ -325,6 +346,8 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       thirst: Needs.thirst[eid],
       fatigue: Needs.fatigue[eid],
       curiosity: Personality.curiosity[eid],
+      alive: true,
+      onWater: standingOnWater(world, Position.x[eid], Position.y[eid]),
     });
     const utilities = biasedUtilities(
       actionUtilities(state),
@@ -346,8 +369,11 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
     }
 
     const next = chooseAction(utilities, actionAvailability({
-      alive: true,
-      ...state,
+      alive: state.alive,
+      hunger: state.hunger,
+      thirst: state.thirst,
+      fatigue: state.fatigue,
+      onWater: state.onWater,
       cooldowns: readCooldowns(eid),
     }));
     Action.kind[eid] = ACTION_IDS.indexOf(next);

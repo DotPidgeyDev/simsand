@@ -152,7 +152,7 @@ The current simulation includes:
 - Runs after lifecycle and before needs.
 - Each of `idle`, `move`, `eat`, `rest` and `drink` is a definition: its score, when it can be chosen, how long it continues after the minimum commitment, whether its need is urgent, and the resting, eating or drinking flag it sets. The list order is the tie break.
 - Scores come from those definitions, then a stable bias of at most 0.05 is added per action. The bias comes from the world seed and the character id, on its own salt, and is not saved. Inspection shows the biased scores. A pressing need still outranks the bias.
-- A meal, drink or rest is available only while that need is above 0.3 and its cooldown has elapsed. Move requires the character to be alive. Idle is always available. Inspection shows the available set.
+- A meal or rest is available only while that need is above 0.3 and its cooldown has elapsed. A drink also requires the character to be standing on water. While thirst is above 0.3 they will not idle, so on dry ground they walk, and in the water walking is held so they can drink. Thirst at 0.8 interrupts only when they are already in the water. Move otherwise requires the character to be alive. Idle stays available when they are not thirsty, and after death. Inspection shows the available set.
 - Keeps the choice for at least 5 seconds. Eat, drink and rest then continue until that need falls to 0.3.
 - A need at 0.8 interrupts the current choice. The interrupted action cannot be chosen again for 20 seconds, and the ending is recorded as interrupted. Finishing an action records it as completed and does not start that cooldown. Only one recovery runs at a time. Inspection shows the latest ending.
 - Writes the resting, eating and drinking flags that needs and movement read.
@@ -202,7 +202,7 @@ Terrain is static data held on the simulation world (`world.map`) rather than as
 
 New worlds get their terrain from `generateWorldMap(seed)`, which layers seeded value noise. Water is the lowest 12% of tiles, with dirt banks around it and a few dirt patches elsewhere. The same seed always produces the same map, so tests and new worlds are reproducible.
 
-The map's width and height are the movement boundaries and the bounds for `character.create`. Terrain does not yet affect movement: characters can cross water. Collision, movement cost and pathfinding are left for the navigation work.
+The map's width and height are the movement boundaries and the bounds for `character.create`. Characters can cross water. A thirsty character can drink only while standing on it, and walks until they are. Collision, movement cost and pathfinding are left for the navigation work.
 
 The map is saved with the world and included in every full snapshot, but not in deltas, because it doesn't change. Loading LDtk maps can be added later as another way to produce the same `WorldMap`.
 

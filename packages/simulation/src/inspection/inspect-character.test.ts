@@ -53,6 +53,7 @@ describe('inspectCharacter', () => {
       available: actionAvailability({
         alive: true,
         ...generateCharacterProfile(0, 'swimmer').needs,
+        onWater: true,
         cooldowns: emptyCooldowns(),
       }),
       outcome: null,
