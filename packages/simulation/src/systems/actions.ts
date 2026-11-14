@@ -63,6 +63,9 @@ interface ActionDefinition {
   // character whose cooldown for it has elapsed.
   requiresLife: boolean;
   ready: (state: NeedState) => boolean;
+  // False ends the current commitment immediately. The minimum time does not
+  // keep them in a place where the action cannot happen.
+  holds: (state: NeedState) => boolean;
   // After the minimum commitment, keep going while this is true.
   sustain: (state: NeedState) => boolean;
   // At the urgent line, this need cuts off whatever else they are doing.
@@ -78,9 +81,10 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     id: 'eat',
     score: (state) => state.hunger,
     requiresLife: true,
-    ready: (state) => state.hunger > HUNGER_RESUME_AT,
-    sustain: (state) => state.hunger > HUNGER_RESUME_AT,
-    urgent: (state) => state.hunger >= HUNGER_EAT_AT,
+    ready: (state) => !state.onWater && state.hunger > HUNGER_RESUME_AT,
+    holds: (state) => !state.onWater,
+    sustain: (state) => !state.onWater && state.hunger > HUNGER_RESUME_AT,
+    urgent: (state) => !state.onWater && state.hunger >= HUNGER_EAT_AT,
     resting: false,
     eating: true,
     drinking: false,
@@ -91,6 +95,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     requiresLife: true,
     // Water is the only source on the map. A drink anywhere else cannot happen.
     ready: (state) => state.onWater && state.thirst > THIRST_RESUME_AT,
+    holds: () => true,
     sustain: (state) => state.thirst > THIRST_RESUME_AT,
     urgent: (state) => state.onWater && state.thirst >= THIRST_DRINK_AT,
     resting: false,
@@ -101,9 +106,10 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     id: 'rest',
     score: (state) => state.fatigue,
     requiresLife: true,
-    ready: (state) => state.fatigue > FATIGUE_RESUME_AT,
-    sustain: (state) => state.fatigue > FATIGUE_RESUME_AT,
-    urgent: (state) => state.fatigue >= FATIGUE_REST_AT,
+    ready: (state) => !state.onWater && state.fatigue > FATIGUE_RESUME_AT,
+    holds: (state) => !state.onWater,
+    sustain: (state) => !state.onWater && state.fatigue > FATIGUE_RESUME_AT,
+    urgent: (state) => !state.onWater && state.fatigue >= FATIGUE_REST_AT,
     resting: true,
     eating: false,
     drinking: false,
@@ -115,6 +121,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     // In the water with a thirst to deal with, walking would carry them off
     // the only place they can drink.
     ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT),
+    holds: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT),
     sustain: () => false,
     urgent: () => false,
     resting: false,
@@ -125,8 +132,9 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     id: 'idle',
     score: (state) => (1 - state.curiosity) * comfort(state),
     requiresLife: false,
-    // A living character who is thirsty has to walk or drink, not stand.
-    ready: (state) => !state.alive || state.thirst <= THIRST_RESUME_AT,
+    // A living character stands only on land, and only when they are not thirsty.
+    ready: (state) => !state.alive || (!state.onWater && state.thirst <= THIRST_RESUME_AT),
+    holds: (state) => !state.onWater && state.thirst <= THIRST_RESUME_AT,
     sustain: () => false,
     urgent: () => false,
     resting: false,
@@ -270,6 +278,7 @@ function isUrgent(action: ActionId, state: NeedState): boolean {
 
 function continueAction(action: ActionId, elapsed: number, state: NeedState): boolean {
   if (isUrgent(action, state)) return false;
+  if (!definitionFor(action).holds(state)) return false;
   if (elapsed < MIN_ACTION_SECONDS) return true;
 
   return definitionFor(action).sustain(state);

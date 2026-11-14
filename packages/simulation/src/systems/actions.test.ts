@@ -341,4 +341,51 @@ describe('updateActions', () => {
       onWater: true,
     }).move).toBe(false);
   });
+
+  it('stops a meal in the water and walks ashore', () => {
+    const { world, eid } = character();
+    setTile(world, 10, 10, 'water');
+    Personality.curiosity[eid] = 0;
+    Needs.hunger[eid] = 0.9;
+    Needs.thirst[eid] = 0.1;
+    Needs.fatigue[eid] = 0.1;
+    Action.kind[eid] = ACTION_IDS.indexOf('eat');
+    Action.elapsed[eid] = 1;
+
+    updateActions(world, 0.1);
+    updateMovement(world, 1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Position.x[eid]).toBe(11);
+    expect(Action.cooldown.eat[eid]).toBe(0);
+    expect(readActionOutcome(eid)).toEqual({ action: 'eat', result: 'completed' });
+    expect(actionAvailability({
+      alive: true,
+      hunger: 0.9,
+      thirst: 0.1,
+      fatigue: 0.9,
+      onWater: true,
+    })).toEqual({
+      idle: false,
+      move: true,
+      eat: false,
+      rest: false,
+      drink: false,
+    });
+  });
+
+  it('walks out of the water once thirst is satisfied', () => {
+    const { world, eid } = character();
+    setTile(world, 10, 10, 'water');
+    Personality.curiosity[eid] = 0;
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.1;
+    Action.kind[eid] = ACTION_IDS.indexOf('idle');
+    Action.elapsed[eid] = 1;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+  });
 });

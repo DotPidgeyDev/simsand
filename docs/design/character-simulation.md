@@ -201,6 +201,7 @@ is pressing. Age increases while a character is alive, and constitution
 sets when that life ends. A character chooses idle, move, eat, rest or
 drink from those needs and from curiosity, and keeps the choice until
 it is finished or a need becomes urgent. A drink happens only while
-they are standing on water; until then a thirsty character walks.
+they are standing on water; until then a thirsty character walks. A meal
+or a rest happens on land, and they leave the water once they have drunk.
 Skills, inventory,
 relationships, memories and goals stay later.
