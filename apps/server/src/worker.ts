@@ -16,6 +16,7 @@ import {
   generateWorldMap,
   getSimulationLoopTiming,
   inspectCharacter,
+  applyTuning,
 } from '@simsand/simulation';
 
 import type {
@@ -27,6 +28,8 @@ import type {
 if (!parentPort) {
   throw new Error('Simulation worker must run inside a worker thread');
 }
+
+applyTuning();
 
 let loop: ReturnType<typeof createSimulationLoop> | undefined;
 let snapshot: WorldSnapshot | undefined;

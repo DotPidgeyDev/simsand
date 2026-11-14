@@ -3,6 +3,7 @@ import { query } from 'bitecs';
 import { LIFECYCLE_STATES } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
+import { tuning } from '../tuning.js';
 
 import { Attributes } from '../components/attributes.js';
 import { Condition } from '../components/condition.js';
@@ -10,13 +11,10 @@ import { Lifecycle } from '../components/lifecycle.js';
 
 const DEAD = LIFECYCLE_STATES.indexOf('dead');
 
-// Provisional, like the need rates: a life is short enough to observe.
 // Constitution 10 lives ten times as long as constitution 1. Nothing replaces
-// the dead yet.
-export const LIFESPAN_PER_CONSTITUTION_SECONDS = 600;
-
+// the dead yet. The length comes from tuning, so a test run can extend it.
 export function lifespanSeconds(constitution: number): number {
-  return LIFESPAN_PER_CONSTITUTION_SECONDS * constitution;
+  return tuning.lifespanPerConstitutionSeconds * constitution;
 }
 
 // Runs before needs and movement, so the tick a character dies is also the

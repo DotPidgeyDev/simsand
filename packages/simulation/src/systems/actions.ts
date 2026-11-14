@@ -41,8 +41,113 @@ export function emptyCooldowns(): ActionCooldowns {
   return { idle: 0, move: 0, eat: 0, rest: 0, drink: 0 };
 }
 
-// Eat, drink and rest outrank wandering when the scores are equal.
-const TIE_BREAK: readonly ActionId[] = ['eat', 'drink', 'rest', 'move', 'idle'];
+interface NeedState {
+  hunger: number;
+  thirst: number;
+  fatigue: number;
+  curiosity: number;
+}
+
+function comfort(state: NeedState): number {
+  return 1 - Math.max(state.hunger, state.thirst, state.fatigue);
+}
+
+interface ActionDefinition {
+  id: ActionId;
+  score: (state: NeedState) => number;
+  // Idle stays available after death. Every other action requires a living
+  // character whose cooldown for it has elapsed.
+  requiresLife: boolean;
+  ready: (state: NeedState) => boolean;
+  // After the minimum commitment, keep going while this is true.
+  sustain: (state: NeedState) => boolean;
+  // At the urgent line, this need cuts off whatever else they are doing.
+  urgent: (state: NeedState) => boolean;
+  resting: boolean;
+  eating: boolean;
+  drinking: boolean;
+}
+
+// Order is the tie break: eat, then drink, then rest, then move, then idle.
+export const actionDefinitions: readonly ActionDefinition[] = [
+  {
+    id: 'eat',
+    score: (state) => state.hunger,
+    requiresLife: true,
+    ready: (state) => state.hunger > HUNGER_RESUME_AT,
+    sustain: (state) => state.hunger > HUNGER_RESUME_AT,
+    urgent: (state) => state.hunger >= HUNGER_EAT_AT,
+    resting: false,
+    eating: true,
+    drinking: false,
+  },
+  {
+    id: 'drink',
+    score: (state) => state.thirst,
+    requiresLife: true,
+    ready: (state) => state.thirst > THIRST_RESUME_AT,
+    sustain: (state) => state.thirst > THIRST_RESUME_AT,
+    urgent: (state) => state.thirst >= THIRST_DRINK_AT,
+    resting: false,
+    eating: false,
+    drinking: true,
+  },
+  {
+    id: 'rest',
+    score: (state) => state.fatigue,
+    requiresLife: true,
+    ready: (state) => state.fatigue > FATIGUE_RESUME_AT,
+    sustain: (state) => state.fatigue > FATIGUE_RESUME_AT,
+    urgent: (state) => state.fatigue >= FATIGUE_REST_AT,
+    resting: true,
+    eating: false,
+    drinking: false,
+  },
+  {
+    id: 'move',
+    score: (state) => state.curiosity * comfort(state),
+    requiresLife: true,
+    ready: () => true,
+    sustain: () => false,
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+  },
+  {
+    id: 'idle',
+    score: (state) => (1 - state.curiosity) * comfort(state),
+    requiresLife: false,
+    ready: () => true,
+    sustain: () => false,
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+  },
+];
+
+function definitionFor(id: ActionId): ActionDefinition {
+  const definition = actionDefinitions.find((candidate) => candidate.id === id);
+
+  if (!definition) throw new Error(`Unknown action: ${id}`);
+
+  return definition;
+}
+
+function needState(input: {
+  hunger: number;
+  thirst: number;
+  fatigue: number;
+  curiosity: number;
+}): NeedState {
+  return {
+    hunger: input.hunger,
+    thirst: input.thirst,
+    fatigue: input.fatigue,
+    curiosity: Math.min(1, Math.max(0, input.curiosity)),
+  };
+}
 
 export function actionUtilities(input: {
   hunger: number;
@@ -50,16 +155,14 @@ export function actionUtilities(input: {
   fatigue: number;
   curiosity: number;
 }): Record<ActionId, number> {
-  const curiosity = Math.min(1, Math.max(0, input.curiosity));
-  const comfort = 1 - Math.max(input.hunger, input.thirst, input.fatigue);
+  const state = needState(input);
+  const utilities = emptyCooldowns();
 
-  return {
-    idle: (1 - curiosity) * comfort,
-    move: curiosity * comfort,
-    eat: input.hunger,
-    rest: input.fatigue,
-    drink: input.thirst,
-  };
+  for (const definition of actionDefinitions) {
+    utilities[definition.id] = definition.score(state);
+  }
+
+  return utilities;
 }
 
 export function actionBias(worldSeed: number, characterId: string): Record<ActionId, number> {
@@ -103,15 +206,15 @@ export function actionAvailability(input: {
   cooldowns?: ActionCooldowns;
 }): Record<ActionId, boolean> {
   const cooldowns = input.cooldowns ?? emptyCooldowns();
-  const open = (id: ActionId) => input.alive && cooldowns[id] <= 0;
+  const state = needState({ ...input, curiosity: 0 });
+  const available = { idle: false, move: false, eat: false, rest: false, drink: false };
 
-  return {
-    idle: true,
-    move: open('move'),
-    eat: open('eat') && input.hunger > HUNGER_RESUME_AT,
-    rest: open('rest') && input.fatigue > FATIGUE_RESUME_AT,
-    drink: open('drink') && input.thirst > THIRST_RESUME_AT,
-  };
+  for (const definition of actionDefinitions) {
+    const open = !definition.requiresLife || (input.alive && cooldowns[definition.id] <= 0);
+    available[definition.id] = open && definition.ready(state);
+  }
+
+  return available;
 }
 
 export function chooseAction(
@@ -123,11 +226,13 @@ export function chooseAction(
     fatigue: 1,
   }),
 ): ActionId {
-  const candidates = TIE_BREAK.filter((id) => available[id]);
+  const candidates = actionDefinitions.filter((definition) => available[definition.id]);
 
   if (candidates.length === 0) return 'idle';
 
-  return candidates.reduce((best, id) => (utilities[id] > utilities[best] ? id : best));
+  return candidates.reduce((best, definition) => (
+    utilities[definition.id] > utilities[best.id] ? definition : best
+  )).id;
 }
 
 export function assertActionId(value: unknown): ActionId {
@@ -138,26 +243,15 @@ export function assertActionId(value: unknown): ActionId {
   return value as ActionId;
 }
 
-function isUrgent(action: ActionId, hunger: number, thirst: number, fatigue: number): boolean {
-  return (hunger >= HUNGER_EAT_AT && action !== 'eat')
-    || (thirst >= THIRST_DRINK_AT && action !== 'drink')
-    || (fatigue >= FATIGUE_REST_AT && action !== 'rest');
+function isUrgent(action: ActionId, state: NeedState): boolean {
+  return actionDefinitions.some((definition) => definition.id !== action && definition.urgent(state));
 }
 
-function continueAction(
-  action: ActionId,
-  elapsed: number,
-  hunger: number,
-  thirst: number,
-  fatigue: number,
-): boolean {
-  if (isUrgent(action, hunger, thirst, fatigue)) return false;
+function continueAction(action: ActionId, elapsed: number, state: NeedState): boolean {
+  if (isUrgent(action, state)) return false;
   if (elapsed < MIN_ACTION_SECONDS) return true;
-  if (action === 'eat') return hunger > HUNGER_RESUME_AT;
-  if (action === 'drink') return thirst > THIRST_RESUME_AT;
-  if (action === 'rest') return fatigue > FATIGUE_RESUME_AT;
 
-  return false;
+  return definitionFor(action).sustain(state);
 }
 
 function readCooldowns(eid: number): ActionCooldowns {
@@ -202,9 +296,10 @@ function clearActionOutcome(eid: number): void {
 }
 
 function applyAction(eid: number, action: ActionId): void {
-  Condition.resting[eid] = action === 'rest' ? 1 : 0;
-  Condition.eating[eid] = action === 'eat' ? 1 : 0;
-  Condition.drinking[eid] = action === 'drink' ? 1 : 0;
+  const definition = definitionFor(action);
+  Condition.resting[eid] = definition.resting ? 1 : 0;
+  Condition.eating[eid] = definition.eating ? 1 : 0;
+  Condition.drinking[eid] = definition.drinking ? 1 : 0;
 }
 
 // Runs after lifecycle and before needs. One action at a time. A need at
@@ -225,27 +320,25 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       continue;
     }
 
-    const hunger = Needs.hunger[eid];
-    const thirst = Needs.thirst[eid];
-    const fatigue = Needs.fatigue[eid];
+    const state = needState({
+      hunger: Needs.hunger[eid],
+      thirst: Needs.thirst[eid],
+      fatigue: Needs.fatigue[eid],
+      curiosity: Personality.curiosity[eid],
+    });
     const utilities = biasedUtilities(
-      actionUtilities({
-        hunger,
-        thirst,
-        fatigue,
-        curiosity: Personality.curiosity[eid],
-      }),
+      actionUtilities(state),
       actionBias(world.seed, Identity.id[eid]),
     );
     const current = ACTION_IDS[Action.kind[eid]] ?? 'move';
 
-    if (Action.elapsed[eid] > 0 && continueAction(current, Action.elapsed[eid], hunger, thirst, fatigue)) {
+    if (Action.elapsed[eid] > 0 && continueAction(current, Action.elapsed[eid], state)) {
       Action.elapsed[eid] += deltaSeconds;
       applyAction(eid, current);
       continue;
     }
 
-    if (Action.elapsed[eid] > 0 && isUrgent(current, hunger, thirst, fatigue)) {
+    if (Action.elapsed[eid] > 0 && isUrgent(current, state)) {
       Action.cooldown[current][eid] = ACTION_COOLDOWN_SECONDS;
       writeActionOutcome(eid, current, 'interrupted');
     } else if (Action.elapsed[eid] > 0) {
@@ -254,9 +347,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
 
     const next = chooseAction(utilities, actionAvailability({
       alive: true,
-      hunger,
-      thirst,
-      fatigue,
+      ...state,
       cooldowns: readCooldowns(eid),
     }));
     Action.kind[eid] = ACTION_IDS.indexOf(next);

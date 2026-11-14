@@ -14,9 +14,11 @@ import { createSimulationWorld } from './core/world.js';
 import { createCharacter } from './entities/create-character.js';
 import { actionBias } from './systems/actions.js';
 
-// The live world is seed 12345. These values are what its saves already
-// stored. A generator change that is still deterministic would keep the
-// same-seed tests green and silently rewrite every character.
+// The live world is seed 12345. The name, sprite, attributes, needs and bias
+// are what its saves already stored. The age is what a new character of that
+// id starts at under the current lifespan. A saved age is stored, not
+// regenerated, so changing the lifespan does not rewrite a character who
+// already exists.
 describe('saved character regression', () => {
   it('keeps the seeded profile, sprite, age and action bias of the first two characters', () => {
     const seed = 12345;
@@ -45,7 +47,7 @@ describe('saved character regression', () => {
       hunger: 0.2097489281790331,
       thirst: 0.2665471578016877,
       fatigue: 0.17243020862806588,
-      ageSeconds: 2317.7440451458097,
+        ageSeconds: 83438.78562524915,
       bias: {
         idle: -0.03235757681541145,
         move: -0.045392219768837096,
@@ -63,7 +65,7 @@ describe('saved character regression', () => {
       hunger: 0.25448191333562137,
       thirst: 0.190362236299552,
       fatigue: 0.39287108976859597,
-      ageSeconds: 44.79245496913791,
+        ageSeconds: 1612.5283788889647,
       bias: {
         idle: -0.04824329055845738,
         move: -0.009791009896434845,

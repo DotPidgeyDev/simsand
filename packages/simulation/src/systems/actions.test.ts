@@ -14,6 +14,7 @@ import {
   ACTION_BIAS,
   ACTION_COOLDOWN_SECONDS,
   MIN_ACTION_SECONDS,
+  actionDefinitions,
   actionAvailability,
   actionBias,
   actionUtilities,
@@ -45,6 +46,12 @@ function character() {
 }
 
 describe('updateActions', () => {
+  it('defines every action once, in tie-break order', () => {
+    expect(actionDefinitions.map((definition) => definition.id)).toEqual([
+      'eat', 'drink', 'rest', 'move', 'idle',
+    ]);
+  });
+
   it('sends a curious, comfortable character walking', () => {
     const { world, eid } = character();
     Personality.curiosity[eid] = 1;

@@ -219,6 +219,13 @@ curl 127.0.0.1:8767/entities/character-0001      # one entity, including velocit
 | `SIMSAND_LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 | `SIMSAND_WS_PORT` | `8766` | Browser WebSocket port |
 | `SIMSAND_INSPECT_PORT` | `8767` | Inspection API port |
+| `SIMSAND_LIFESPAN_PER_CONSTITUTION_SECONDS` | `21600` | Seconds of life for each constitution point. `600` is a 10-minute life |
+| `SIMSAND_HUNGER_GAIN_PER_SECOND` | `0.004` | Hunger added each second while not eating |
+| `SIMSAND_HUNGER_RECOVERY_PER_SECOND` | `0.02` | Hunger removed each second while eating |
+| `SIMSAND_THIRST_GAIN_PER_SECOND` | `0.004` | Thirst added each second while not drinking |
+| `SIMSAND_THIRST_RECOVERY_PER_SECOND` | `0.02` | Thirst removed each second while drinking |
+| `SIMSAND_FATIGUE_GAIN_PER_SECOND` | `0.015` | Fatigue added each second at constitution 1. Higher constitution tires more slowly |
+| `SIMSAND_FATIGUE_RECOVERY_PER_SECOND` | `0.025` | Fatigue removed each second while resting |
 
 ---
 

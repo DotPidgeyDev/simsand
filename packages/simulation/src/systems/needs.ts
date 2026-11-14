@@ -4,6 +4,7 @@ import { ATTRIBUTE_MAX, LIFECYCLE_STATES } from '@simsand/shared';
 import type { DerivedStats } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
+import { tuning, tuningDefaults } from '../tuning.js';
 import { lifespanSeconds } from './lifecycle.js';
 
 import { Attributes } from '../components/attributes.js';
@@ -13,34 +14,33 @@ import { Needs } from '../components/needs.js';
 
 const DEAD = LIFECYCLE_STATES.indexOf('dead');
 
-// Provisional rates, chosen so a cycle is visible within a minute or two.
-// Hunger and thirst recover because the world feeds and waters a character
-// once the need is pressing. Seeking a source, and choosing between needs,
-// comes later. A need that only rose would pin everyone at critical.
-export const FATIGUE_GAIN_PER_SECOND = 0.015;
-export const FATIGUE_RECOVERY_PER_SECOND = 0.025;
+// The per-second rates live in tuning.ts and can be overridden from the
+// environment. These names are the defaults. The thresholds stay here because
+// they decide when an action starts and stops, not how fast a need moves.
+export const FATIGUE_GAIN_PER_SECOND = tuningDefaults.fatigueGainPerSecond;
+export const FATIGUE_RECOVERY_PER_SECOND = tuningDefaults.fatigueRecoveryPerSecond;
 export const FATIGUE_REST_AT = 0.8;
 export const FATIGUE_RESUME_AT = 0.3;
 
-export const HUNGER_GAIN_PER_SECOND = 0.004;
-export const HUNGER_RECOVERY_PER_SECOND = 0.02;
+export const HUNGER_GAIN_PER_SECOND = tuningDefaults.hungerGainPerSecond;
+export const HUNGER_RECOVERY_PER_SECOND = tuningDefaults.hungerRecoveryPerSecond;
 export const HUNGER_EAT_AT = 0.8;
 export const HUNGER_RESUME_AT = 0.3;
 
-export const THIRST_GAIN_PER_SECOND = 0.004;
-export const THIRST_RECOVERY_PER_SECOND = 0.02;
+export const THIRST_GAIN_PER_SECOND = tuningDefaults.thirstGainPerSecond;
+export const THIRST_RECOVERY_PER_SECOND = tuningDefaults.thirstRecoveryPerSecond;
 export const THIRST_DRINK_AT = 0.8;
 export const THIRST_RESUME_AT = 0.3;
 
 // Constitution 10 tires at a tenth of the rate of constitution 1.
 export function fatigueGainPerSecond(constitution: number): number {
-  return FATIGUE_GAIN_PER_SECOND * (ATTRIBUTE_MAX + 1 - constitution) / ATTRIBUTE_MAX;
+  return tuning.fatigueGainPerSecond * (ATTRIBUTE_MAX + 1 - constitution) / ATTRIBUTE_MAX;
 }
 
 export function derivedStats(constitution: number): DerivedStats {
   return {
     fatigueGainPerSecond: fatigueGainPerSecond(constitution),
-    fatigueRecoveryPerSecond: FATIGUE_RECOVERY_PER_SECOND,
+    fatigueRecoveryPerSecond: tuning.fatigueRecoveryPerSecond,
     lifespanSeconds: lifespanSeconds(constitution),
   };
 }
@@ -69,21 +69,21 @@ export function updateNeeds(world: SimulationWorld, deltaSeconds: number): void 
       Needs.fatigue[eid],
       Condition.resting[eid],
       fatigueGainPerSecond(Attributes.constitution[eid]),
-      FATIGUE_RECOVERY_PER_SECOND,
+      tuning.fatigueRecoveryPerSecond,
       deltaSeconds,
     );
     Needs.hunger[eid] = applyNeed(
       Needs.hunger[eid],
       Condition.eating[eid],
-      HUNGER_GAIN_PER_SECOND,
-      HUNGER_RECOVERY_PER_SECOND,
+      tuning.hungerGainPerSecond,
+      tuning.hungerRecoveryPerSecond,
       deltaSeconds,
     );
     Needs.thirst[eid] = applyNeed(
       Needs.thirst[eid],
       Condition.drinking[eid],
-      THIRST_GAIN_PER_SECOND,
-      THIRST_RECOVERY_PER_SECOND,
+      tuning.thirstGainPerSecond,
+      tuning.thirstRecoveryPerSecond,
       deltaSeconds,
     );
   }

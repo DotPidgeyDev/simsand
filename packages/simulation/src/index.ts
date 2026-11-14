@@ -17,6 +17,7 @@ export { createPopulation } from './entities/create-population.js';
 export { updateMovement } from './systems/movement.js';
 export { updateActions, actionUtilities, actionAvailability, actionBias, biasedUtilities, chooseAction, assertActionId, emptyCooldowns, readActionOutcome } from './systems/actions.js';
 export { updateLifecycle, lifespanSeconds } from './systems/lifecycle.js';
+export { applyTuning, tuning, tuningDefaults } from './tuning.js';
 export { updateNeeds, derivedStats, fatigueGainPerSecond } from './systems/needs.js';
 
 export { createSimulationClock, advanceClock } from './core/clock.js';
