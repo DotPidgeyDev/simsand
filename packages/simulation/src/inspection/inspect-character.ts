@@ -8,7 +8,7 @@ import { Personality } from '../components/personality.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Attributes } from '../components/attributes.js';
-import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns, readActionOutcome, standingOnWater } from '../systems/actions.js';
+import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns, readActionOutcome, standingOnCamp, standingOnWater } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
@@ -33,6 +33,7 @@ export function inspectCharacter(
   const tileY = Math.min(world.map.height - 1, Math.max(0, Math.floor(y)));
   const waterRoute = nearestTerrainTile(world.map, x, y, 'water');
   const landRoute = nearestTerrainTile(world.map, x, y, 'land');
+  const campRoute = nearestTerrainTile(world.map, x, y, 'camp');
   const cooldowns = {
     ...emptyCooldowns(),
     idle: Action.cooldown.idle[eid],
@@ -40,6 +41,7 @@ export function inspectCharacter(
     eat: Action.cooldown.eat[eid],
     rest: Action.cooldown.rest[eid],
     drink: Action.cooldown.drink[eid],
+    work: Action.cooldown.work[eid],
   };
 
   return {
@@ -54,6 +56,7 @@ export function inspectCharacter(
     resting: Condition.resting[eid] === 1,
     eating: Condition.eating[eid] === 1,
     drinking: Condition.drinking[eid] === 1,
+    working: Condition.working[eid] === 1,
     ageSeconds: Lifecycle.ageSeconds[eid],
     action: ACTION_IDS[Action.kind[eid]] ?? 'move',
     utilities: biasedUtilities(
@@ -74,6 +77,8 @@ export function inspectCharacter(
       onWater: standingOnWater(world, x, y),
       canReachWater: waterRoute !== undefined,
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
+      onCamp: standingOnCamp(world, x, y),
+      canReachCamp: campRoute !== undefined && campRoute.distance > 0,
       cooldowns,
     }),
     outcome: readActionOutcome(eid),

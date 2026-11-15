@@ -15,12 +15,13 @@ export interface EntitySnapshot {
   resting: boolean;
   eating: boolean;
   drinking: boolean;
+  working: boolean;
   lifecycle: LifecycleState;
 }
 
 // A tile's terrain is stored as its index in this list, so entries may be
 // appended but never reordered or removed.
-export const TERRAIN_TYPES = ['grass', 'dirt', 'water', 'rock'] as const;
+export const TERRAIN_TYPES = ['grass', 'dirt', 'water', 'rock', 'camp'] as const;
 
 export type TerrainType = (typeof TERRAIN_TYPES)[number];
 
@@ -44,7 +45,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 11;
+export const PERSISTED_WORLD_VERSION = 12;
 
 export const ATTRIBUTE_NAMES = [
   'strength',
@@ -90,7 +91,7 @@ export type BasicNeed = (typeof BASIC_NEEDS)[number];
 export type CharacterNeeds = Record<BasicNeed, number>;
 
 // Append only. Saved worlds store the name.
-export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink'] as const;
+export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work'] as const;
 
 export type ActionId = (typeof ACTION_IDS)[number];
 
@@ -139,6 +140,7 @@ export interface PersistedEntity extends CharacterProfile {
   resting: boolean;
   eating: boolean;
   drinking: boolean;
+  working: boolean;
   // Seeded for a new character, then increased while they are alive.
   ageSeconds: number;
   // The choice they are committed to, and how long they have held it.
@@ -253,6 +255,7 @@ export interface EntityInspection extends CharacterProfile {
   resting: boolean;
   eating: boolean;
   drinking: boolean;
+  working: boolean;
   ageSeconds: number;
   action: ActionId;
   utilities: Record<ActionId, number>;

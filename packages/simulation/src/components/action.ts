@@ -12,6 +12,7 @@ export const Action = {
     eat: [] as number[],
     rest: [] as number[],
     drink: [] as number[],
+    work: [] as number[],
   } satisfies Record<ActionId, number[]>,
   // Index into ACTION_IDS for the action that just ended. -1 means none yet.
   outcomeAction: [] as number[],

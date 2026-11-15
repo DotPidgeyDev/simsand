@@ -10,7 +10,7 @@ import { Condition } from '../components/condition.js';
 import { FATIGUE_REST_AT, HUNGER_EAT_AT, THIRST_DRINK_AT } from '../systems/needs.js';
 import type { SimulationClock } from './clock.js';
 import { createSimulationClock } from './clock.js';
-import { fromWorldMapData, generateWorldMap, stampRocks, toWorldMapData } from './map.js';
+import { fromWorldMapData, generateWorldMap, stampCamps, stampRocks, toWorldMapData } from './map.js';
 import type { SimulationWorld } from './world.js';
 import { createSimulationWorld } from './world.js';
 
@@ -26,13 +26,18 @@ import { createCharacter } from '../entities/create-character.js';
 // Version 5 predates the eating and drinking flags. Version 6 predates age.
 // Version 7 predates the chosen action. Version 8 predates action cooldowns.
 // Version 9 predates the outcome of the previous action.
-// Version 10 predates rock.
+// Version 10 predates rock. Version 11 predates camps and work.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV10 = Omit<PersistedWorld, 'version'> & { version: 10 };
+export type PersistedWorldV11 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 11;
+  entities: Array<Omit<PersistedEntity, 'working'>>;
+};
+
+export type PersistedWorldV10 = Omit<PersistedWorldV11, 'version'> & { version: 10 };
 
 export type PersistedWorldV9 = Omit<PersistedWorldV10, 'version' | 'entities'> & {
   version: 9;
@@ -87,6 +92,7 @@ export type UpgradeableWorld =
   | PersistedWorldV8
   | PersistedWorldV9
   | PersistedWorldV10
+  | PersistedWorldV11
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -110,6 +116,7 @@ export function capturePersistedWorld(
       resting: Condition.resting[eid] === 1,
       eating: Condition.eating[eid] === 1,
       drinking: Condition.drinking[eid] === 1,
+      working: Condition.working[eid] === 1,
       ageSeconds: Lifecycle.ageSeconds[eid],
       action: ACTION_IDS[Action.kind[eid]] ?? 'move',
       actionSeconds: Action.elapsed[eid],
@@ -119,6 +126,7 @@ export function capturePersistedWorld(
         eat: Action.cooldown.eat[eid],
         rest: Action.cooldown.rest[eid],
         drink: Action.cooldown.drink[eid],
+        work: Action.cooldown.work[eid],
       },
       outcome: readActionOutcome(eid),
     });
@@ -282,10 +290,35 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
 
     stampRocks(map, persisted.seed, occupied);
 
+    return upgradePersistedWorld({
+      ...persisted,
+      version: 11,
+      map: toWorldMapData(map),
+    });
+  }
+
+  if (persisted.version === 11) {
+    const map = fromWorldMapData(persisted.map);
+    const occupied = new Set<number>();
+
+    for (const entity of persisted.entities) {
+      const tileX = Math.min(map.width - 1, Math.max(0, Math.floor(entity.x)));
+      const tileY = Math.min(map.height - 1, Math.max(0, Math.floor(entity.y)));
+
+      occupied.add(tileY * map.width + tileX);
+    }
+
+    stampCamps(map, persisted.seed, occupied);
+
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
       map: toWorldMapData(map),
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        cooldowns: { ...entity.cooldowns, work: 0 },
+        working: false,
+      })),
     };
   }
 

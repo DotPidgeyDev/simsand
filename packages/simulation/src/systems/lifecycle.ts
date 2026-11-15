@@ -33,5 +33,6 @@ export function updateLifecycle(world: SimulationWorld, deltaSeconds: number): v
     Condition.resting[eid] = 0;
     Condition.eating[eid] = 0;
     Condition.drinking[eid] = 0;
+    Condition.working[eid] = 0;
   }
 }

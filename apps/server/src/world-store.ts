@@ -134,7 +134,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
@@ -213,6 +213,8 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
       const cooldowns = entity.cooldowns as Record<string, unknown>;
 
       for (const id of ACTION_IDS) {
+        if (id === 'work' && Number(world.version) < 12) continue;
+
         if (!isFiniteNumber(cooldowns[id]) || (cooldowns[id] as number) < 0) {
           throw new Error(`Character cooldown for ${id} is missing or invalid`);
         }
@@ -236,6 +238,14 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
       if (!(ACTION_OUTCOMES as readonly string[]).includes(String(outcome.result))) {
         throw new Error(`Unknown action result: ${String(outcome.result)}`);
+      }
+    }
+  }
+
+  if (Number(world.version) >= 12) {
+    for (const entity of world.entities as { working?: unknown }[]) {
+      if (typeof entity.working !== 'boolean') {
+        throw new Error('Character working flag is missing');
       }
     }
   }

@@ -21,6 +21,7 @@ describe('createWorldDelta', () => {
         resting: false,
         eating: false,
         drinking: false,
+        working: false,
         lifecycle: 'alive',
       },
       {
@@ -32,6 +33,7 @@ describe('createWorldDelta', () => {
         resting: false,
         eating: false,
         drinking: false,
+        working: false,
         lifecycle: 'alive',
       },
     ],
@@ -71,6 +73,7 @@ describe('createWorldDelta', () => {
           resting: false,
           eating: false,
           drinking: false,
+          working: false,
           lifecycle: 'alive',
         },
       ],

@@ -4,4 +4,6 @@ export const Condition = {
   resting: [] as number[],
   eating: [] as number[],
   drinking: [] as number[],
+  // 1 while the character is at a camp.
+  working: [] as number[],
 };

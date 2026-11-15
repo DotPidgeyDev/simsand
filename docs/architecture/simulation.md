@@ -150,12 +150,12 @@ The current simulation includes:
 **Action system**
 
 - Runs after lifecycle and before needs.
-- Each of `idle`, `move`, `eat`, `rest` and `drink` is a definition: its score, when it can be chosen, how long it continues after the minimum commitment, whether its need is urgent, and the resting, eating or drinking flag it sets. The list order is the tie break.
+- Each of `idle`, `move`, `eat`, `rest`, `drink` and `work` is a definition: its score, when it can be chosen, how long it continues after the minimum commitment, whether its need is urgent, and the resting, eating, drinking or working flag it sets. The list order is the tie break.
 - Scores come from those definitions, then a stable bias of at most 0.05 is added per action. The bias comes from the world seed and the character id, on its own salt, and is not saved. Inspection shows the biased scores. A pressing need still outranks the bias.
-- A meal or rest is available only on land, while that need is above 0.3 and its cooldown has elapsed. One already underway in the water ends immediately. A drink requires the character to be standing on water. While thirst is above 0.3 they will not idle when a water route exists, so on dry ground they walk toward it, and in the water walking is held so they can drink. Once thirst is back to 0.3 they walk toward land. The walk steps around rock. A map with no way through does not start that walk. A walk for any other reason keeps its direction. Thirst at 0.8 interrupts only when they are already in the water, and hunger or fatigue at 0.8 interrupts only on land. Move otherwise requires the character to be alive. Idle stays available on land when they are not thirsty, and after death. Inspection shows the available set.
+- A meal or rest is available only on land, while that need is above 0.3 and its cooldown has elapsed. One already underway in the water ends immediately. A drink requires the character to be standing on water. Work requires standing on a camp while every need is at or below 0.3, and the visit ends once a need rises past that. While thirst is above 0.3 they will not idle when a water route exists, so on dry ground they walk toward it, and in the water walking is held so they can drink. Once thirst is back to 0.3 they walk toward land. While every need is quiet and a camp route exists, they walk to the nearest camp. The walk steps around rock. A map with no way through does not start that walk. A walk for any other reason keeps its direction. Thirst at 0.8 interrupts only when they are already in the water, and hunger or fatigue at 0.8 interrupts only on land. Move otherwise requires the character to be alive, and it ends on a camp while they are comfortable enough to work. Idle stays available on land when they are not thirsty and have no camp to reach, and after death. Inspection shows the available set.
 - Keeps the choice for at least 5 seconds. Eat, drink and rest then continue until that need falls to 0.3.
 - A need at 0.8 interrupts the current choice. The interrupted action cannot be chosen again for 20 seconds, and the ending is recorded as interrupted. Finishing an action records it as completed and does not start that cooldown. Only one recovery runs at a time. Inspection shows the latest ending.
-- Writes the resting, eating and drinking flags that needs and movement read.
+- Writes the resting, eating, drinking and working flags that needs and movement read. Work does not change a need rate.
 
 **Lifecycle system**
 
@@ -198,11 +198,11 @@ When introduced, these stores must have clearly defined ownership and must be in
 
 ### World map
 
-Terrain is static data held on the simulation world (`world.map`) rather than as ECS entities. `packages/simulation/src/core/map.ts` defines it as a width, a height and a row-major `Uint8Array` of indices into `TERRAIN_TYPES` (`grass`, `dirt`, `water`, `rock`) from `packages/shared`.
+Terrain is static data held on the simulation world (`world.map`) rather than as ECS entities. `packages/simulation/src/core/map.ts` defines it as a width, a height and a row-major `Uint8Array` of indices into `TERRAIN_TYPES` (`grass`, `dirt`, `water`, `rock`, `camp`) from `packages/shared`.
 
-New worlds get their terrain from `generateWorldMap(seed)`, which layers seeded value noise. Water is the lowest 12% of tiles, with dirt banks around it and a few dirt patches elsewhere. Rock is a later layer on grass, about 4% of the tiles, from its own salt, so water and dirt stay put. The same seed always produces the same map, so tests and new worlds are reproducible.
+New worlds get their terrain from `generateWorldMap(seed)`, which layers seeded value noise. Water is the lowest 12% of tiles, with dirt banks around it and a few dirt patches elsewhere. Rock is a later layer on grass, about 4% of the tiles, from its own salt, so water and dirt stay put. Camp is a still later layer on the remaining grass, about 1.5% of the tiles, from its own salt, so rock, water and dirt stay put. The same seed always produces the same map, so tests and new worlds are reproducible.
 
-The map's width and height are the movement boundaries and the bounds for `character.create`. Characters can cross water. A thirsty character can drink only while standing on it. The next step comes from a route field in `packages/simulation/src/core/map.ts`, built once for the map and shared by every villager. Each passable tile stores the next step toward the nearest water and the nearest land. Rock is left out of that walk, and a step that would enter it turns back. Grass, dirt and water still cost the same. They do not start the walk when that field has no way through.
+The map's width and height are the movement boundaries and the bounds for `character.create`. Characters can cross water. A thirsty character can drink only while standing on it. The next step comes from a route field in `packages/simulation/src/core/map.ts`, built once for the map and shared by every villager. Each passable tile stores the next step toward the nearest water, the nearest land and the nearest camp. Rock is left out of that walk, and a step that would enter it turns back. Grass, dirt, water and camp still cost the same. They do not start the walk when that field has no way through.
 
 The same field is where a later difference in movement cost lands. It stays one field shared by everyone with the same body rules and the same kind of goal. A second villager does not build a second field. When those rules or the obstacles change, that field is rebuilt from the map. It is not saved.
 
@@ -210,7 +210,7 @@ These are the variations that field has to accept:
 
 - **Cost and passability.** Grass, dirt, a road and a ford can cost different amounts. A tile can be blocked. The tiles that satisfy the errand and the tiles that can be walked are separate sets: once open water is impassable, a drink is reached from a shore tile, not from the middle of the pond.
 - **Mobility classes.** People who can cross the same tiles at the same costs share a field. A cart, a boat or a body that cannot use a one-tile gap is a different class, with its own field. It is not a path per villager.
-- **Shared goals and private targets.** "Any water", "any land" and later "any well" are one mask each. "My house" or "this person" is a route for that errand. A full-grid field is for a mask many people share.
+- **Shared goals and private targets.** "Any water", "any land" and "any camp" are one mask each. "My house" or "this person" is a route for that errand. A full-grid field is for a mask many people share.
 - **Travel time is part of the decision.** Reachability and the walk cost are known before the action is committed. An unreachable pond, or one that is too far, is not a drink they start. The design already forbids walking forever toward a target that cannot be reached.
 - **Other people stay off the field.** Someone standing in a doorway is local avoidance on top of the route. A claimed well or a chopped tree changes the goal mask or adds a cost when the claim changes, rather than rebuilding because a neighbour took one step.
 - **Moving and disappearing targets.** A followed person, a threat or a depleted source invalidates the route. The route is held for the action's commitment and dropped when the target is gone or the field's generation changes. That is the stale-target case in the character design.
@@ -561,7 +561,7 @@ Measure representative workloads again as systems are added, rather than assumin
 | World boundary constraints | Implemented |
 | World snapshots | Implemented |
 | Incremental world deltas | Implemented |
-| Tile map | Implemented — seeded terrain, rock blocks movement |
+| Tile map | Implemented — seeded terrain, rock blocks movement, camps are workplaces |
 | Worker communication | Implemented |
 | ECS abstraction | Not implemented |
 | General-purpose system scheduler | Not implemented |

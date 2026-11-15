@@ -40,6 +40,7 @@ describe('inspectCharacter', () => {
       resting: false,
       eating: false,
       drinking: false,
+      working: false,
       ageSeconds: startingAgeSeconds(0, 'swimmer', generateCharacterProfile(0, 'swimmer').attributes.constitution),
       action: 'move',
       utilities: biasedUtilities(
@@ -85,6 +86,7 @@ describe('inspectCharacter', () => {
       eat: false,
       rest: false,
       drink: false,
+      work: false,
     });
   });
 

@@ -11,6 +11,7 @@ const TERRAIN_COLORS: Record<TerrainType, number> = {
   dirt: 0x8a7148,
   water: 0x3d6e8f,
   rock: 0x6e6a62,
+  camp: 0xc6a15a,
 };
 
 export async function createRenderer(container: HTMLElement) {
@@ -100,6 +101,7 @@ export async function createRenderer(container: HTMLElement) {
     sprite: SpriteId,
     resting: boolean,
     sustaining: boolean,
+    working: boolean,
     dead: boolean,
   ): void {
     graphic.clear();
@@ -123,6 +125,10 @@ export async function createRenderer(container: HTMLElement) {
     if (sustaining) {
       graphic.circle(0, 0, 8).stroke({ color: 0xfff4d6, alpha: 0.9, width: 1 });
     }
+
+    if (working) {
+      graphic.rect(-6, -6, 12, 12).stroke({ color: 0xf0d78c, alpha: 0.95, width: 1 });
+    }
   }
 
   function updateEntities(snapshots: EntitySnapshot[]): void {
@@ -137,10 +143,11 @@ export async function createRenderer(container: HTMLElement) {
 
       const dead = entity.lifecycle === 'dead';
       const sustaining = !dead && (entity.eating || entity.drinking);
-      const appearance = `${entity.sprite}:${entity.resting}:${sustaining}:${entity.lifecycle}`;
+      const working = !dead && entity.working;
+      const appearance = `${entity.sprite}:${entity.resting}:${sustaining}:${working}:${entity.lifecycle}`;
 
       if (appearanceDrawn.get(entity.id) !== appearance) {
-        drawCharacter(graphic, entity.color, entity.sprite, entity.resting, sustaining, dead);
+        drawCharacter(graphic, entity.color, entity.sprite, entity.resting, sustaining, working, dead);
         appearanceDrawn.set(entity.id, appearance);
       }
 

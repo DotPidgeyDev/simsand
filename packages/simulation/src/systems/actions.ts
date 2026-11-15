@@ -41,7 +41,7 @@ export const ACTION_BIAS = 0.05;
 const ACTION_BIAS_SALT = 0x27d4eb2f;
 
 export function emptyCooldowns(): ActionCooldowns {
-  return { idle: 0, move: 0, eat: 0, rest: 0, drink: 0 };
+  return { idle: 0, move: 0, eat: 0, rest: 0, drink: 0, work: 0 };
 }
 
 interface NeedState {
@@ -51,19 +51,29 @@ interface NeedState {
   curiosity: number;
   alive: boolean;
   onWater: boolean;
+  onCamp: boolean;
   // False when the shared route has no tile of that kind to walk to.
   canReachWater: boolean;
   canReachLand: boolean;
+  canReachCamp: boolean;
 }
 
 function comfort(state: NeedState): number {
   return 1 - Math.max(state.hunger, state.thirst, state.fatigue);
 }
 
+function comfortable(state: NeedState): boolean {
+  return state.hunger <= HUNGER_RESUME_AT
+    && state.thirst <= THIRST_RESUME_AT
+    && state.fatigue <= FATIGUE_RESUME_AT;
+}
+
 function stands(state: NeedState): boolean {
   if (state.onWater) return !state.canReachLand && state.thirst <= THIRST_RESUME_AT;
+  if (state.thirst > THIRST_RESUME_AT && state.canReachWater) return false;
+  if (comfortable(state) && state.canReachCamp && !state.onCamp) return false;
 
-  return state.thirst <= THIRST_RESUME_AT || !state.canReachWater;
+  return true;
 }
 
 interface ActionDefinition {
@@ -83,9 +93,10 @@ interface ActionDefinition {
   resting: boolean;
   eating: boolean;
   drinking: boolean;
+  working: boolean;
 }
 
-// Order is the tie break: eat, then drink, then rest, then move, then idle.
+// Order is the tie break: eat, then drink, then rest, then work, then move, then idle.
 export const actionDefinitions: readonly ActionDefinition[] = [
   {
     id: 'eat',
@@ -98,6 +109,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     resting: false,
     eating: true,
     drinking: false,
+    working: false,
   },
   {
     id: 'drink',
@@ -111,6 +123,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     resting: false,
     eating: false,
     drinking: true,
+    working: false,
   },
   {
     id: 'rest',
@@ -123,6 +136,21 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     resting: true,
     eating: false,
     drinking: false,
+    working: false,
+  },
+  {
+    id: 'work',
+    score: (state) => comfort(state),
+    requiresLife: true,
+    // A camp is the only workplace. The visit happens while every need is quiet.
+    ready: (state) => state.onCamp && comfortable(state),
+    holds: (state) => state.onCamp && comfortable(state),
+    sustain: (state) => state.onCamp && comfortable(state),
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: true,
   },
   {
     id: 'move',
@@ -130,13 +158,14 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     requiresLife: true,
     // In the water with a thirst to deal with, walking would carry them off
     // the only place they can drink.
-    ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT),
-    holds: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT),
+    ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !(state.onCamp && comfortable(state)),
+    holds: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !(state.onCamp && comfortable(state)),
     sustain: () => false,
     urgent: () => false,
     resting: false,
     eating: false,
     drinking: false,
+    working: false,
   },
   {
     id: 'idle',
@@ -151,6 +180,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     resting: false,
     eating: false,
     drinking: false,
+    working: false,
   },
 ];
 
@@ -169,8 +199,10 @@ function needState(input: {
   curiosity?: number;
   alive?: boolean;
   onWater?: boolean;
+  onCamp?: boolean;
   canReachWater?: boolean;
   canReachLand?: boolean;
+  canReachCamp?: boolean;
 }): NeedState {
   return {
     hunger: input.hunger,
@@ -179,8 +211,10 @@ function needState(input: {
     curiosity: Math.min(1, Math.max(0, input.curiosity ?? 0)),
     alive: input.alive ?? true,
     onWater: input.onWater ?? false,
+    onCamp: input.onCamp ?? false,
     canReachWater: input.canReachWater ?? true,
     canReachLand: input.canReachLand ?? true,
+    canReachCamp: input.canReachCamp ?? false,
   };
 }
 
@@ -189,6 +223,13 @@ export function standingOnWater(world: SimulationWorld, x: number, y: number): b
   const tileY = Math.min(world.map.height - 1, Math.max(0, Math.floor(y)));
 
   return getTile(world.map, tileX, tileY) === 'water';
+}
+
+export function standingOnCamp(world: SimulationWorld, x: number, y: number): boolean {
+  const tileX = Math.min(world.map.width - 1, Math.max(0, Math.floor(x)));
+  const tileY = Math.min(world.map.height - 1, Math.max(0, Math.floor(y)));
+
+  return getTile(world.map, tileX, tileY) === 'camp';
 }
 
 export function actionUtilities(input: {
@@ -234,6 +275,7 @@ export function biasedUtilities(
     eat: utilities.eat + bias.eat,
     rest: utilities.rest + bias.rest,
     drink: utilities.drink + bias.drink,
+    work: utilities.work + bias.work,
   };
 }
 
@@ -247,13 +289,15 @@ export function actionAvailability(input: {
   thirst: number;
   fatigue: number;
   onWater?: boolean;
+  onCamp?: boolean;
   canReachWater?: boolean;
   canReachLand?: boolean;
+  canReachCamp?: boolean;
   cooldowns?: ActionCooldowns;
 }): Record<ActionId, boolean> {
   const cooldowns = input.cooldowns ?? emptyCooldowns();
   const state = needState(input);
-  const available = { idle: false, move: false, eat: false, rest: false, drink: false };
+  const available = { idle: false, move: false, eat: false, rest: false, drink: false, work: false };
 
   for (const definition of actionDefinitions) {
     const open = !definition.requiresLife || (input.alive && cooldowns[definition.id] <= 0);
@@ -308,6 +352,7 @@ function readCooldowns(eid: number): ActionCooldowns {
     eat: Action.cooldown.eat[eid],
     rest: Action.cooldown.rest[eid],
     drink: Action.cooldown.drink[eid],
+    work: Action.cooldown.work[eid],
   };
 }
 
@@ -347,6 +392,7 @@ function applyAction(eid: number, action: ActionId): void {
   Condition.resting[eid] = definition.resting ? 1 : 0;
   Condition.eating[eid] = definition.eating ? 1 : 0;
   Condition.drinking[eid] = definition.drinking ? 1 : 0;
+  Condition.working[eid] = definition.working ? 1 : 0;
 }
 
 // Runs after lifecycle and before needs. One action at a time. A need at
@@ -368,8 +414,10 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
     }
 
     const onWater = standingOnWater(world, Position.x[eid], Position.y[eid]);
+    const onCamp = standingOnCamp(world, Position.x[eid], Position.y[eid]);
     const waterRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'water');
     const landRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'land');
+    const campRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'camp');
     const state = needState({
       hunger: Needs.hunger[eid],
       thirst: Needs.thirst[eid],
@@ -377,8 +425,10 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       curiosity: Personality.curiosity[eid],
       alive: true,
       onWater,
+      onCamp,
       canReachWater: waterRoute !== undefined,
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
+      canReachCamp: campRoute !== undefined && campRoute.distance > 0,
     });
     const utilities = biasedUtilities(
       actionUtilities(state),
@@ -408,6 +458,8 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       onWater: state.onWater,
       canReachWater: state.canReachWater,
       canReachLand: state.canReachLand,
+      onCamp: state.onCamp,
+      canReachCamp: state.canReachCamp,
       cooldowns: readCooldowns(eid),
     }));
     Action.kind[eid] = ACTION_IDS.indexOf(next);
@@ -420,13 +472,15 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
 function directMove(world: SimulationWorld, eid: number, action: ActionId, state: NeedState): void {
   if (action !== 'move') return;
 
-  // Thirst aims at water. Leaving the water aims at land. Any other walk
-  // keeps the direction they already had.
+  // Thirst aims at water. Leaving the water aims at land. A quiet need aims
+  // at a camp. Any other walk keeps the direction they already had.
   if (state.thirst > THIRST_RESUME_AT && !state.onWater) {
     if (!state.canReachWater) return;
 
     steerToward(world, eid, 'water');
   } else if (state.onWater && state.canReachLand) {
     steerToward(world, eid, 'land');
+  } else if (comfortable(state) && !state.onCamp && state.canReachCamp) {
+    steerToward(world, eid, 'camp');
   }
 }

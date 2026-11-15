@@ -193,7 +193,7 @@ http://localhost:5173
 
 Open that URL in your browser.
 
-You should see a tile map of grass, dirt, ponds and rock with 20 coloured characters moving around independently. Each character is a square, a diamond or a triangle, depending on its sprite. A resting character is a circle. A character who has stopped to eat or drink has a ring around them. A dead character is an X.
+You should see a tile map of grass, dirt, ponds, rock and gold camps with 20 coloured characters moving around independently. Each character is a square, a diamond or a triangle, depending on its sprite. A resting character is a circle. A character who has stopped to eat or drink has a ring around them. A character working at a camp has a gold square around them. A dead character is an X.
 
 The server saves the world to `apps/server/data/simsand.sqlite` every 30 seconds and when stopped with Ctrl-C, then resumes from that save on the next start. Delete the `apps/server/data` directory to start a new world.
 
@@ -287,7 +287,7 @@ This allows the simulation to continue running even when no browser clients are 
 
 PixiJS currently renders:
 
-- A 64×64 tile map of grass, dirt, water and rock, generated from the world seed and received from the server.
+- A 64×64 tile map of grass, dirt, water, rock and camp, generated from the world seed and received from the server.
 - Grid lines.
 - Coloured placeholder shapes for entities: a square (`wanderer`), a diamond (`scout`) or a triangle (`elder`). A resting entity is drawn as a circle. An entity who is eating or drinking has a ring around them. A dead entity is an X.
 - Entity positions updated through incoming snapshots and deltas.

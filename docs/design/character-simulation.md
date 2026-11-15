@@ -205,5 +205,7 @@ they are standing on water; until then a thirsty character walks toward
 the nearest water on a route shared by the map. A meal or a rest happens
 on land, and they leave toward the nearest land once they have drunk.
 They walk around rock, and do not start either walk when there is no way through.
+While every need is quiet they walk to the nearest camp and work there until
+a need rises past 0.3. That visit produces nothing to carry or spend.
 Skills, inventory,
 relationships, memories and goals stay later.

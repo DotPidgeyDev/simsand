@@ -220,10 +220,12 @@ model incrementally as simulation systems become real.
     short of the lifespan for that constitution. Version 7 gains the
     current action, taken from those flags, and an action time of zero.
     Version 8 gains a cooldown of zero for every action. Version 9 gains
-    an empty outcome for the previous action. Version 10 gains rock
+    an empty outcome for the previous action.     Version 10 gains rock
     on grass tiles that nobody is standing on, taken from the world
-    seed. Water and dirt stay where they are. The next save writes
-    version 11.
+    seed. Water and dirt stay where they are. Version 11 gains camps
+    on the remaining grass that nobody is standing on, a work cooldown
+    of zero, and a working flag that starts clear. The next save writes
+    version 12.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot reshuffle an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker

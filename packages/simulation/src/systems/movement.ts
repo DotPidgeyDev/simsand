@@ -17,7 +17,7 @@ const MOVE = ACTION_IDS.indexOf('move');
 // Point the current speed at the next step of the shared route. A wanderer
 // keeps the velocity they already have. Speed is unchanged, so a seeker is no
 // faster than anyone else.
-export function steerToward(world: SimulationWorld, eid: number, kind: 'water' | 'land'): void {
+export function steerToward(world: SimulationWorld, eid: number, kind: 'water' | 'land' | 'camp'): void {
   const target = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], kind);
 
   if (!target || target.distance === 0) return;

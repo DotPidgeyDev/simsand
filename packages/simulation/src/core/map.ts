@@ -10,6 +10,7 @@ const GRASS = TERRAIN_TYPES.indexOf('grass');
 const DIRT = TERRAIN_TYPES.indexOf('dirt');
 const WATER = TERRAIN_TYPES.indexOf('water');
 const ROCK = TERRAIN_TYPES.indexOf('rock');
+const CAMP = TERRAIN_TYPES.indexOf('camp');
 
 // Proportions of the map, chosen by quantile so every seed gets a similar
 // amount of each terrain.
@@ -17,10 +18,12 @@ const WATER_FRACTION = 0.12;
 const SHORE_FRACTION = 0.08;
 const DIRT_PATCH_FRACTION = 0.06;
 const ROCK_FRACTION = 0.04;
+const CAMP_FRACTION = 0.015;
 
 // Keeps the terrain stream independent of other uses of the world seed.
 const MAP_SEED_SALT = 0x9e3779b9;
 const ROCK_SEED_SALT = 0x6a09e667;
+const CAMP_SEED_SALT = 0xbb67ae85;
 
 // Static terrain. Rock cannot be entered. Grass, dirt and water can, at the
 // same cost.
@@ -69,6 +72,7 @@ export function generateWorldMap(
   }
 
   stampRocks(map, seed);
+  stampCamps(map, seed);
 
   return map;
 }
@@ -88,6 +92,20 @@ export function stampRocks(map: WorldMap, seed: number, occupied: ReadonlySet<nu
   }
 }
 
+// Camps are a later layer on grass, from their own salt, so water, dirt and
+// rock stay put. A tile someone is already standing on stays grass.
+export function stampCamps(map: WorldMap, seed: number, occupied: ReadonlySet<number> = new Set()): void {
+  const random = createRandom((seed ^ CAMP_SEED_SALT) >>> 0);
+  const noise = fractalNoise(random, map.width, map.height);
+  const level = quantile(noise, CAMP_FRACTION);
+
+  for (let i = 0; i < map.tiles.length; i++) {
+    if (map.tiles[i] !== GRASS || occupied.has(i) || noise[i] >= level) continue;
+
+    map.tiles[i] = CAMP;
+  }
+}
+
 // The next tile toward the nearest tile of that kind, and how many steps that
 // walk takes. Distance 0 means this cell already is that kind of terrain.
 // Missing means rock, or no way through.
@@ -100,6 +118,7 @@ export interface TerrainRoute {
 interface RouteField {
   water: Array<TerrainRoute | undefined>;
   land: Array<TerrainRoute | undefined>;
+  camp: Array<TerrainRoute | undefined>;
 }
 
 const routeFields = new WeakMap<WorldMap, RouteField>();
@@ -167,6 +186,7 @@ function routeField(map: WorldMap): RouteField {
   const field: RouteField = {
     water: walkField(map, (index) => map.tiles[index] === WATER),
     land: walkField(map, (index) => map.tiles[index] !== WATER && map.tiles[index] !== ROCK),
+    camp: walkField(map, (index) => map.tiles[index] === CAMP),
   };
 
   routeFields.set(map, field);
@@ -180,7 +200,7 @@ export function nearestTerrainTile(
   map: WorldMap,
   x: number,
   y: number,
-  kind: 'water' | 'land',
+  kind: 'water' | 'land' | 'camp',
 ): TerrainRoute | undefined {
   const tileX = Math.min(map.width - 1, Math.max(0, Math.floor(x)));
   const tileY = Math.min(map.height - 1, Math.max(0, Math.floor(y)));

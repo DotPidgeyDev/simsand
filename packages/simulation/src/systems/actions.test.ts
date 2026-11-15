@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ACTION_IDS, LIFECYCLE_STATES, TERRAIN_TYPES } from '@simsand/shared';
 
 import { Action } from '../components/action.js';
+import { Condition } from '../components/condition.js';
 import { Identity } from '../components/identity.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
@@ -30,7 +31,7 @@ import {
 import { updateMovement } from './movement.js';
 import { updateNeeds } from './needs.js';
 
-function setTile(world: SimulationWorld, x: number, y: number, terrain: 'grass' | 'dirt' | 'water') {
+function setTile(world: SimulationWorld, x: number, y: number, terrain: 'grass' | 'dirt' | 'water' | 'camp') {
   world.map.tiles[Math.floor(y) * world.map.width + Math.floor(x)] = TERRAIN_TYPES.indexOf(terrain);
 }
 
@@ -56,7 +57,7 @@ function character() {
 describe('updateActions', () => {
   it('defines every action once, in tie-break order', () => {
     expect(actionDefinitions.map((definition) => definition.id)).toEqual([
-      'eat', 'drink', 'rest', 'move', 'idle',
+      'eat', 'drink', 'rest', 'work', 'move', 'idle',
     ]);
   });
 
@@ -321,6 +322,7 @@ describe('updateActions', () => {
       eat: false,
       rest: false,
       drink: false,
+      work: false,
     });
   });
 
@@ -374,6 +376,7 @@ describe('updateActions', () => {
       eat: false,
       rest: false,
       drink: false,
+      work: false,
     });
   });
 
@@ -518,5 +521,65 @@ describe('updateActions', () => {
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
     expect(Velocity.x[eid]).toBe(1);
+  });
+
+  it('walks to the nearest camp while every need is quiet', () => {
+    const map = createWorldMap(8, 8, 'grass');
+    map.tiles[2 * 8 + 5] = TERRAIN_TYPES.indexOf('camp');
+    const world = createSimulationWorld(map);
+    const eid = createCharacter(world, {
+      id: 'worker',
+      x: 1.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 1,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 0;
+    Lifecycle.ageSeconds[eid] = 0;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Velocity.x[eid]).toBeGreaterThan(0.9);
+    expect(Math.abs(Velocity.y[eid])).toBeLessThan(0.1);
+  });
+
+  it('works while standing on a camp', () => {
+    const { world, eid } = character();
+    setTile(world, 10, 10, 'camp');
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 1;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('work');
+    expect(Condition.working[eid]).toBe(1);
+  });
+
+  it('leaves a camp once a need presses, without cooling the visit', () => {
+    const { world, eid } = character();
+    setTile(world, 10, 10, 'camp');
+    Needs.hunger[eid] = 0.6;
+    Needs.thirst[eid] = 0.1;
+    Needs.fatigue[eid] = 0.1;
+    Personality.curiosity[eid] = 0;
+    Action.kind[eid] = ACTION_IDS.indexOf('work');
+    Action.elapsed[eid] = 1;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('eat');
+    expect(Action.cooldown.work[eid]).toBe(0);
+    expect(readActionOutcome(eid)).toEqual({ action: 'work', result: 'completed' });
   });
 });

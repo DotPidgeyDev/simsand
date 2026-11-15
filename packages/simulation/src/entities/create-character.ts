@@ -29,6 +29,7 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   resting?: boolean;
   eating?: boolean;
   drinking?: boolean;
+  working?: boolean;
   ageSeconds?: number;
   action?: ActionId;
   actionSeconds?: number;
@@ -78,6 +79,7 @@ export function createCharacter(
   Condition.resting[eid] = definition.resting ? 1 : 0;
   Condition.eating[eid] = definition.eating ? 1 : 0;
   Condition.drinking[eid] = definition.drinking ? 1 : 0;
+  Condition.working[eid] = definition.working ? 1 : 0;
   Action.kind[eid] = ACTION_IDS.indexOf(definition.action ?? 'move');
   Action.elapsed[eid] = definition.actionSeconds ?? 0;
   const cooldowns = definition.cooldowns ?? emptyCooldowns();

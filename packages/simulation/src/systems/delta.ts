@@ -16,6 +16,7 @@ function hasChanged(
     previous.resting !== current.resting ||
     previous.eating !== current.eating ||
     previous.drinking !== current.drinking ||
+    previous.working !== current.working ||
     previous.lifecycle !== current.lifecycle
   );
 }

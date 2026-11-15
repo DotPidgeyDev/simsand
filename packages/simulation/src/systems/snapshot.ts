@@ -35,6 +35,7 @@ export function createWorldSnapshot(
       resting: Condition.resting[eid] === 1,
       eating: Condition.eating[eid] === 1,
       drinking: Condition.drinking[eid] === 1,
+      working: Condition.working[eid] === 1,
       lifecycle: LIFECYCLE_STATES[Lifecycle.state[eid]],
     });
   }
