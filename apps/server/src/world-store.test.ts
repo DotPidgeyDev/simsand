@@ -11,7 +11,7 @@ function world(tick: number): PersistedWorld {
   const profile = generateCharacterProfile(12345, 'character-0001');
 
   return {
-    version: 10,
+    version: 11,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -130,7 +130,12 @@ describe('WorldStore', () => {
 
     insertRaw(db, 10, JSON.stringify({ ...saved, version: 2, entities }));
 
-    expect(store.loadLatest()).toEqual(saved);
+    const loaded = store.loadLatest();
+
+    expect(loaded?.version).toBe(11);
+    expect(loaded?.entities).toEqual(saved.entities);
+    expect(loaded?.map.tiles[1]).toBe(1);
+    expect(loaded?.map.tiles[2]).toBe(2);
   });
 
   it('upgrades a version 3 snapshot by deriving resting from fatigue', () => {
@@ -147,7 +152,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(10);
+    expect(loaded?.version).toBe(11);
     expect(loaded?.entities[0].eating).toBe(false);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].resting).toBe(true);
@@ -169,7 +174,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(10);
+    expect(loaded?.version).toBe(11);
     expect(loaded?.entities[0].eating).toBe(true);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].needs.hunger).toBe(0.9);
@@ -188,7 +193,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(10);
+    expect(loaded?.version).toBe(11);
     expect(loaded?.entities[0].ageSeconds).toBe(saved.entities[0].ageSeconds);
   });
 

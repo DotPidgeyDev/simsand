@@ -204,6 +204,6 @@ it is finished or a need becomes urgent. A drink happens only while
 they are standing on water; until then a thirsty character walks toward
 the nearest water on a route shared by the map. A meal or a rest happens
 on land, and they leave toward the nearest land once they have drunk.
-They do not start either walk when the map has no such tile.
+They walk around rock, and do not start either walk when there is no way through.
 Skills, inventory,
 relationships, memories and goals stay later.

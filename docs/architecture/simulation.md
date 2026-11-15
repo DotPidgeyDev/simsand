@@ -152,7 +152,7 @@ The current simulation includes:
 - Runs after lifecycle and before needs.
 - Each of `idle`, `move`, `eat`, `rest` and `drink` is a definition: its score, when it can be chosen, how long it continues after the minimum commitment, whether its need is urgent, and the resting, eating or drinking flag it sets. The list order is the tie break.
 - Scores come from those definitions, then a stable bias of at most 0.05 is added per action. The bias comes from the world seed and the character id, on its own salt, and is not saved. Inspection shows the biased scores. A pressing need still outranks the bias.
-- A meal or rest is available only on land, while that need is above 0.3 and its cooldown has elapsed. One already underway in the water ends immediately. A drink requires the character to be standing on water. While thirst is above 0.3 they will not idle when the map has water, so on dry ground they walk toward it, and in the water walking is held so they can drink. Once thirst is back to 0.3 they walk toward land. A map with no such tile does not start that walk. A walk for any other reason keeps its direction. Thirst at 0.8 interrupts only when they are already in the water, and hunger or fatigue at 0.8 interrupts only on land. Move otherwise requires the character to be alive. Idle stays available on land when they are not thirsty, and after death. Inspection shows the available set.
+- A meal or rest is available only on land, while that need is above 0.3 and its cooldown has elapsed. One already underway in the water ends immediately. A drink requires the character to be standing on water. While thirst is above 0.3 they will not idle when a water route exists, so on dry ground they walk toward it, and in the water walking is held so they can drink. Once thirst is back to 0.3 they walk toward land. The walk steps around rock. A map with no way through does not start that walk. A walk for any other reason keeps its direction. Thirst at 0.8 interrupts only when they are already in the water, and hunger or fatigue at 0.8 interrupts only on land. Move otherwise requires the character to be alive. Idle stays available on land when they are not thirsty, and after death. Inspection shows the available set.
 - Keeps the choice for at least 5 seconds. Eat, drink and rest then continue until that need falls to 0.3.
 - A need at 0.8 interrupts the current choice. The interrupted action cannot be chosen again for 20 seconds, and the ending is recorded as interrupted. Finishing an action records it as completed and does not start that cooldown. Only one recovery runs at a time. Inspection shows the latest ending.
 - Writes the resting, eating and drinking flags that needs and movement read.
@@ -198,13 +198,13 @@ When introduced, these stores must have clearly defined ownership and must be in
 
 ### World map
 
-Terrain is static data held on the simulation world (`world.map`) rather than as ECS entities. `packages/simulation/src/core/map.ts` defines it as a width, a height and a row-major `Uint8Array` of indices into `TERRAIN_TYPES` (`grass`, `dirt`, `water`) from `packages/shared`.
+Terrain is static data held on the simulation world (`world.map`) rather than as ECS entities. `packages/simulation/src/core/map.ts` defines it as a width, a height and a row-major `Uint8Array` of indices into `TERRAIN_TYPES` (`grass`, `dirt`, `water`, `rock`) from `packages/shared`.
 
-New worlds get their terrain from `generateWorldMap(seed)`, which layers seeded value noise. Water is the lowest 12% of tiles, with dirt banks around it and a few dirt patches elsewhere. The same seed always produces the same map, so tests and new worlds are reproducible.
+New worlds get their terrain from `generateWorldMap(seed)`, which layers seeded value noise. Water is the lowest 12% of tiles, with dirt banks around it and a few dirt patches elsewhere. Rock is a later layer on grass, about 4% of the tiles, from its own salt, so water and dirt stay put. The same seed always produces the same map, so tests and new worlds are reproducible.
 
-The map's width and height are the movement boundaries and the bounds for `character.create`. Characters can cross water. A thirsty character can drink only while standing on it. The tile they walk toward comes from a route field in `packages/simulation/src/core/map.ts`, built once for the map and shared by every villager. Each tile stores the nearest water tile and the nearest land tile. The line is still straight, because every tile is passable and costs the same. They do not start the walk when that field has no tile of the kind they need. Collision, movement cost and pathfinding around obstacles are left for the navigation work.
+The map's width and height are the movement boundaries and the bounds for `character.create`. Characters can cross water. A thirsty character can drink only while standing on it. The next step comes from a route field in `packages/simulation/src/core/map.ts`, built once for the map and shared by every villager. Each passable tile stores the next step toward the nearest water and the nearest land. Rock is left out of that walk, and a step that would enter it turns back. Grass, dirt and water still cost the same. They do not start the walk when that field has no way through.
 
-The same field is where a later obstacle or a higher movement cost lands. It stays one field shared by everyone with the same body rules and the same kind of goal. A second villager does not build a second field. When those rules or the obstacles change, that field is rebuilt from the map. It is not saved.
+The same field is where a later difference in movement cost lands. It stays one field shared by everyone with the same body rules and the same kind of goal. A second villager does not build a second field. When those rules or the obstacles change, that field is rebuilt from the map. It is not saved.
 
 These are the variations that field has to accept:
 
@@ -561,7 +561,7 @@ Measure representative workloads again as systems are added, rather than assumin
 | World boundary constraints | Implemented |
 | World snapshots | Implemented |
 | Incremental world deltas | Implemented |
-| Tile map | Implemented — seeded static terrain, no collision |
+| Tile map | Implemented — seeded terrain, rock blocks movement |
 | Worker communication | Implemented |
 | ECS abstraction | Not implemented |
 | General-purpose system scheduler | Not implemented |

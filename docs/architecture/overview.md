@@ -385,7 +385,7 @@ These are initial engineering targets, not guaranteed capacity limits.
 | Snapshot and delta communication | Implemented |
 | Multiple browser clients | Supported by WebSocket server |
 
-The simulation owns a 64 × 64 tile map of grass, dirt and water, generated from the world seed. The map's dimensions define the movement bounds. Terrain does not yet affect movement, and navigation has not been implemented.
+The simulation owns a 64 × 64 tile map of grass, dirt, water and rock, generated from the world seed. The map's dimensions define the movement bounds. Rock blocks movement. A route shared by the map walks around it toward water or land.
 
 Use profiling and representative workloads before increasing complexity.
 

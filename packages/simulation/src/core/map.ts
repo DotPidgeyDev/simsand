@@ -9,18 +9,21 @@ export const DEFAULT_MAP_HEIGHT = 64;
 const GRASS = TERRAIN_TYPES.indexOf('grass');
 const DIRT = TERRAIN_TYPES.indexOf('dirt');
 const WATER = TERRAIN_TYPES.indexOf('water');
+const ROCK = TERRAIN_TYPES.indexOf('rock');
 
 // Proportions of the map, chosen by quantile so every seed gets a similar
 // amount of each terrain.
 const WATER_FRACTION = 0.12;
 const SHORE_FRACTION = 0.08;
 const DIRT_PATCH_FRACTION = 0.06;
+const ROCK_FRACTION = 0.04;
 
 // Keeps the terrain stream independent of other uses of the world seed.
 const MAP_SEED_SALT = 0x9e3779b9;
+const ROCK_SEED_SALT = 0x6a09e667;
 
-// Static terrain. Characters move freely over every terrain type for now;
-// collision and pathfinding come later.
+// Static terrain. Rock cannot be entered. Grass, dirt and water can, at the
+// same cost.
 export interface WorldMap {
   width: number;
   height: number;
@@ -65,17 +68,29 @@ export function generateWorldMap(
     }
   }
 
+  stampRocks(map, seed);
+
   return map;
 }
 
-interface TilePoint {
-  x: number;
-  y: number;
+// Rock is a later layer on grass, from its own salt, so water and dirt stay
+// put when an older save gains it. A tile someone is already standing on stays
+// grass. Running it again does not move the rocks that are already there.
+export function stampRocks(map: WorldMap, seed: number, occupied: ReadonlySet<number> = new Set()): void {
+  const random = createRandom((seed ^ ROCK_SEED_SALT) >>> 0);
+  const noise = fractalNoise(random, map.width, map.height);
+  const level = quantile(noise, ROCK_FRACTION);
+
+  for (let i = 0; i < map.tiles.length; i++) {
+    if (map.tiles[i] !== GRASS || occupied.has(i) || noise[i] >= level) continue;
+
+    map.tiles[i] = ROCK;
+  }
 }
 
-// The tile a villager on this cell walks toward, and the straight-line
-// distance in tiles between the two centers. Distance 0 means this cell
-// already is that kind of terrain. Missing means the map has no such tile.
+// The next tile toward the nearest tile of that kind, and how many steps that
+// walk takes. Distance 0 means this cell already is that kind of terrain.
+// Missing means rock, or no way through.
 export interface TerrainRoute {
   x: number;
   y: number;
@@ -89,75 +104,78 @@ interface RouteField {
 
 const routeFields = new WeakMap<WorldMap, RouteField>();
 
-function nearestOf(points: readonly TilePoint[], x: number, y: number): TerrainRoute | undefined {
-  let best: TilePoint | undefined;
-  let bestDistance = Infinity;
+const NEIGHBORS = [
+  [1, 0],
+  [0, 1],
+  [-1, 0],
+  [0, -1],
+] as const;
 
-  for (const point of points) {
-    const dx = point.x + 0.5 - x;
-    const dy = point.y + 0.5 - y;
-    const distance = dx * dx + dy * dy;
+// One route for every passable tile, shared by every villager. Spread from
+// the goal tiles through grass, dirt and water. Rock is left out. The stored
+// tile is the next step, not the goal. Equal-length walks keep the earliest
+// goal in row-major order. Built once; the map does not change during a world.
+function walkField(map: WorldMap, isGoal: (index: number) => boolean): Array<TerrainRoute | undefined> {
+  const count = map.width * map.height;
+  const routes: Array<TerrainRoute | undefined> = new Array(count);
+  const distance = new Int32Array(count).fill(-1);
+  const queue: number[] = [];
 
-    if (distance < bestDistance) {
-      bestDistance = distance;
-      best = point;
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const index = y * map.width + x;
+
+      if (!isGoal(index)) continue;
+
+      distance[index] = 0;
+      routes[index] = { x, y, distance: 0 };
+      queue.push(index);
     }
   }
 
-  if (!best) return undefined;
+  let head = 0;
 
-  return { x: best.x, y: best.y, distance: Math.sqrt(bestDistance) };
+  while (head < queue.length) {
+    const index = queue[head++];
+    const x = index % map.width;
+    const y = Math.floor(index / map.width);
+
+    for (const [dx, dy] of NEIGHBORS) {
+      const nextX = x + dx;
+      const nextY = y + dy;
+
+      if (nextX < 0 || nextY < 0 || nextX >= map.width || nextY >= map.height) continue;
+
+      const next = nextY * map.width + nextX;
+
+      if (distance[next] !== -1 || map.tiles[next] === ROCK) continue;
+
+      distance[next] = distance[index] + 1;
+      routes[next] = { x, y, distance: distance[next] };
+      queue.push(next);
+    }
+  }
+
+  return routes;
 }
 
-// One route for every tile, shared by every villager. Every tile is passable
-// and costs the same, so the route is the straight line to the nearest tile
-// of that kind. Ties keep the earliest tile in row-major order. Built once;
-// the map does not change during a world.
 function routeField(map: WorldMap): RouteField {
   const cached = routeFields.get(map);
 
   if (cached) return cached;
 
-  const waterTiles: TilePoint[] = [];
-  const landTiles: TilePoint[] = [];
-
-  for (let y = 0; y < map.height; y++) {
-    for (let x = 0; x < map.width; x++) {
-      const point = { x, y };
-
-      if (map.tiles[y * map.width + x] === WATER) waterTiles.push(point);
-      else landTiles.push(point);
-    }
-  }
-
   const field: RouteField = {
-    water: new Array(map.width * map.height),
-    land: new Array(map.width * map.height),
+    water: walkField(map, (index) => map.tiles[index] === WATER),
+    land: walkField(map, (index) => map.tiles[index] !== WATER && map.tiles[index] !== ROCK),
   };
-
-  for (let y = 0; y < map.height; y++) {
-    for (let x = 0; x < map.width; x++) {
-      const index = y * map.width + x;
-      const centerX = x + 0.5;
-      const centerY = y + 0.5;
-
-      if (map.tiles[index] === WATER) {
-        field.water[index] = { x, y, distance: 0 };
-        field.land[index] = nearestOf(landTiles, centerX, centerY);
-      } else {
-        field.land[index] = { x, y, distance: 0 };
-        field.water[index] = nearestOf(waterTiles, centerX, centerY);
-      }
-    }
-  }
 
   routeFields.set(map, field);
 
   return field;
 }
 
-// The route for the tile containing this point. Nothing blocks the straight
-// line yet. An all-grass map has no water route.
+// The next step for the tile containing this point. An all-grass map has no
+// water route. Rock has neither.
 export function nearestTerrainTile(
   map: WorldMap,
   x: number,

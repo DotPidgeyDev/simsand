@@ -2,7 +2,7 @@ import { query } from 'bitecs';
 
 import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
 
-import { nearestTerrainTile } from '../core/map.js';
+import { getTile, nearestTerrainTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Action } from '../components/action.js';
@@ -14,9 +14,9 @@ import { Velocity } from '../components/velocity.js';
 const DEAD = LIFECYCLE_STATES.indexOf('dead');
 const MOVE = ACTION_IDS.indexOf('move');
 
-// Point the current speed at the nearest tile of that kind. A wanderer keeps
-// the velocity they already have. Speed is unchanged, so a seeker is no faster
-// than anyone else.
+// Point the current speed at the next step of the shared route. A wanderer
+// keeps the velocity they already have. Speed is unchanged, so a seeker is no
+// faster than anyone else.
 export function steerToward(world: SimulationWorld, eid: number, kind: 'water' | 'land'): void {
   const target = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], kind);
 
@@ -54,8 +54,15 @@ export function updateMovement(
       || Condition.drinking[eid] === 1
     ) continue;
 
-    const x = bounce(Position.x[eid] + Velocity.x[eid] * deltaSeconds, worldWidth);
-    const y = bounce(Position.y[eid] + Velocity.y[eid] * deltaSeconds, worldHeight);
+    const bouncedX = bounce(Position.x[eid] + Velocity.x[eid] * deltaSeconds, worldWidth);
+    const bouncedY = bounce(Position.y[eid] + Velocity.y[eid] * deltaSeconds, worldHeight);
+    // Try each axis on its own, so a wall stops the part of the step that
+    // would enter rock and the other part can still slide along it.
+    const x = stopAtRock(world.map, Position.x[eid], bouncedX.position, Position.y[eid], true);
+    const y = stopAtRock(world.map, Position.y[eid], bouncedY.position, x.position, false);
+
+    if (bouncedX.reflected) x.reflected = true;
+    if (bouncedY.reflected) y.reflected = true;
 
     Position.x[eid] = x.position;
     Position.y[eid] = y.position;
@@ -67,6 +74,39 @@ export function updateMovement(
 
 // Clamping alone would leave the velocity pointing out of the map, pinning
 // characters against the edge until they slide into a corner.
+function stopAtRock(
+  map: SimulationWorld['map'],
+  from: number,
+  to: number,
+  fixed: number,
+  horizontal: boolean,
+): { position: number; reflected: boolean } {
+  const limit = horizontal ? map.width : map.height;
+  const tileOf = (value: number) => Math.min(limit - 1, Math.max(0, Math.floor(value)));
+  const blocked = (tile: number) => {
+    const tileX = horizontal ? tile : tileOf(fixed);
+    const tileY = horizontal ? tileOf(fixed) : tile;
+
+    return getTile(map, tileX, tileY) === 'rock';
+  };
+  const start = tileOf(from);
+  const end = tileOf(to);
+
+  if (start === end) return { position: to, reflected: false };
+
+  const step = end > start ? 1 : -1;
+
+  for (let tile = start + step; ; tile += step) {
+    if (blocked(tile)) {
+      return { position: step > 0 ? tile - 1e-6 : tile + 1, reflected: true };
+    }
+
+    if (tile === end) break;
+  }
+
+  return { position: to, reflected: false };
+}
+
 function bounce(next: number, max: number): { position: number; reflected: boolean } {
   if (next < 0) {
     return { position: Math.min(max, -next), reflected: true };

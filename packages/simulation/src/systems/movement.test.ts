@@ -1,11 +1,12 @@
 import { query } from 'bitecs';
 import { describe, expect, it } from 'vitest';
 
+import { LIFECYCLE_STATES, TERRAIN_TYPES } from '@simsand/shared';
+
 import { createWorldMap } from '../core/map.js';
 import { createSimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
 import { createPopulation } from '../entities/create-population.js';
-import { LIFECYCLE_STATES } from '@simsand/shared';
 
 import { Lifecycle } from '../components/lifecycle.js';
 import { Position } from '../components/position.js';
@@ -89,6 +90,27 @@ describe('updateMovement', () => {
 
     expect(Position.x[eid]).toBe(0);
     expect(Position.y[eid]).toBe(10);
+  });
+
+  it('turns back instead of walking onto rock', () => {
+    const map = createWorldMap(8, 8, 'grass');
+    map.tiles[1 * 8 + 2] = TERRAIN_TYPES.indexOf('rock');
+    const world = createSimulationWorld(map);
+    const eid = createCharacter(world, {
+      id: 'walker',
+      x: 1.5,
+      y: 1.5,
+      velocityX: 2,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    updateMovement(world, 1);
+
+    expect(Position.x[eid]).toBeLessThan(2);
+    expect(Position.y[eid]).toBe(1.5);
+    expect(Velocity.x[eid]).toBe(-2);
   });
 
   it('leaves dead characters where they are', () => {

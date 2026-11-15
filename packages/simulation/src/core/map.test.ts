@@ -12,7 +12,7 @@ import {
 
 function terrainCounts(seed: number) {
   const map = generateWorldMap(seed);
-  const counts = { grass: 0, dirt: 0, water: 0 };
+  const counts = { grass: 0, dirt: 0, water: 0, rock: 0 };
 
   for (const tile of map.tiles) {
     counts[TERRAIN_TYPES[tile]]++;
@@ -32,13 +32,15 @@ describe('world map', () => {
   });
 
   it.each([1, 12345, 987654])('gives seed %i a mostly-grass map with water and dirt', (seed) => {
-    const { grass, dirt, water } = terrainCounts(seed);
+    const { grass, dirt, water, rock } = terrainCounts(seed);
     const total = 64 * 64;
 
     expect(water / total).toBeCloseTo(0.12, 1);
     expect(dirt / total).toBeGreaterThan(0.08);
     expect(dirt / total).toBeLessThan(0.2);
     expect(grass / total).toBeGreaterThan(0.65);
+    expect(rock / total).toBeGreaterThan(0);
+    expect(rock / total).toBeLessThan(0.05);
   });
 
   it('looks up tiles by integer coordinates and returns undefined outside the map', () => {

@@ -134,7 +134,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 

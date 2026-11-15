@@ -39,8 +39,9 @@ LDtk is the selected initial map editor. Keep map loading and
 representation independent of PixiJS.
 
 Current state: the map is generated from the world seed (grass, dirt
-banks and ponds) and saved with the world. Movement is free over all
-terrain. LDtk loading is not yet implemented.
+banks, ponds and rock) and saved with the world. Rock blocks movement.
+Grass, dirt and water can be crossed at the same cost. LDtk loading is
+not yet implemented.
 
 ## 4. Economy
 

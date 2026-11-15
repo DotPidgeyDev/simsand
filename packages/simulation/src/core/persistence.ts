@@ -10,7 +10,7 @@ import { Condition } from '../components/condition.js';
 import { FATIGUE_REST_AT, HUNGER_EAT_AT, THIRST_DRINK_AT } from '../systems/needs.js';
 import type { SimulationClock } from './clock.js';
 import { createSimulationClock } from './clock.js';
-import { fromWorldMapData, generateWorldMap, toWorldMapData } from './map.js';
+import { fromWorldMapData, generateWorldMap, stampRocks, toWorldMapData } from './map.js';
 import type { SimulationWorld } from './world.js';
 import { createSimulationWorld } from './world.js';
 
@@ -26,12 +26,15 @@ import { createCharacter } from '../entities/create-character.js';
 // Version 5 predates the eating and drinking flags. Version 6 predates age.
 // Version 7 predates the chosen action. Version 8 predates action cooldowns.
 // Version 9 predates the outcome of the previous action.
+// Version 10 predates rock.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV9 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV10 = Omit<PersistedWorld, 'version'> & { version: 10 };
+
+export type PersistedWorldV9 = Omit<PersistedWorldV10, 'version' | 'entities'> & {
   version: 9;
   entities: Array<Omit<PersistedEntity, 'outcome'>>;
 };
@@ -83,6 +86,7 @@ export type UpgradeableWorld =
   | PersistedWorldV7
   | PersistedWorldV8
   | PersistedWorldV9
+  | PersistedWorldV10
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -255,13 +259,33 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 9) {
-    return {
+    return upgradePersistedWorld({
       ...persisted,
-      version: PERSISTED_WORLD_VERSION,
+      version: 10,
       entities: persisted.entities.map((entity) => ({
         ...entity,
         outcome: null,
       })),
+    });
+  }
+
+  if (persisted.version === 10) {
+    const map = fromWorldMapData(persisted.map);
+    const occupied = new Set<number>();
+
+    for (const entity of persisted.entities) {
+      const tileX = Math.min(map.width - 1, Math.max(0, Math.floor(entity.x)));
+      const tileY = Math.min(map.height - 1, Math.max(0, Math.floor(entity.y)));
+
+      occupied.add(tileY * map.width + tileX);
+    }
+
+    stampRocks(map, persisted.seed, occupied);
+
+    return {
+      ...persisted,
+      version: PERSISTED_WORLD_VERSION,
+      map: toWorldMapData(map),
     };
   }
 

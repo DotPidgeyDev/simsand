@@ -20,7 +20,7 @@ export interface EntitySnapshot {
 
 // A tile's terrain is stored as its index in this list, so entries may be
 // appended but never reordered or removed.
-export const TERRAIN_TYPES = ['grass', 'dirt', 'water'] as const;
+export const TERRAIN_TYPES = ['grass', 'dirt', 'water', 'rock'] as const;
 
 export type TerrainType = (typeof TERRAIN_TYPES)[number];
 
@@ -44,7 +44,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 10;
+export const PERSISTED_WORLD_VERSION = 11;
 
 export const ATTRIBUTE_NAMES = [
   'strength',

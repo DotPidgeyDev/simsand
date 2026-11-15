@@ -9,7 +9,7 @@ import { Needs } from '../components/needs.js';
 import { Velocity } from '../components/velocity.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
-import { createWorldMap } from '../core/map.js';
+import { createWorldMap, getTile } from '../core/map.js';
 import { createSimulationWorld } from '../core/world.js';
 import type { SimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
@@ -458,5 +458,65 @@ describe('updateActions', () => {
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
     expect(Position.x[eid]).toBe(10);
+  });
+
+  it('steps around rock on the way to water', () => {
+    const map = createWorldMap(8, 8, 'grass');
+    map.tiles[2 * 8 + 5] = TERRAIN_TYPES.indexOf('water');
+    map.tiles[2 * 8 + 3] = TERRAIN_TYPES.indexOf('rock');
+    const world = createSimulationWorld(map);
+    const eid = createCharacter(world, {
+      id: 'detour',
+      x: 2.5,
+      y: 2.5,
+      velocityX: 1,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.6;
+    Needs.fatigue[eid] = 0.1;
+    Personality.curiosity[eid] = 0;
+    Lifecycle.ageSeconds[eid] = 0;
+
+    updateActions(world, 0.1);
+    updateMovement(world, 0.5);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Math.abs(Velocity.y[eid])).toBeGreaterThan(Math.abs(Velocity.x[eid]));
+    expect(getTile(world.map, Math.floor(Position.x[eid]), Math.floor(Position.y[eid]))).not.toBe('rock');
+  });
+
+  it('does not start a walk when rock blocks every way to water', () => {
+    const map = createWorldMap(8, 8, 'grass');
+    map.tiles[2 * 8 + 6] = TERRAIN_TYPES.indexOf('water');
+    map.tiles[2 * 8 + 1] = TERRAIN_TYPES.indexOf('rock');
+    map.tiles[2 * 8 + 3] = TERRAIN_TYPES.indexOf('rock');
+    map.tiles[1 * 8 + 2] = TERRAIN_TYPES.indexOf('rock');
+    map.tiles[3 * 8 + 2] = TERRAIN_TYPES.indexOf('rock');
+    const world = createSimulationWorld(map);
+    const eid = createCharacter(world, {
+      id: 'sealed',
+      x: 2.5,
+      y: 2.5,
+      velocityX: 1,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.85;
+    Needs.fatigue[eid] = 0.1;
+    Personality.curiosity[eid] = 0;
+    Lifecycle.ageSeconds[eid] = 0;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+    expect(Velocity.x[eid]).toBe(1);
   });
 });

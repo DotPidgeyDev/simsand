@@ -10,6 +10,7 @@ const TERRAIN_COLORS: Record<TerrainType, number> = {
   grass: 0x526b45,
   dirt: 0x8a7148,
   water: 0x3d6e8f,
+  rock: 0x6e6a62,
 };
 
 export async function createRenderer(container: HTMLElement) {
