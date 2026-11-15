@@ -6,8 +6,10 @@ import { Action } from '../components/action.js';
 import { Identity } from '../components/identity.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
+import { Velocity } from '../components/velocity.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
+import { createWorldMap } from '../core/map.js';
 import { createSimulationWorld } from '../core/world.js';
 import type { SimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
@@ -22,6 +24,7 @@ import {
   biasedUtilities,
   chooseAction,
   readActionOutcome,
+  standingOnWater,
   updateActions,
 } from './actions.js';
 import { updateMovement } from './movement.js';
@@ -356,7 +359,7 @@ describe('updateActions', () => {
     updateMovement(world, 1);
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
-    expect(Position.x[eid]).toBe(11);
+    expect(standingOnWater(world, Position.x[eid], Position.y[eid])).toBe(false);
     expect(Action.cooldown.eat[eid]).toBe(0);
     expect(readActionOutcome(eid)).toEqual({ action: 'eat', result: 'completed' });
     expect(actionAvailability({
@@ -387,5 +390,73 @@ describe('updateActions', () => {
     updateActions(world, 0.1);
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+  });
+
+  it('turns a thirsty character toward the nearest water', () => {
+    const map = createWorldMap(8, 8, 'grass');
+    map.tiles[2 * 8 + 6] = TERRAIN_TYPES.indexOf('water');
+    const world = createSimulationWorld(map);
+    const eid = createCharacter(world, {
+      id: 'seeker',
+      x: 1.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 1,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.6;
+    Needs.fatigue[eid] = 0.1;
+    Personality.curiosity[eid] = 0;
+    Lifecycle.ageSeconds[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Velocity.x[eid]).toBeGreaterThan(0.9);
+    expect(Math.abs(Velocity.y[eid])).toBeLessThan(0.1);
+  });
+
+  it('turns back toward land when leaving the water', () => {
+    const map = createWorldMap(8, 8, 'grass');
+    map.tiles[3 * 8 + 3] = TERRAIN_TYPES.indexOf('water');
+    const world = createSimulationWorld(map);
+    const eid = createCharacter(world, {
+      id: 'leaver',
+      x: 3.9,
+      y: 3.5,
+      velocityX: -1,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.1;
+    Needs.fatigue[eid] = 0.1;
+    Personality.curiosity[eid] = 0;
+    Lifecycle.ageSeconds[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Velocity.y[eid]).toBeLessThan(0);
+    expect(Math.abs(Velocity.y[eid])).toBeGreaterThan(Math.abs(Velocity.x[eid]));
+  });
+
+  it('does not start a walk toward water the map does not have', () => {
+    const { world, eid } = character();
+    Personality.curiosity[eid] = 0;
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.85;
+    Needs.fatigue[eid] = 0.1;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+    expect(Position.x[eid]).toBe(10);
   });
 });

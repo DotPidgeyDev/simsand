@@ -12,7 +12,8 @@ import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
-import { getTile } from '../core/map.js';
+import { getTile, nearestTerrainTile } from '../core/map.js';
+import { steerToward } from './movement.js';
 import { createRandom } from '../core/random.js';
 import {
   FATIGUE_REST_AT,
@@ -50,10 +51,19 @@ interface NeedState {
   curiosity: number;
   alive: boolean;
   onWater: boolean;
+  // False when the shared route has no tile of that kind to walk to.
+  canReachWater: boolean;
+  canReachLand: boolean;
 }
 
 function comfort(state: NeedState): number {
   return 1 - Math.max(state.hunger, state.thirst, state.fatigue);
+}
+
+function stands(state: NeedState): boolean {
+  if (state.onWater) return !state.canReachLand && state.thirst <= THIRST_RESUME_AT;
+
+  return state.thirst <= THIRST_RESUME_AT || !state.canReachWater;
 }
 
 interface ActionDefinition {
@@ -132,9 +142,10 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     id: 'idle',
     score: (state) => (1 - state.curiosity) * comfort(state),
     requiresLife: false,
-    // A living character stands only on land, and only when they are not thirsty.
-    ready: (state) => !state.alive || (!state.onWater && state.thirst <= THIRST_RESUME_AT),
-    holds: (state) => !state.onWater && state.thirst <= THIRST_RESUME_AT,
+    // A living character stands on land when they are not thirsty, and when
+    // thirst has nowhere to lead. They do not stand in water they can leave.
+    ready: (state) => !state.alive || stands(state),
+    holds: (state) => stands(state),
     sustain: () => false,
     urgent: () => false,
     resting: false,
@@ -158,6 +169,8 @@ function needState(input: {
   curiosity?: number;
   alive?: boolean;
   onWater?: boolean;
+  canReachWater?: boolean;
+  canReachLand?: boolean;
 }): NeedState {
   return {
     hunger: input.hunger,
@@ -166,6 +179,8 @@ function needState(input: {
     curiosity: Math.min(1, Math.max(0, input.curiosity ?? 0)),
     alive: input.alive ?? true,
     onWater: input.onWater ?? false,
+    canReachWater: input.canReachWater ?? true,
+    canReachLand: input.canReachLand ?? true,
   };
 }
 
@@ -232,6 +247,8 @@ export function actionAvailability(input: {
   thirst: number;
   fatigue: number;
   onWater?: boolean;
+  canReachWater?: boolean;
+  canReachLand?: boolean;
   cooldowns?: ActionCooldowns;
 }): Record<ActionId, boolean> {
   const cooldowns = input.cooldowns ?? emptyCooldowns();
@@ -350,13 +367,18 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       continue;
     }
 
+    const onWater = standingOnWater(world, Position.x[eid], Position.y[eid]);
+    const waterRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'water');
+    const landRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'land');
     const state = needState({
       hunger: Needs.hunger[eid],
       thirst: Needs.thirst[eid],
       fatigue: Needs.fatigue[eid],
       curiosity: Personality.curiosity[eid],
       alive: true,
-      onWater: standingOnWater(world, Position.x[eid], Position.y[eid]),
+      onWater,
+      canReachWater: waterRoute !== undefined,
+      canReachLand: landRoute !== undefined && landRoute.distance > 0,
     });
     const utilities = biasedUtilities(
       actionUtilities(state),
@@ -367,6 +389,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
     if (Action.elapsed[eid] > 0 && continueAction(current, Action.elapsed[eid], state)) {
       Action.elapsed[eid] += deltaSeconds;
       applyAction(eid, current);
+      directMove(world, eid, current, state);
       continue;
     }
 
@@ -383,10 +406,27 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       thirst: state.thirst,
       fatigue: state.fatigue,
       onWater: state.onWater,
+      canReachWater: state.canReachWater,
+      canReachLand: state.canReachLand,
       cooldowns: readCooldowns(eid),
     }));
     Action.kind[eid] = ACTION_IDS.indexOf(next);
     Action.elapsed[eid] = deltaSeconds;
     applyAction(eid, next);
+    directMove(world, eid, next, state);
+  }
+}
+
+function directMove(world: SimulationWorld, eid: number, action: ActionId, state: NeedState): void {
+  if (action !== 'move') return;
+
+  // Thirst aims at water. Leaving the water aims at land. Any other walk
+  // keeps the direction they already had.
+  if (state.thirst > THIRST_RESUME_AT && !state.onWater) {
+    if (!state.canReachWater) return;
+
+    steerToward(world, eid, 'water');
+  } else if (state.onWater && state.canReachLand) {
+    steerToward(world, eid, 'land');
   }
 }

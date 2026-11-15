@@ -2,6 +2,7 @@ import { query } from 'bitecs';
 
 import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
 
+import { nearestTerrainTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Action } from '../components/action.js';
@@ -12,6 +13,26 @@ import { Velocity } from '../components/velocity.js';
 
 const DEAD = LIFECYCLE_STATES.indexOf('dead');
 const MOVE = ACTION_IDS.indexOf('move');
+
+// Point the current speed at the nearest tile of that kind. A wanderer keeps
+// the velocity they already have. Speed is unchanged, so a seeker is no faster
+// than anyone else.
+export function steerToward(world: SimulationWorld, eid: number, kind: 'water' | 'land'): void {
+  const target = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], kind);
+
+  if (!target || target.distance === 0) return;
+
+  const dx = target.x + 0.5 - Position.x[eid];
+  const dy = target.y + 0.5 - Position.y[eid];
+  const distance = Math.hypot(dx, dy);
+
+  if (distance < 1e-6) return;
+
+  const speed = Math.hypot(Velocity.x[eid], Velocity.y[eid]) || 1;
+
+  Velocity.x[eid] = (dx / distance) * speed;
+  Velocity.y[eid] = (dy / distance) * speed;
+}
 
 // update the movement of every char in the world
 // we have their current pos and their vel, and bounce them off the map edges.

@@ -10,7 +10,7 @@ import { Needs } from '../components/needs.js';
 import { Attributes } from '../components/attributes.js';
 import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns, readActionOutcome, standingOnWater } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
-import { getTile } from '../core/map.js';
+import { getTile, nearestTerrainTile } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Appearance } from '../components/appearance.js';
@@ -31,6 +31,8 @@ export function inspectCharacter(
   const y = Position.y[eid];
   const tileX = Math.min(world.map.width - 1, Math.max(0, Math.floor(x)));
   const tileY = Math.min(world.map.height - 1, Math.max(0, Math.floor(y)));
+  const waterRoute = nearestTerrainTile(world.map, x, y, 'water');
+  const landRoute = nearestTerrainTile(world.map, x, y, 'land');
   const cooldowns = {
     ...emptyCooldowns(),
     idle: Action.cooldown.idle[eid],
@@ -70,6 +72,8 @@ export function inspectCharacter(
       thirst: Needs.thirst[eid],
       fatigue: Needs.fatigue[eid],
       onWater: standingOnWater(world, x, y),
+      canReachWater: waterRoute !== undefined,
+      canReachLand: landRoute !== undefined && landRoute.distance > 0,
       cooldowns,
     }),
     outcome: readActionOutcome(eid),

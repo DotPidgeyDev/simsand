@@ -68,6 +68,109 @@ export function generateWorldMap(
   return map;
 }
 
+interface TilePoint {
+  x: number;
+  y: number;
+}
+
+// The tile a villager on this cell walks toward, and the straight-line
+// distance in tiles between the two centers. Distance 0 means this cell
+// already is that kind of terrain. Missing means the map has no such tile.
+export interface TerrainRoute {
+  x: number;
+  y: number;
+  distance: number;
+}
+
+interface RouteField {
+  water: Array<TerrainRoute | undefined>;
+  land: Array<TerrainRoute | undefined>;
+}
+
+const routeFields = new WeakMap<WorldMap, RouteField>();
+
+function nearestOf(points: readonly TilePoint[], x: number, y: number): TerrainRoute | undefined {
+  let best: TilePoint | undefined;
+  let bestDistance = Infinity;
+
+  for (const point of points) {
+    const dx = point.x + 0.5 - x;
+    const dy = point.y + 0.5 - y;
+    const distance = dx * dx + dy * dy;
+
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = point;
+    }
+  }
+
+  if (!best) return undefined;
+
+  return { x: best.x, y: best.y, distance: Math.sqrt(bestDistance) };
+}
+
+// One route for every tile, shared by every villager. Every tile is passable
+// and costs the same, so the route is the straight line to the nearest tile
+// of that kind. Ties keep the earliest tile in row-major order. Built once;
+// the map does not change during a world.
+function routeField(map: WorldMap): RouteField {
+  const cached = routeFields.get(map);
+
+  if (cached) return cached;
+
+  const waterTiles: TilePoint[] = [];
+  const landTiles: TilePoint[] = [];
+
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const point = { x, y };
+
+      if (map.tiles[y * map.width + x] === WATER) waterTiles.push(point);
+      else landTiles.push(point);
+    }
+  }
+
+  const field: RouteField = {
+    water: new Array(map.width * map.height),
+    land: new Array(map.width * map.height),
+  };
+
+  for (let y = 0; y < map.height; y++) {
+    for (let x = 0; x < map.width; x++) {
+      const index = y * map.width + x;
+      const centerX = x + 0.5;
+      const centerY = y + 0.5;
+
+      if (map.tiles[index] === WATER) {
+        field.water[index] = { x, y, distance: 0 };
+        field.land[index] = nearestOf(landTiles, centerX, centerY);
+      } else {
+        field.land[index] = { x, y, distance: 0 };
+        field.water[index] = nearestOf(waterTiles, centerX, centerY);
+      }
+    }
+  }
+
+  routeFields.set(map, field);
+
+  return field;
+}
+
+// The route for the tile containing this point. Nothing blocks the straight
+// line yet. An all-grass map has no water route.
+export function nearestTerrainTile(
+  map: WorldMap,
+  x: number,
+  y: number,
+  kind: 'water' | 'land',
+): TerrainRoute | undefined {
+  const tileX = Math.min(map.width - 1, Math.max(0, Math.floor(x)));
+  const tileY = Math.min(map.height - 1, Math.max(0, Math.floor(y)));
+  const field = routeField(map);
+
+  return field[kind][tileY * map.width + tileX];
+}
+
 export function getTile(
   map: WorldMap,
   x: number,
