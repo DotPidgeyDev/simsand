@@ -50,6 +50,7 @@ function character() {
   Needs.hunger[eid] = 0.2;
   Needs.thirst[eid] = 0.2;
   Needs.fatigue[eid] = 0.2;
+  Personality.industriousness[eid] = 1;
   Lifecycle.ageSeconds[eid] = 0;
   return { world, eid };
 }
@@ -347,7 +348,7 @@ describe('updateActions', () => {
     }).move).toBe(false);
   });
 
-  it('stops a meal in the water and walks ashore', () => {
+  it('stops a meal in the water as a failure and walks ashore', () => {
     const { world, eid } = character();
     setTile(world, 10, 10, 'water');
     Personality.curiosity[eid] = 0;
@@ -363,7 +364,7 @@ describe('updateActions', () => {
     expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
     expect(standingOnWater(world, Position.x[eid], Position.y[eid])).toBe(false);
     expect(Action.cooldown.eat[eid]).toBe(0);
-    expect(readActionOutcome(eid)).toEqual({ action: 'eat', result: 'completed' });
+    expect(readActionOutcome(eid)).toEqual({ action: 'eat', result: 'failed' });
     expect(actionAvailability({
       alive: true,
       hunger: 0.9,
@@ -420,6 +421,7 @@ describe('updateActions', () => {
     expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
     expect(Velocity.x[eid]).toBeGreaterThan(0.9);
     expect(Math.abs(Velocity.y[eid])).toBeLessThan(0.1);
+    expect(readActionOutcome(eid)).toBeNull();
   });
 
   it('turns back toward land when leaving the water', () => {
@@ -461,6 +463,8 @@ describe('updateActions', () => {
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
     expect(Position.x[eid]).toBe(10);
+    expect(Action.cooldown.drink[eid]).toBe(0);
+    expect(readActionOutcome(eid)).toEqual({ action: 'drink', result: 'failed' });
   });
 
   it('steps around rock on the way to water', () => {
@@ -521,6 +525,7 @@ describe('updateActions', () => {
 
     expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
     expect(Velocity.x[eid]).toBe(1);
+    expect(readActionOutcome(eid)).toEqual({ action: 'drink', result: 'failed' });
   });
 
   it('walks to the nearest camp while every need is quiet', () => {
@@ -541,6 +546,7 @@ describe('updateActions', () => {
     Needs.thirst[eid] = 0.2;
     Needs.fatigue[eid] = 0.2;
     Personality.curiosity[eid] = 0;
+    Personality.industriousness[eid] = 1;
     Lifecycle.ageSeconds[eid] = 0;
     Action.elapsed[eid] = 0;
 
@@ -549,6 +555,35 @@ describe('updateActions', () => {
     expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
     expect(Velocity.x[eid]).toBeGreaterThan(0.9);
     expect(Math.abs(Velocity.y[eid])).toBeLessThan(0.1);
+  });
+
+  it('lets a lazy incurious character stand instead of walking to a camp', () => {
+    const map = createWorldMap(8, 8, 'grass');
+    map.tiles[2 * 8 + 5] = TERRAIN_TYPES.indexOf('camp');
+    const world = createSimulationWorld(map);
+    const eid = createCharacter(world, {
+      id: 'loafer',
+      x: 1.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 1,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 0;
+    Personality.industriousness[eid] = 0;
+    Lifecycle.ageSeconds[eid] = 0;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+    expect(Velocity.x[eid]).toBe(0);
+    expect(Velocity.y[eid]).toBe(1);
   });
 
   it('works while standing on a camp', () => {
@@ -566,6 +601,38 @@ describe('updateActions', () => {
     expect(Condition.working[eid]).toBe(1);
   });
 
+  it('idles on a camp when too lazy to work', () => {
+    const { world, eid } = character();
+    setTile(world, 10, 10, 'camp');
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 0;
+    Personality.industriousness[eid] = 0;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+    expect(Condition.working[eid]).toBe(0);
+  });
+
+  it('walks off a camp when too lazy to work and too curious to stand', () => {
+    const { world, eid } = character();
+    setTile(world, 10, 10, 'camp');
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 1;
+    Personality.industriousness[eid] = 0;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Condition.working[eid]).toBe(0);
+  });
+
   it('leaves a camp once a need presses, without cooling the visit', () => {
     const { world, eid } = character();
     setTile(world, 10, 10, 'camp');
@@ -581,5 +648,22 @@ describe('updateActions', () => {
     expect(ACTION_IDS[Action.kind[eid]]).toBe('eat');
     expect(Action.cooldown.work[eid]).toBe(0);
     expect(readActionOutcome(eid)).toEqual({ action: 'work', result: 'completed' });
+  });
+
+  it('stops a rest in the water as a failure and walks ashore', () => {
+    const { world, eid } = character();
+    setTile(world, 10, 10, 'water');
+    Personality.curiosity[eid] = 0;
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.1;
+    Needs.fatigue[eid] = 0.9;
+    Action.kind[eid] = ACTION_IDS.indexOf('rest');
+    Action.elapsed[eid] = 1;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Action.cooldown.rest[eid]).toBe(0);
+    expect(readActionOutcome(eid)).toEqual({ action: 'rest', result: 'failed' });
   });
 });

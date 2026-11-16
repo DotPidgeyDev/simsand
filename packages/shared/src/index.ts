@@ -98,7 +98,7 @@ export type ActionId = (typeof ACTION_IDS)[number];
 export type ActionCooldowns = Record<ActionId, number>;
 
 // Append only. Saved worlds store the name.
-export const ACTION_OUTCOMES = ['completed', 'interrupted'] as const;
+export const ACTION_OUTCOMES = ['completed', 'interrupted', 'failed'] as const;
 
 export type ActionResult = (typeof ACTION_OUTCOMES)[number];
 

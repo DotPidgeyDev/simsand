@@ -381,7 +381,7 @@ These are initial engineering targets, not guaranteed capacity limits.
 | Movement | Implemented |
 | World dimensions | 64 × 64 tile map |
 | Browser renderer | PixiJS |
-| Entity representation | Named sprite shapes (square, diamond, triangle; circle while resting; ring while eating or drinking; X when dead) |
+| Entity representation | Named sprite shapes (square, diamond, triangle; circle while resting; ring while eating or drinking; gold square while working; X when dead) |
 | Snapshot and delta communication | Implemented |
 | Multiple browser clients | Supported by WebSocket server |
 
@@ -459,7 +459,7 @@ Persistent IDs and durable event handling remain future work.
 - When, if ever, to introduce multiple simulation workers.
 - How much world history is retained and exposed.
 - Time scaling and fast-forward behaviour.
-- Terrain representation and navigation strategy.
+- How far is too far to start a walk. The route is a shared field; a cutoff is not chosen.
 - Long-term ECS abstraction and data migration strategy.
 
 ---
@@ -485,10 +485,9 @@ The foundational simulation, worker, WebSocket communication and PixiJS renderin
 
 The browser can display 20 independently moving entities. Two browser clients receive the same authoritative world: a later connection is given the current cached snapshot, and both clients then receive the same deltas. A client that loses its connection reconnects with backoff and resynchronizes from a fresh snapshot. The world is saved to SQLite and resumes from the latest valid snapshot after a restart.
 
-Remaining work includes:
+The first vertical slice is complete. A headless test confirms the simulation keeps advancing with no browser connected, and the workspace tests cover the simulation and the server.
 
-- Verifying continued simulation without connected clients.
-- Completing workspace-wide build and test validation.
+Milestone 03 is complete. Characters choose idle, move, eat, rest, drink or work from needs, curiosity, industriousness and a small seeded bias. Failures are recorded. Eight personality traits stay stored until a later system reads them. Milestone 04 notes are in `docs/roadmap/notes/04-from-03.md`. Pathing refinements and the later milestones are listed in the roadmap.
 
 Do not delay the visible vertical slice to build every future system.
 

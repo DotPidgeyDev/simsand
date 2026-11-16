@@ -198,14 +198,17 @@ a lifecycle of alive or dead. Fatigue rises with movement and recovers
 while the character rests; constitution sets the rate. Hunger and thirst
 rise over time, and the world feeds or waters a character once that need
 is pressing. Age increases while a character is alive, and constitution
-sets when that life ends. A character chooses idle, move, eat, rest or
-drink from those needs and from curiosity, and keeps the choice until
-it is finished or a need becomes urgent. A drink happens only while
+sets when that life ends. A character chooses idle, move, eat, rest,
+drink or work from those needs, curiosity and industriousness, and keeps the choice until
+it is finished, it fails, or a need becomes urgent. A drink happens only while
 they are standing on water; until then a thirsty character walks toward
 the nearest water on a route shared by the map. A meal or a rest happens
 on land, and they leave toward the nearest land once they have drunk.
 They walk around rock, and do not start either walk when there is no way through.
-While every need is quiet they walk to the nearest camp and work there until
+A drink with no water to reach is recorded as failed, and a meal or rest
+already underway in the water ends as a failure. While every need is quiet and
+work outranks idle and move they walk to the nearest camp and work there until
 a need rises past 0.3. That visit produces nothing to carry or spend.
+Eight personality traits stay stored until a system reads them.
 Skills, inventory,
 relationships, memories and goals stay later.

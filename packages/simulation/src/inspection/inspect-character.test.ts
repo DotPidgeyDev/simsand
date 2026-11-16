@@ -47,6 +47,7 @@ describe('inspectCharacter', () => {
         actionUtilities({
           ...generateCharacterProfile(0, 'swimmer').needs,
           curiosity: generateCharacterProfile(0, 'swimmer').personality.curiosity,
+          industriousness: generateCharacterProfile(0, 'swimmer').personality.industriousness,
         }),
         actionBias(0, 'swimmer'),
       ),
@@ -54,6 +55,8 @@ describe('inspectCharacter', () => {
       available: actionAvailability({
         alive: true,
         ...generateCharacterProfile(0, 'swimmer').needs,
+        curiosity: generateCharacterProfile(0, 'swimmer').personality.curiosity,
+        industriousness: generateCharacterProfile(0, 'swimmer').personality.industriousness,
         onWater: true,
         cooldowns: emptyCooldowns(),
       }),

@@ -49,6 +49,7 @@ interface NeedState {
   thirst: number;
   fatigue: number;
   curiosity: number;
+  industriousness: number;
   alive: boolean;
   onWater: boolean;
   onCamp: boolean;
@@ -71,9 +72,23 @@ function comfortable(state: NeedState): boolean {
 function stands(state: NeedState): boolean {
   if (state.onWater) return !state.canReachLand && state.thirst <= THIRST_RESUME_AT;
   if (state.thirst > THIRST_RESUME_AT && state.canReachWater) return false;
-  if (comfortable(state) && state.canReachCamp && !state.onCamp) return false;
+  if (seeksCamp(state)) return false;
 
   return true;
+}
+
+function workOutranksWander(state: NeedState): boolean {
+  const work = state.industriousness * comfort(state);
+  const move = state.curiosity * comfort(state);
+  const idle = (1 - state.curiosity) * comfort(state);
+
+  return work >= move && work >= idle;
+}
+
+// Work has to beat idle and move. An incurious lazy character stands;
+// a curious lazy one keeps walking.
+function seeksCamp(state: NeedState): boolean {
+  return comfortable(state) && state.canReachCamp && !state.onCamp && workOutranksWander(state);
 }
 
 interface ActionDefinition {
@@ -104,7 +119,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     requiresLife: true,
     ready: (state) => !state.onWater && state.hunger > HUNGER_RESUME_AT,
     holds: (state) => !state.onWater,
-    sustain: (state) => !state.onWater && state.hunger > HUNGER_RESUME_AT,
+    sustain: (state) => state.hunger > HUNGER_RESUME_AT,
     urgent: (state) => !state.onWater && state.hunger >= HUNGER_EAT_AT,
     resting: false,
     eating: true,
@@ -117,7 +132,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     requiresLife: true,
     // Water is the only source on the map. A drink anywhere else cannot happen.
     ready: (state) => state.onWater && state.thirst > THIRST_RESUME_AT,
-    holds: () => true,
+    holds: (state) => state.onWater,
     sustain: (state) => state.thirst > THIRST_RESUME_AT,
     urgent: (state) => state.onWater && state.thirst >= THIRST_DRINK_AT,
     resting: false,
@@ -131,7 +146,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     requiresLife: true,
     ready: (state) => !state.onWater && state.fatigue > FATIGUE_RESUME_AT,
     holds: (state) => !state.onWater,
-    sustain: (state) => !state.onWater && state.fatigue > FATIGUE_RESUME_AT,
+    sustain: (state) => state.fatigue > FATIGUE_RESUME_AT,
     urgent: (state) => !state.onWater && state.fatigue >= FATIGUE_REST_AT,
     resting: true,
     eating: false,
@@ -140,7 +155,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   },
   {
     id: 'work',
-    score: (state) => comfort(state),
+    score: (state) => state.industriousness * comfort(state),
     requiresLife: true,
     // A camp is the only workplace. The visit happens while every need is quiet.
     ready: (state) => state.onCamp && comfortable(state),
@@ -158,8 +173,8 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     requiresLife: true,
     // In the water with a thirst to deal with, walking would carry them off
     // the only place they can drink.
-    ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !(state.onCamp && comfortable(state)),
-    holds: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !(state.onCamp && comfortable(state)),
+    ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !(state.onCamp && comfortable(state) && workOutranksWander(state)),
+    holds: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !(state.onCamp && comfortable(state) && workOutranksWander(state)),
     sustain: () => false,
     urgent: () => false,
     resting: false,
@@ -197,6 +212,7 @@ function needState(input: {
   thirst: number;
   fatigue: number;
   curiosity?: number;
+  industriousness?: number;
   alive?: boolean;
   onWater?: boolean;
   onCamp?: boolean;
@@ -209,6 +225,7 @@ function needState(input: {
     thirst: input.thirst,
     fatigue: input.fatigue,
     curiosity: Math.min(1, Math.max(0, input.curiosity ?? 0)),
+    industriousness: Math.min(1, Math.max(0, input.industriousness ?? 1)),
     alive: input.alive ?? true,
     onWater: input.onWater ?? false,
     onCamp: input.onCamp ?? false,
@@ -237,6 +254,7 @@ export function actionUtilities(input: {
   thirst: number;
   fatigue: number;
   curiosity: number;
+  industriousness?: number;
 }): Record<ActionId, number> {
   const state = needState(input);
   const utilities = emptyCooldowns();
@@ -288,6 +306,8 @@ export function actionAvailability(input: {
   hunger: number;
   thirst: number;
   fatigue: number;
+  curiosity?: number;
+  industriousness?: number;
   onWater?: boolean;
   onCamp?: boolean;
   canReachWater?: boolean;
@@ -300,8 +320,7 @@ export function actionAvailability(input: {
   const available = { idle: false, move: false, eat: false, rest: false, drink: false, work: false };
 
   for (const definition of actionDefinitions) {
-    const open = !definition.requiresLife || (input.alive && cooldowns[definition.id] <= 0);
-    available[definition.id] = open && definition.ready(state);
+    available[definition.id] = isOpen(definition, input.alive, cooldowns) && definition.ready(state);
   }
 
   return available;
@@ -335,6 +354,54 @@ export function assertActionId(value: unknown): ActionId {
 
 function isUrgent(action: ActionId, state: NeedState): boolean {
   return actionDefinitions.some((definition) => definition.id !== action && definition.urgent(state));
+}
+
+function isOpen(
+  definition: ActionDefinition,
+  alive: boolean,
+  cooldowns: ActionCooldowns,
+): boolean {
+  return !definition.requiresLife || (alive && cooldowns[definition.id] <= 0);
+}
+
+// Highest scoring action whose cooldown has elapsed, including ones that
+// cannot start here. Those are a failure when there is also no route to a
+// place where they could.
+function preferredAction(
+  utilities: Record<ActionId, number>,
+  alive: boolean,
+  cooldowns: ActionCooldowns,
+): ActionId {
+  const open = { idle: false, move: false, eat: false, rest: false, drink: false, work: false };
+
+  for (const definition of actionDefinitions) {
+    open[definition.id] = isOpen(definition, alive, cooldowns);
+  }
+
+  return chooseAction(utilities, open);
+}
+
+function canApproach(action: ActionId, state: NeedState): boolean {
+  if (action === 'drink') return !state.onWater && state.canReachWater;
+  if (action === 'eat' || action === 'rest') return state.onWater && state.canReachLand;
+
+  return false;
+}
+
+function selectionFailed(action: ActionId, available: Record<ActionId, boolean>, state: NeedState): boolean {
+  if (action !== 'eat' && action !== 'drink' && action !== 'rest') return false;
+
+  return !available[action] && !canApproach(action, state);
+}
+
+function endingResult(action: ActionId, state: NeedState): ActionResult {
+  if (isUrgent(action, state)) return 'interrupted';
+
+  const definition = definitionFor(action);
+
+  if (!definition.holds(state) && definition.sustain(state)) return 'failed';
+
+  return 'completed';
 }
 
 function continueAction(action: ActionId, elapsed: number, state: NeedState): boolean {
@@ -397,7 +464,9 @@ function applyAction(eid: number, action: ActionId): void {
 
 // Runs after lifecycle and before needs. One action at a time. A need at
 // 0.8 interrupts, and the action it cuts off cannot be chosen again until
-// its cooldown elapses. Finishing a meal, drink or rest does not cool it.
+// its cooldown elapses. Finishing a meal, drink, rest or visit does not
+// cool it. An action that cannot continue where they stand, or that they
+// would take but have no way to start, is recorded as failed.
 export function updateActions(world: SimulationWorld, deltaSeconds: number): void {
   const entities = query(world.ecs, [Action, Needs, Personality, Condition, Lifecycle, Identity]);
 
@@ -423,6 +492,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       thirst: Needs.thirst[eid],
       fatigue: Needs.fatigue[eid],
       curiosity: Personality.curiosity[eid],
+      industriousness: Personality.industriousness[eid],
       alive: true,
       onWater,
       onCamp,
@@ -443,25 +513,38 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       continue;
     }
 
-    if (Action.elapsed[eid] > 0 && isUrgent(current, state)) {
-      Action.cooldown[current][eid] = ACTION_COOLDOWN_SECONDS;
-      writeActionOutcome(eid, current, 'interrupted');
-    } else if (Action.elapsed[eid] > 0) {
-      writeActionOutcome(eid, current, 'completed');
+    if (Action.elapsed[eid] > 0) {
+      const result = endingResult(current, state);
+
+      if (result === 'interrupted') {
+        Action.cooldown[current][eid] = ACTION_COOLDOWN_SECONDS;
+      }
+
+      writeActionOutcome(eid, current, result);
     }
 
-    const next = chooseAction(utilities, actionAvailability({
+    const cooldowns = readCooldowns(eid);
+    const available = actionAvailability({
       alive: state.alive,
       hunger: state.hunger,
       thirst: state.thirst,
       fatigue: state.fatigue,
+      curiosity: state.curiosity,
+      industriousness: state.industriousness,
       onWater: state.onWater,
       canReachWater: state.canReachWater,
       canReachLand: state.canReachLand,
       onCamp: state.onCamp,
       canReachCamp: state.canReachCamp,
-      cooldowns: readCooldowns(eid),
-    }));
+      cooldowns,
+    });
+    const preferred = preferredAction(utilities, state.alive, cooldowns);
+
+    if (selectionFailed(preferred, available, state)) {
+      writeActionOutcome(eid, preferred, 'failed');
+    }
+
+    const next = chooseAction(utilities, available);
     Action.kind[eid] = ACTION_IDS.indexOf(next);
     Action.elapsed[eid] = deltaSeconds;
     applyAction(eid, next);
@@ -480,7 +563,7 @@ function directMove(world: SimulationWorld, eid: number, action: ActionId, state
     steerToward(world, eid, 'water');
   } else if (state.onWater && state.canReachLand) {
     steerToward(world, eid, 'land');
-  } else if (comfortable(state) && !state.onCamp && state.canReachCamp) {
+  } else if (seeksCamp(state)) {
     steerToward(world, eid, 'camp');
   }
 }

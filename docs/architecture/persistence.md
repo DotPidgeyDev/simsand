@@ -204,7 +204,8 @@ model incrementally as simulation systems become real.
     named sprite), character profile (name, attributes, personality,
     needs and lifecycle), age, the action they are committed to and how
     long they have held it, how long each action is cooling down, how
-    the previous action ended, and whether the character is resting,
+    the previous action ended (`completed`, `interrupted` or `failed`),
+    and whether the character is resting,
     eating or drinking. It is separate from the render-oriented
     `WorldSnapshot`, which carries position, appearance, those three
     flags and the lifecycle state, but not the action, age, velocity or

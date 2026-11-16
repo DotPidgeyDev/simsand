@@ -1,8 +1,8 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 03 in progress  
-**Version:** 1.3  
-**Last updated:** 2026-11-13
+**Status:** Active — Milestone 03 complete; Milestone 04 next  
+**Version:** 1.4  
+**Last updated:** 2026-11-16
 
 ## Guiding approach
 
@@ -58,7 +58,7 @@ The project currently has:
 - A WebSocket server on port 8766.
 - Cached snapshots for newly connected browser clients.
 - A PixiJS browser renderer displaying the moving entities.
-- A seeded 64 × 64 tile map of grass, dirt and water, sent in snapshots and saved with the world.
+- A seeded 64 × 64 tile map of grass, dirt, water, rock and camp, sent in snapshots and saved with the world.
 - SQLite snapshot persistence with periodic and shutdown saves.
 - A validated command contract (character create and remove) that produces domain events.
 - Timestamped server logging with a status line every minute and a warning when ticks are dropped.
@@ -110,7 +110,7 @@ Establish data ownership and validation before building complex AI.
 
 ### Current implementation
 
-A character now has a profile stored on its entity and saved with the world (persisted format version 7):
+A character now has a profile stored on its entity and saved with the world:
 
 - A seeded name, from the world seed and the character's stable ID.
 - Seven attributes, integers from 1 to 10.
@@ -120,9 +120,9 @@ A character now has a profile stored on its entity and saved with the world (per
 
 The profile is generated inside the simulation, validated when a character is created or a save is loaded, and returned by the inspection API. Version 2 saves gain profiles on load, generated from the seed, and the next save stores them.
 
-Fatigue rises while a character moves and falls while they rest. Constitution is the first derived statistic: it sets the fatigue rate, which inspection reports. A character rests at fatigue 0.8 and starts moving again at 0.3, shown as a circle. Hunger and thirst rise the same way, and the world feeds and waters a character once a need reaches 0.8, until it falls to 0.3. They stop while eating or drinking, drawn with a ring. The resting, eating and drinking flags are saved, because the same need value occurs on the way up and the way down. Seeking a source, and choosing between needs, comes later.
+Fatigue rises while a character moves and falls while they rest. Constitution is the first derived statistic: it sets the fatigue rate, which inspection reports. A character rests at fatigue 0.8 and starts moving again at 0.3, shown as a circle. Hunger and thirst rise the same way, and the world feeds and waters a character once a need reaches 0.8, until it falls to 0.3. They stop while eating or drinking, drawn with a ring. The resting, eating and drinking flags are saved, because the same need value occurs on the way up and the way down. Seeking water, land and a camp, and choosing among the needs, is Milestone 03.
 
-A character's age increases while they are alive. Constitution sets the lifespan: 6 hours for each point, so constitution 1 lives 6 hours and constitution 10 lives 60 hours. `SIMSAND_LIFESPAN_PER_CONSTITUTION_SECONDS` changes that length, and the hunger, thirst and fatigue speeds have matching variables in the same place. A new character's starting age is seeded, on its own stream, and is always short of the lifespan. Reaching the lifespan sets them to dead and clears rest, eating and drinking. The client draws a dead character as an X. Older saves gain a seeded age on load, and the next save writes format version 7. Nothing replaces a character who has died.
+A character's age increases while they are alive. Constitution sets the lifespan: 6 hours for each point, so constitution 1 lives 6 hours and constitution 10 lives 60 hours. `SIMSAND_LIFESPAN_PER_CONSTITUTION_SECONDS` changes that length, and the hunger, thirst and fatigue speeds have matching variables in the same place. A new character's starting age is seeded, on its own stream, and is always short of the lifespan. Reaching the lifespan sets them to dead and clears rest, eating, drinking and working. The client draws a dead character as an X. Older saves gain a seeded age on load. Nothing replaces a character who has died. The current save format is version 12, described under Milestone 03.
 
 Appearance stores a named sprite from a small catalog (`wanderer`, `scout`, `elder`), chosen from the world seed and the character's ID on a stream that does not change the profile. The renderer draws them as a square, a diamond and a triangle. A resting character is still a circle, so the state stays readable. Older saves stored a numeric sprite that was always 1; loading one assigns the seeded name.
 
@@ -159,13 +159,13 @@ Avoid implementing complex decision-making at this stage. The goal is to establi
 
 ## Milestone 03 — Autonomous behaviour
 
-**Status: In progress**
+**Status: Complete**
 
 Implement a small utility-based action system with a few actions such as idle, move, eat, rest and work.
 
 ### Current implementation
 
-A living character chooses one action: `idle`, `move`, `eat`, `rest`, `drink` or `work`. Each is a definition giving its score, when it can be chosen, how long it continues, and the flag it sets. Eat, drink and rest also say when that need is urgent. The score for eat, rest and drink is that need. Work scores the comfort that is left once every need is quiet, and it can be chosen only while standing on a camp. Idle and move share that same comfort, split by curiosity, so an incurious character stands and a curious one walks. Ties go to eat, then drink, then rest, then work, then move. The choice is kept for at least 5 seconds, and a meal, drink or rest continues until that need falls to 0.3. A visit at a camp ends as soon as any need rises past 0.3, and that ending is a completion, so the visit can start again once the need is quiet. A need at 0.8 interrupts immediately, and the action it cuts off cannot be chosen again for 20 seconds. Finishing a meal, drink, rest or visit does not start that cooldown. Only one of those recoveries happens at a time. The needs system applies the rates and no longer starts or stops the choice. Work does not change those rates. Each character also carries a stable bias of at most 0.05 on every score, taken from the world seed and their id, so two characters with the same needs can choose differently. A pressing need still outranks that bias. A meal, drink or rest can only be chosen while that need is still above 0.3, so the bias cannot start a recovery the character would not keep. Drink also requires standing on water. A meal or a rest happens on land, so neither can start in the water, and one already underway there ends immediately. While thirst is above 0.3 a living character will not idle when a water route exists: on dry ground they walk toward the nearest water, and in the water they can drink. Once thirst is back to 0.3 they walk toward the nearest land instead of standing in it. While every need is at or below 0.3 and a camp route exists, they walk to the nearest camp and work there. All three targets come from one route built for the map. The route walks around rock, and a step onto rock turns back. A map with no way through does not start that walk. Thirst at 0.8 interrupts only when that drink is possible, and hunger or fatigue at 0.8 interrupts only on land. Idle stays available on land when they are not thirsty and have no camp to reach, and after death. Finishing an action records that it completed. An interruption records that it was interrupted, which is what starts the cooldown. Inspection shows the action, the biased scores, which actions are available, any cooldowns, and how the previous action ended. The bias is derived, not saved. The choice, the working flag and the outcome are saved (format version 12). A version 11 save gains camps on grass that nobody is standing on, a work cooldown of zero, and a clear working flag, and keeps its water, dirt and rock. A version 10 save gains rock on grass that nobody is standing on. A version 9 save has no outcome yet. A version 7 save takes the action that matches its flags, preferring whichever need is higher when more than one flag is set. The visit produces nothing to carry or spend.
+A living character chooses one action: `idle`, `move`, `eat`, `rest`, `drink` or `work`. Each is a definition giving its score, when it can be chosen, how long it continues, and the flag it sets. Eat, drink and rest also say when that need is urgent. The score for eat, rest and drink is that need. Work scores industriousness times the comfort that is left once every need is quiet, and it can be chosen only while standing on a camp. Idle and move share that same comfort, split by curiosity, so an incurious character stands and a curious one walks. Ties go to eat, then drink, then rest, then work, then move. The choice is kept for at least 5 seconds, and a meal, drink or rest continues until that need falls to 0.3. A visit at a camp ends as soon as any need rises past 0.3, and that ending is a completion, so the visit can start again once the need is quiet. A need at 0.8 interrupts immediately, and the action it cuts off cannot be chosen again for 20 seconds. Finishing a meal, drink, rest or visit does not start that cooldown. Only one of those recoveries happens at a time. The needs system applies the rates and no longer starts or stops the choice. Work does not change those rates. Each character also carries a stable bias of at most 0.05 on every score, taken from the world seed and their id, so two characters with the same needs can choose differently. A pressing need still outranks that bias. A meal, drink or rest can only be chosen while that need is still above 0.3, so the bias cannot start a recovery the character would not keep. Drink also requires standing on water. A meal or a rest happens on land, so neither can start in the water, and one already underway there ends immediately as a failure. While thirst is above 0.3 a living character will not idle when a water route exists: on dry ground they walk toward the nearest water, and in the water they can drink. Once thirst is back to 0.3 they walk toward the nearest land instead of standing in it. While every need is at or below 0.3, a camp route exists, and work outranks idle and move, they walk to the nearest camp and work there. A lazy incurious character stands instead, and a lazy curious one keeps walking. All three targets come from one route built for the map. The route walks around rock, and a step onto rock turns back. A map with no way through does not start that walk, and records the drink as failed. Thirst at 0.8 interrupts only when that drink is possible, and hunger or fatigue at 0.8 interrupts only on land. Idle stays available on land when they are not thirsty and have no camp to reach, and after death. Finishing an action records that it completed. An interruption records that it was interrupted, which is what starts the cooldown. A meal or rest that cannot continue where they stand, and a drink, meal or rest they would take but have no route to start, are recorded as failed and do not start that cooldown. Inspection shows the action, the biased scores, which actions are available, any cooldowns, and how the previous action ended. The bias is derived, not saved. The choice, the working flag and the outcome are saved (format version 12). A version 11 save gains camps on grass that nobody is standing on, a work cooldown of zero, and a clear working flag, and keeps its water, dirt and rock. A version 10 save gains rock on grass that nobody is standing on. A version 9 save has no outcome yet. A version 7 save takes the action that matches its flags, preferring whichever need is higher when more than one flag is set. The visit produces nothing to carry or spend.
 
 Initial scope:
 
@@ -183,6 +183,33 @@ Characters should make autonomous decisions without relying on an LLM for the cr
 
 The goal is to establish a small but convincing autonomous behaviour cycle before introducing more complex systems.
 
+Closing this milestone defers the eight unread personality traits.
+Sociability, empathy, loyalty and honesty wait for Milestone 04.
+Aggression and courage wait for conflict, greed for Milestone 05,
+ambition for goals. They stay stored stubs.
+
+Regression for this cycle is in
+`packages/simulation/src/regression.test.ts`. Notes for Milestone 04
+are in `docs/roadmap/notes/04-from-03.md`. How to close a milestone is
+in `docs/roadmap/closeout.md`.
+
+### Definition of done
+
+- [x] Characters choose among idle, move, eat, rest, drink and work.
+- [x] Action definitions own score, prerequisites, duration and flags.
+- [x] A choice is kept, and an urgent need can interrupt it.
+- [x] Interrupted actions cool down; finished recoveries do not.
+- [x] An action that cannot continue or cannot start is recorded as failed.
+- [x] Seeded bias breaks ties between similar characters.
+- [x] Needs and curiosity and industriousness drive the choice.
+- [x] Inspection shows scores, availability, cooldowns and the last ending.
+
+### Later, outside this milestone
+
+The route is one shared field, and grass, dirt, water and camp cost the same number of steps. A later pathing pass can give a tile a higher cost, drink from the shore instead of standing in the water, refuse a walk that is too long, step around other people, aim at a private place, give a different body its own route, follow a target that moves, and hide a place a character has not seen.
+
+What a visit produces, and anything a character can carry or trade, is Milestone 05. Other characters, relationships and memories are Milestone 04.
+
 ---
 
 ## Milestone 04 — Interaction and social behaviour
@@ -190,6 +217,10 @@ The goal is to establish a small but convincing autonomous behaviour cycle befor
 **Status: Planned**
 
 Add interactions, sparse relationships, meaningful memories and basic social actions.
+
+Start from `docs/roadmap/notes/04-from-03.md`. Social actions should
+join the existing action list. Do not add a fourth need until a
+preference among idle, move and a social action is not enough.
 
 Initial scope:
 
@@ -200,6 +231,7 @@ Initial scope:
 - Interaction outcomes.
 - Social needs and motivations.
 - Event generation from actual simulation outcomes.
+- Read sociability, empathy, loyalty and honesty when those actions exist.
 
 Ensure events and relationships are generated from authoritative simulation outcomes rather than presentation-layer assumptions.
 
@@ -222,6 +254,9 @@ Initial scope:
 - Basic trade and exchange.
 - Economy invariants.
 - Item and resource lifecycle.
+
+Greed is stored on the profile and unread. Wire it when trade or
+hoarding exists.
 
 Establish reliable ownership and transfer rules before introducing more complex economic behaviour.
 
@@ -353,3 +388,7 @@ Some persistence, observability, testing and communication work must begin early
 A milestone should establish a working foundation for the next one without prematurely implementing its full scope.
 
 The project should remain runnable throughout development. Prefer small, verifiable increments and update architecture documentation when implementation decisions materially change.
+
+Closing a milestone follows `docs/roadmap/closeout.md`: lock behaviour
+in `packages/simulation/src/regression.test.ts`, run the suite, and
+write notes for the next milestone under `docs/roadmap/notes/`.

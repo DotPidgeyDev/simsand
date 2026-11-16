@@ -33,6 +33,7 @@ const entity: EntityInspection = {
   utilities: actionUtilities({
     ...generateCharacterProfile(1, 'character-0001').needs,
     curiosity: generateCharacterProfile(1, 'character-0001').personality.curiosity,
+    industriousness: generateCharacterProfile(1, 'character-0001').personality.industriousness,
   }),
   cooldowns: emptyCooldowns(),
   available: actionAvailability({

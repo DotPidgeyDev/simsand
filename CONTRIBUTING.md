@@ -87,4 +87,13 @@ Avoid introducing dependencies between packages unless there is a clear architec
 - Use `import type` for type-only imports.
 - Use ES modules.
 - Keep functions focused on a single responsibility.
-- Avoid `any` unless
+- Avoid `any` unless there is no accurate type.
+
+---
+
+## 4. Closing a milestone
+
+Follow `docs/roadmap/closeout.md`. Add or extend tests in
+`packages/simulation/src/regression.test.ts` so the milestone's
+behaviour cannot regress quietly, run `pnpm typecheck` and `pnpm test`,
+and write notes for the next milestone under `docs/roadmap/notes/`.
