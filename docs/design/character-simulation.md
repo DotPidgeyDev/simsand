@@ -199,7 +199,7 @@ while the character rests; constitution sets the rate. Hunger and thirst
 rise over time, and the world feeds or waters a character once that need
 is pressing. Age increases while a character is alive, and constitution
 sets when that life ends. A character chooses idle, move, eat, rest,
-drink or work from those needs, curiosity and industriousness, and keeps the choice until
+drink, work, greet or comfort from those needs, curiosity, industriousness, sociability and empathy, and keeps the choice until
 it is finished, it fails, or a need becomes urgent. A drink happens only while
 they are standing on water; until then a thirsty character walks toward
 the nearest water on a route shared by the map. A meal or a rest happens
@@ -209,6 +209,11 @@ A drink with no water to reach is recorded as failed, and a meal or rest
 already underway in the water ends as a failure. While every need is quiet and
 work outranks idle and move they walk to the nearest camp and work there until
 a need rises past 0.3. That visit produces nothing to carry or spend.
-Eight personality traits stay stored until a system reads them.
-Skills, inventory,
-relationships, memories and goals stay later.
+Sociability is read by greet. Empathy is read by comfort, which starts
+beside a neighbour whose hunger, thirst or fatigue is above 0.3 and
+continues until that need recovers. Loyalty and honesty wait for
+further social actions. Aggression and courage wait for conflict, greed
+for economy, ambition for goals. Skills, inventory and goals stay later.
+Relationships exist as sparse records written when a greet or a comfort
+completes. The first greeting and the first comfort are each one memory
+that points at that log event.

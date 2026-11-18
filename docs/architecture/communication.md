@@ -43,7 +43,8 @@ The server distributes simulation updates but does not own or modify authoritati
 |---|---|---|
 | `GET /status` | Worker `world.status.request`, plus server state | Uptime, browser clients, last save, and the `SimulationStatus` |
 | `GET /entities` | The server's cached snapshot | Tick, count, and each entity's ID and position |
-| `GET /entities/:id` | Worker `world.inspect.request` | `EntityInspection` (movement, appearance and character profile), or 404 |
+| `GET /entities/:id` | Worker `world.inspect.request` | `EntityInspection` (movement, appearance, profile, action, relationships), or 404 |
+| `GET /entities/:id/history` | Worker `world.inspect.history.request` | Events whose participants include that character, or 404 |
 
 If the worker doesn't answer within 2 seconds, the routes that query it return 503 with `simulation_unavailable`.
 
@@ -101,6 +102,7 @@ The message contracts are defined in `packages/shared`.
 | `world.command` | A validated `SimulationCommand` for the simulation to apply or reject |
 | `world.status.request` | Request the current `SimulationStatus`, tagged with a `requestId` |
 | `world.inspect.request` | Request full details for one entity by stable ID, tagged with a `requestId` |
+| `world.inspect.history.request` | Request the participant-indexed log for one entity, tagged with a `requestId` |
 
 The `world.start` message optionally includes:
 
@@ -121,6 +123,7 @@ Without `restore`, the worker uses `seed` and `population` to generate a new wor
 | `world.command.result` | The `CommandResult` for a `world.command`, matched by `commandId` |
 | `world.status` | Tick, clock, pause state, population and tick timing for a `world.status.request` |
 | `world.inspected` | An `EntityInspection`, or `null` if no entity has that ID |
+| `world.inspected.history` | Log events for one entity, or `null` if no entity has that ID |
 | `world.error` | Simulation error information |
 
 The current message types are represented as TypeScript discriminated unions.

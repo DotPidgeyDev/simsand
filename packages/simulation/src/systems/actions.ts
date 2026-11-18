@@ -13,6 +13,8 @@ import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
+import { recordActionEnding } from '../log/events.js';
+import { adjacentLivingId, buildOccupancy, distressOf, isAdjacentLiving, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
 import { steerToward } from './movement.js';
 import { createRandom } from '../core/random.js';
 import {
@@ -41,7 +43,23 @@ export const ACTION_BIAS = 0.05;
 const ACTION_BIAS_SALT = 0x27d4eb2f;
 
 export function emptyCooldowns(): ActionCooldowns {
-  return { idle: 0, move: 0, eat: 0, rest: 0, drink: 0, work: 0 };
+  const cooldowns = {} as ActionCooldowns;
+
+  for (const id of ACTION_IDS) {
+    cooldowns[id] = 0;
+  }
+
+  return cooldowns;
+}
+
+function emptyAvailability(): Record<ActionId, boolean> {
+  const available = {} as Record<ActionId, boolean>;
+
+  for (const id of ACTION_IDS) {
+    available[id] = false;
+  }
+
+  return available;
 }
 
 interface NeedState {
@@ -50,6 +68,8 @@ interface NeedState {
   fatigue: number;
   curiosity: number;
   industriousness: number;
+  sociability: number;
+  empathy: number;
   alive: boolean;
   onWater: boolean;
   onCamp: boolean;
@@ -57,6 +77,11 @@ interface NeedState {
   canReachWater: boolean;
   canReachLand: boolean;
   canReachCamp: boolean;
+  hasNeighbor: boolean;
+  targetAdjacent: boolean;
+  // Highest need of a living neighbour, or of the character already chosen.
+  neighborDistress: number;
+  targetDistress: number;
 }
 
 function comfort(state: NeedState): number {
@@ -109,9 +134,12 @@ interface ActionDefinition {
   eating: boolean;
   drinking: boolean;
   working: boolean;
+  // Losing the other character ends the action as a failure, not a completion.
+  losesTarget: boolean;
 }
 
-// Order is the tie break: eat, then drink, then rest, then work, then move, then idle.
+// Order is the tie break: eat, then drink, then rest, then work, then comfort,
+// then greet, then move, then idle.
 export const actionDefinitions: readonly ActionDefinition[] = [
   {
     id: 'eat',
@@ -125,6 +153,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     eating: true,
     drinking: false,
     working: false,
+    losesTarget: false,
   },
   {
     id: 'drink',
@@ -139,6 +168,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     eating: false,
     drinking: true,
     working: false,
+    losesTarget: false,
   },
   {
     id: 'rest',
@@ -152,6 +182,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     eating: false,
     drinking: false,
     working: false,
+    losesTarget: false,
   },
   {
     id: 'work',
@@ -166,6 +197,37 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     eating: false,
     drinking: false,
     working: true,
+    losesTarget: false,
+  },
+  {
+    id: 'comfort',
+    score: (state) => state.empathy * comfort(state),
+    requiresLife: true,
+    // Someone beside them is still past the point where a meal, drink or rest
+    // would keep going. Their own needs have to be quiet first.
+    ready: (state) => comfortable(state) && state.neighborDistress > HUNGER_RESUME_AT,
+    holds: (state) => state.targetAdjacent,
+    sustain: (state) => comfortable(state) && state.targetDistress > HUNGER_RESUME_AT,
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: false,
+    losesTarget: true,
+  },
+  {
+    id: 'greet',
+    score: (state) => state.sociability * comfort(state),
+    requiresLife: true,
+    ready: (state) => comfortable(state) && state.hasNeighbor,
+    holds: (state) => state.targetAdjacent,
+    sustain: () => false,
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: false,
+    losesTarget: true,
   },
   {
     id: 'move',
@@ -181,6 +243,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     eating: false,
     drinking: false,
     working: false,
+    losesTarget: false,
   },
   {
     id: 'idle',
@@ -196,6 +259,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     eating: false,
     drinking: false,
     working: false,
+    losesTarget: false,
   },
 ];
 
@@ -213,12 +277,18 @@ function needState(input: {
   fatigue: number;
   curiosity?: number;
   industriousness?: number;
+  sociability?: number;
+  empathy?: number;
   alive?: boolean;
   onWater?: boolean;
   onCamp?: boolean;
   canReachWater?: boolean;
   canReachLand?: boolean;
   canReachCamp?: boolean;
+  hasNeighbor?: boolean;
+  targetAdjacent?: boolean;
+  neighborDistress?: number;
+  targetDistress?: number;
 }): NeedState {
   return {
     hunger: input.hunger,
@@ -226,12 +296,18 @@ function needState(input: {
     fatigue: input.fatigue,
     curiosity: Math.min(1, Math.max(0, input.curiosity ?? 0)),
     industriousness: Math.min(1, Math.max(0, input.industriousness ?? 1)),
+    sociability: Math.min(1, Math.max(0, input.sociability ?? 0)),
+    empathy: Math.min(1, Math.max(0, input.empathy ?? 0)),
     alive: input.alive ?? true,
     onWater: input.onWater ?? false,
     onCamp: input.onCamp ?? false,
     canReachWater: input.canReachWater ?? true,
     canReachLand: input.canReachLand ?? true,
     canReachCamp: input.canReachCamp ?? false,
+    hasNeighbor: input.hasNeighbor ?? false,
+    targetAdjacent: input.targetAdjacent ?? false,
+    neighborDistress: Math.min(1, Math.max(0, input.neighborDistress ?? 0)),
+    targetDistress: Math.min(1, Math.max(0, input.targetDistress ?? 0)),
   };
 }
 
@@ -255,6 +331,8 @@ export function actionUtilities(input: {
   fatigue: number;
   curiosity: number;
   industriousness?: number;
+  sociability?: number;
+  empathy?: number;
 }): Record<ActionId, number> {
   const state = needState(input);
   const utilities = emptyCooldowns();
@@ -287,14 +365,13 @@ export function biasedUtilities(
   utilities: Record<ActionId, number>,
   bias: Record<ActionId, number>,
 ): Record<ActionId, number> {
-  return {
-    idle: utilities.idle + bias.idle,
-    move: utilities.move + bias.move,
-    eat: utilities.eat + bias.eat,
-    rest: utilities.rest + bias.rest,
-    drink: utilities.drink + bias.drink,
-    work: utilities.work + bias.work,
-  };
+  const result = {} as Record<ActionId, number>;
+
+  for (const id of ACTION_IDS) {
+    result[id] = utilities[id] + bias[id];
+  }
+
+  return result;
 }
 
 // Idle is always available to the dead, and to the living when they are not
@@ -308,16 +385,22 @@ export function actionAvailability(input: {
   fatigue: number;
   curiosity?: number;
   industriousness?: number;
+  sociability?: number;
+  empathy?: number;
   onWater?: boolean;
   onCamp?: boolean;
   canReachWater?: boolean;
   canReachLand?: boolean;
   canReachCamp?: boolean;
+  hasNeighbor?: boolean;
+  targetAdjacent?: boolean;
+  neighborDistress?: number;
+  targetDistress?: number;
   cooldowns?: ActionCooldowns;
 }): Record<ActionId, boolean> {
   const cooldowns = input.cooldowns ?? emptyCooldowns();
   const state = needState(input);
-  const available = { idle: false, move: false, eat: false, rest: false, drink: false, work: false };
+  const available = emptyAvailability();
 
   for (const definition of actionDefinitions) {
     available[definition.id] = isOpen(definition, input.alive, cooldowns) && definition.ready(state);
@@ -372,7 +455,7 @@ function preferredAction(
   alive: boolean,
   cooldowns: ActionCooldowns,
 ): ActionId {
-  const open = { idle: false, move: false, eat: false, rest: false, drink: false, work: false };
+  const open = emptyAvailability();
 
   for (const definition of actionDefinitions) {
     open[definition.id] = isOpen(definition, alive, cooldowns);
@@ -399,6 +482,7 @@ function endingResult(action: ActionId, state: NeedState): ActionResult {
 
   const definition = definitionFor(action);
 
+  if (definition.losesTarget && !definition.holds(state)) return 'failed';
   if (!definition.holds(state) && definition.sustain(state)) return 'failed';
 
   return 'completed';
@@ -420,6 +504,8 @@ function readCooldowns(eid: number): ActionCooldowns {
     rest: Action.cooldown.rest[eid],
     drink: Action.cooldown.drink[eid],
     work: Action.cooldown.work[eid],
+    greet: Action.cooldown.greet[eid],
+    comfort: Action.cooldown.comfort[eid],
   };
 }
 
@@ -469,6 +555,7 @@ function applyAction(eid: number, action: ActionId): void {
 // would take but have no way to start, is recorded as failed.
 export function updateActions(world: SimulationWorld, deltaSeconds: number): void {
   const entities = query(world.ecs, [Action, Needs, Personality, Condition, Lifecycle, Identity]);
+  const occupancy = buildOccupancy(world);
 
   for (const eid of entities) {
     tickCooldowns(eid, deltaSeconds);
@@ -476,12 +563,17 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
     if (Lifecycle.state[eid] === DEAD) {
       Action.kind[eid] = ACTION_IDS.indexOf('idle');
       Action.elapsed[eid] = 0;
+      Action.target[eid] = '';
       writeCooldowns(eid, emptyCooldowns());
       clearActionOutcome(eid);
       applyAction(eid, 'idle');
       continue;
     }
 
+    const nearby = livingNeighbors(world, eid, occupancy);
+    const neighborId = adjacentLivingId(nearby);
+    const distressed = mostDistressedNeighbor(nearby);
+    const targetId = Action.target[eid];
     const onWater = standingOnWater(world, Position.x[eid], Position.y[eid]);
     const onCamp = standingOnCamp(world, Position.x[eid], Position.y[eid]);
     const waterRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'water');
@@ -493,12 +585,18 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       fatigue: Needs.fatigue[eid],
       curiosity: Personality.curiosity[eid],
       industriousness: Personality.industriousness[eid],
+      sociability: Personality.sociability[eid],
+      empathy: Personality.empathy[eid],
       alive: true,
       onWater,
       onCamp,
       canReachWater: waterRoute !== undefined,
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
+      hasNeighbor: neighborId !== undefined,
+      targetAdjacent: Boolean(targetId) && isAdjacentLiving(world, eid, targetId),
+      neighborDistress: distressed?.distress ?? 0,
+      targetDistress: targetId ? distressOf(world, targetId) : 0,
     });
     const utilities = biasedUtilities(
       actionUtilities(state),
@@ -520,7 +618,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
         Action.cooldown[current][eid] = ACTION_COOLDOWN_SECONDS;
       }
 
-      writeActionOutcome(eid, current, result);
+      noteEnding(world, eid, current, result);
     }
 
     const cooldowns = readCooldowns(eid);
@@ -531,25 +629,53 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       fatigue: state.fatigue,
       curiosity: state.curiosity,
       industriousness: state.industriousness,
+      sociability: state.sociability,
+      empathy: state.empathy,
       onWater: state.onWater,
       canReachWater: state.canReachWater,
       canReachLand: state.canReachLand,
       onCamp: state.onCamp,
       canReachCamp: state.canReachCamp,
+      hasNeighbor: state.hasNeighbor,
+      targetAdjacent: state.targetAdjacent,
+      neighborDistress: state.neighborDistress,
+      targetDistress: state.targetDistress,
       cooldowns,
     });
     const preferred = preferredAction(utilities, state.alive, cooldowns);
 
     if (selectionFailed(preferred, available, state)) {
-      writeActionOutcome(eid, preferred, 'failed');
+      noteEnding(world, eid, preferred, 'failed');
     }
 
     const next = chooseAction(utilities, available);
     Action.kind[eid] = ACTION_IDS.indexOf(next);
     Action.elapsed[eid] = deltaSeconds;
+    Action.target[eid] = next === 'greet'
+      ? neighborId ?? ''
+      : next === 'comfort'
+        ? distressed?.id ?? ''
+        : '';
     applyAction(eid, next);
     directMove(world, eid, next, state);
   }
+}
+
+function noteEnding(
+  world: SimulationWorld,
+  eid: number,
+  action: ActionId,
+  result: ActionResult,
+): void {
+  writeActionOutcome(eid, action, result);
+  recordActionEnding(
+    world,
+    eid,
+    Identity.id[eid],
+    action,
+    result,
+    definitionFor(action).losesTarget ? Action.target[eid] || undefined : undefined,
+  );
 }
 
 function directMove(world: SimulationWorld, eid: number, action: ActionId, state: NeedState): void {

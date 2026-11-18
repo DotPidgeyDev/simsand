@@ -58,7 +58,7 @@ function character() {
 describe('updateActions', () => {
   it('defines every action once, in tie-break order', () => {
     expect(actionDefinitions.map((definition) => definition.id)).toEqual([
-      'eat', 'drink', 'rest', 'work', 'move', 'idle',
+      'eat', 'drink', 'rest', 'work', 'comfort', 'greet', 'move', 'idle',
     ]);
   });
 
@@ -219,6 +219,7 @@ describe('updateActions', () => {
       Needs.thirst[eid] = 0.2;
       Needs.fatigue[eid] = 0.2;
       Personality.curiosity[eid] = 0.5;
+      Personality.sociability[eid] = 0;
       Lifecycle.ageSeconds[eid] = 0;
       Action.elapsed[eid] = 0;
       return eid;
@@ -324,6 +325,8 @@ describe('updateActions', () => {
       rest: false,
       drink: false,
       work: false,
+      greet: false,
+      comfort: false,
     });
   });
 
@@ -378,6 +381,8 @@ describe('updateActions', () => {
       rest: false,
       drink: false,
       work: false,
+      greet: false,
+      comfort: false,
     });
   });
 

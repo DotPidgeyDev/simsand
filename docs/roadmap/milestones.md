@@ -1,8 +1,8 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 03 complete; Milestone 04 next  
-**Version:** 1.4  
-**Last updated:** 2026-11-16
+**Status:** Active — Milestone 04 in progress  
+**Version:** 1.8  
+**Last updated:** 2026-11-18
 
 ## Guiding approach
 
@@ -214,9 +214,13 @@ What a visit produces, and anything a character can carry or trade, is Milestone
 
 ## Milestone 04 — Interaction and social behaviour
 
-**Status: Planned**
+**Status: In progress**
 
 Add interactions, sparse relationships, meaningful memories and basic social actions.
+
+This is also the first log/monitor pass: a queryable, character-indexed
+history for debugging. Viewer-facing history comes later and is only a
+window over the same records.
 
 Start from `docs/roadmap/notes/04-from-03.md`. Social actions should
 join the existing action list. Do not add a fourth need until a
@@ -232,8 +236,92 @@ Initial scope:
 - Social needs and motivations.
 - Event generation from actual simulation outcomes.
 - Read sociability, empathy, loyalty and honesty when those actions exist.
+- Centralised simulation event log, indexed by participant, not duplicated per participant.
+- Character-level history inspection (what happened, which actions and events involved this character).
 
 Ensure events and relationships are generated from authoritative simulation outcomes rather than presentation-layer assumptions.
+
+### Character history and log shape
+
+Inspection today shows current state and the last action ending. That is
+not enough once two characters can interact. Milestone 04 should emit a
+single append-only log of simulation facts that can be filtered to one
+character.
+
+Keep three consumers on one record, not three parallel logs:
+
+- **Debug history** (this milestone): every consequential action ending
+  and interaction, enough to answer why a character did what they did.
+- **Durable events** (Milestone 06): the same records persisted with
+  retention, not a rewritten schema.
+- **Viewer chronicle** (Milestone 08): a scored, filtered window for
+  stream presentation and a character's public story. It must not be
+  the only place history exists.
+
+Avoid log bloat:
+
+- One world fact is one event. An interaction between A and B has both
+  as participants. Character history is a query over participants, not
+  a copy written onto A and another onto B.
+- Do not log both "A greeted B" and "B was greeted by A".
+- Do not log every tick of proximity, utility scoring, or movement.
+  Record action lifecycle endings (`completed`, `interrupted`,
+  `failed`) and consequential interactions, matching the memory rule
+  already in the Milestone 04 notes.
+- Prefer stable event IDs, tick/time, type, participant IDs, location,
+  and a small payload. Inspection lists events for one character in
+  time order.
+
+Memories stay a character's in-world recollection of selected events.
+They are not a substitute for the log, and they should reference the
+event rather than restating it.
+
+### Current implementation
+
+The first increment is in the world:
+
+- `greet` is appended to `ACTION_IDS`. It scores `sociability * comfort`,
+  is only ready while needs are quiet and another living character is on
+  the same or neighbouring tile, and uses the same commitment and
+  endings as the other actions. Alone they idle or move; a failed greet
+  is only recorded when an in-progress greeting loses its target.
+- Completing a greet writes one sparse relationship keyed by the two
+  stable IDs and one `character.greeted` log event with both as
+  participants. If both greet each other in the same tick, that is still
+  one event and one meeting.
+- The log also records failed and interrupted actions, and completed
+  eat, drink, rest, work, greet and comfort. Idle and move completions are not
+  stored. The in-memory log keeps the newest 10,000 events.
+- Inspection shows relationships on the character and lists that
+  character's events at `GET /entities/:id/history`.
+- The first completed greet also writes one `greeting` memory that
+  points at that log event. Both participants see the same memory.
+  Later meetings update the relationship and log; they do not add
+  another greeting memory.
+- `comfort` is the second social action. It scores `empathy * comfort`
+  and can start only while the actor's own needs are quiet and a living
+  neighbour's hunger, thirst or fatigue is above 0.3. The target is the
+  neighbour with the highest of those needs. Ties keep the lowest stable
+  ID. The visit continues until that need falls to 0.3 or the actor's
+  own needs rise past 0.3, and it fails if the neighbour leaves. An
+  equal score with greet comforts the person in need. A less empathetic
+  character still greets them.
+- Completing a comfort writes one `character.comforted` log event with
+  both participants, and counts as a meeting on the same relationship.
+  The first comfort between a pair also writes one `comforting` memory
+  that points at that event. A later comfort does not add another.
+- Saves are format version 15: greet and comfort cooldowns,
+  `actionTarget`, `relationships`, `log` and `memories`. A version 14
+  save gains a comfort cooldown of zero. Older saves gain empty
+  collections.
+
+Still to do in this milestone: social actions that read loyalty and
+honesty. Do not add a belonging need yet.
+
+Memories and the character log are a world-level list plus a linear
+query. That is enough for inspection. If an action starts reading
+memories in the tick, index them first (see Milestone 06). Do not
+filter the full array per character per tick.
 
 ---
 
@@ -272,7 +360,8 @@ Initial scope:
 
 - Complete world snapshot model.
 - Persistence of implemented character and world state.
-- Durable event storage where appropriate.
+- Durable event storage where appropriate (the Milestone 04 log, retained and recovered, not a second event model).
+- Indexed query of that log, memories and relationships by participant and by pair. Keep one record per fact; do not persist a copy on each character. Replace the Milestone 04 linear scans before the tick or inspection has to walk the whole list.
 - Recovery and restart behaviour.
 - Database migrations.
 - Backup and restore procedures.
@@ -282,7 +371,7 @@ Initial scope:
 
 Persistence foundations should be introduced during Milestone 01. This milestone completes the robust persistence model rather than postponing all saving until later.
 
-The persistence strategy should reflect the actual simulation requirements. Avoid storing every transient state change as a permanent event.
+The persistence strategy should reflect the actual simulation requirements. Avoid storing every transient state change as a permanent event. Character history and memory queries should read this store through participant and pair indexes, the way relationships are already keyed, not by scanning an array or duplicating rows per character.
 
 ---
 
@@ -330,6 +419,10 @@ Initial scope:
 
 Ensure presentation is grounded in recorded simulation events. The director should react to the world rather than dictate ordinary character behaviour.
 
+Chronicle entries, recaps and a viewer's character history are a small
+window over the Milestone 04 log: scored, abbreviated, and safe to show
+on stream. Debugging still uses the full participant-indexed history.
+
 ---
 
 ## Milestone 09 — Society and world depth
@@ -363,7 +456,7 @@ Improve operational reliability, administration, stream presentation and platfor
 
 Initial scope:
 
-- Admin and inspection tools.
+- Admin and inspection tools (including browsing the character-indexed event log).
 - Operational monitoring.
 - Simulation performance profiling.
 - Error reporting and recovery.

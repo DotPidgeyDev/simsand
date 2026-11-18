@@ -225,8 +225,11 @@ model incrementally as simulation systems become real.
     on grass tiles that nobody is standing on, taken from the world
     seed. Water and dirt stay where they are. Version 11 gains camps
     on the remaining grass that nobody is standing on, a work cooldown
-    of zero, and a working flag that starts clear. The next save writes
-    version 12.
+    of zero, and a working flag that starts clear. Version 12 is that
+    camp-and-work save. Version 13 gains a greet cooldown of zero, an
+    empty action target, empty relationships and an empty character log.
+    Version 14 gains an empty memory list. Version 15 gains a comfort
+    cooldown of zero. The next save writes version 15.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot reshuffle an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker

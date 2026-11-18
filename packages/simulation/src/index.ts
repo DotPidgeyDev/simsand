@@ -43,7 +43,7 @@ export type {
   SimulationLoopTiming,
 } from './core/loop.js';
 
-export { inspectCharacter } from './inspection/inspect-character.js';
+export { inspectCharacter, inspectCharacterHistory } from './inspection/inspect-character.js';
 
 export {
   assertCharacterProfile,

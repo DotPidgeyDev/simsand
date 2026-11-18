@@ -48,6 +48,8 @@ describe('inspectCharacter', () => {
           ...generateCharacterProfile(0, 'swimmer').needs,
           curiosity: generateCharacterProfile(0, 'swimmer').personality.curiosity,
           industriousness: generateCharacterProfile(0, 'swimmer').personality.industriousness,
+          sociability: generateCharacterProfile(0, 'swimmer').personality.sociability,
+          empathy: generateCharacterProfile(0, 'swimmer').personality.empathy,
         }),
         actionBias(0, 'swimmer'),
       ),
@@ -57,10 +59,14 @@ describe('inspectCharacter', () => {
         ...generateCharacterProfile(0, 'swimmer').needs,
         curiosity: generateCharacterProfile(0, 'swimmer').personality.curiosity,
         industriousness: generateCharacterProfile(0, 'swimmer').personality.industriousness,
+        sociability: generateCharacterProfile(0, 'swimmer').personality.sociability,
         onWater: true,
         cooldowns: emptyCooldowns(),
       }),
       outcome: null,
+      actionTarget: null,
+      relationships: [],
+      memories: [],
       derived: derivedStats(generateCharacterProfile(0, 'swimmer').attributes.constitution),
       tile: { x: 2, y: 3, terrain: 'water' },
     });
@@ -90,6 +96,8 @@ describe('inspectCharacter', () => {
       rest: false,
       drink: false,
       work: false,
+      greet: false,
+      comfort: false,
     });
   });
 

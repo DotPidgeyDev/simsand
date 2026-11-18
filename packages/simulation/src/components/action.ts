@@ -13,7 +13,11 @@ export const Action = {
     rest: [] as number[],
     drink: [] as number[],
     work: [] as number[],
+    greet: [] as number[],
+    comfort: [] as number[],
   } satisfies Record<ActionId, number[]>,
+  // Stable ID of the other character while greeting or comforting. Empty otherwise.
+  target: [] as string[],
   // Index into ACTION_IDS for the action that just ended. -1 means none yet.
   outcomeAction: [] as number[],
   // Index into ACTION_OUTCOMES. Meaningful only when outcomeAction is not -1.

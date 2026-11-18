@@ -1,5 +1,5 @@
 import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
-import type { EntityInspection } from '@simsand/shared';
+import type { EntityInspection, SimulationLogEvent } from '@simsand/shared';
 
 import { readCharacterProfile } from '../characters/profile.js';
 import { Action } from '../components/action.js';
@@ -11,6 +11,10 @@ import { Attributes } from '../components/attributes.js';
 import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns, readActionOutcome, standingOnCamp, standingOnWater } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
+import { historyFor } from '../log/events.js';
+import { adjacentLivingId, buildOccupancy, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
+import { memoriesFor } from '../social/memories.js';
+import { relationshipsFor } from '../social/relationships.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Appearance } from '../components/appearance.js';
@@ -34,6 +38,9 @@ export function inspectCharacter(
   const waterRoute = nearestTerrainTile(world.map, x, y, 'water');
   const landRoute = nearestTerrainTile(world.map, x, y, 'land');
   const campRoute = nearestTerrainTile(world.map, x, y, 'camp');
+  const nearby = livingNeighbors(world, eid, buildOccupancy(world));
+  const neighborId = adjacentLivingId(nearby);
+  const distressed = mostDistressedNeighbor(nearby);
   const cooldowns = {
     ...emptyCooldowns(),
     idle: Action.cooldown.idle[eid],
@@ -42,6 +49,8 @@ export function inspectCharacter(
     rest: Action.cooldown.rest[eid],
     drink: Action.cooldown.drink[eid],
     work: Action.cooldown.work[eid],
+    greet: Action.cooldown.greet[eid],
+    comfort: Action.cooldown.comfort[eid],
   };
 
   return {
@@ -66,6 +75,8 @@ export function inspectCharacter(
         fatigue: Needs.fatigue[eid],
         curiosity: Personality.curiosity[eid],
         industriousness: Personality.industriousness[eid],
+        sociability: Personality.sociability[eid],
+        empathy: Personality.empathy[eid],
       }),
       actionBias(world.seed, id),
     ),
@@ -77,15 +88,31 @@ export function inspectCharacter(
       fatigue: Needs.fatigue[eid],
       curiosity: Personality.curiosity[eid],
       industriousness: Personality.industriousness[eid],
+      sociability: Personality.sociability[eid],
+      empathy: Personality.empathy[eid],
       onWater: standingOnWater(world, x, y),
       canReachWater: waterRoute !== undefined,
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
       onCamp: standingOnCamp(world, x, y),
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
+      hasNeighbor: neighborId !== undefined,
+      neighborDistress: distressed?.distress ?? 0,
       cooldowns,
     }),
     outcome: readActionOutcome(eid),
+    actionTarget: Action.target[eid] || null,
+    relationships: relationshipsFor(world, id),
+    memories: memoriesFor(world, id),
     derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };
+}
+
+export function inspectCharacterHistory(
+  world: SimulationWorld,
+  id: string,
+): SimulationLogEvent[] | undefined {
+  if (!world.entityIds.has(id)) return undefined;
+
+  return historyFor(world, id);
 }

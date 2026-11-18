@@ -11,7 +11,7 @@ function world(tick: number): PersistedWorld {
   const profile = generateCharacterProfile(12345, 'character-0001');
 
   return {
-    version: 12,
+    version: 15,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -33,11 +33,15 @@ function world(tick: number): PersistedWorld {
         ageSeconds: startingAgeSeconds(12345, 'character-0001', profile.attributes.constitution),
         action: 'move',
         actionSeconds: 0,
-        cooldowns: { idle: 0, move: 0, eat: 0, rest: 0, drink: 0, work: 0 },
+        cooldowns: { idle: 0, move: 0, eat: 0, rest: 0, drink: 0, work: 0, greet: 0, comfort: 0 },
         working: false,
         outcome: null,
+        actionTarget: '',
       },
     ],
+    relationships: [],
+    log: [],
+    memories: [],
   };
 }
 
@@ -133,7 +137,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(12);
+    expect(loaded?.version).toBe(15);
     expect(loaded?.entities).toEqual(saved.entities);
     expect(loaded?.map.tiles[1]).toBe(1);
     expect(loaded?.map.tiles[2]).toBe(2);
@@ -153,7 +157,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(12);
+    expect(loaded?.version).toBe(15);
     expect(loaded?.entities[0].eating).toBe(false);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].resting).toBe(true);
@@ -175,7 +179,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(12);
+    expect(loaded?.version).toBe(15);
     expect(loaded?.entities[0].eating).toBe(true);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].needs.hunger).toBe(0.9);
@@ -194,7 +198,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(12);
+    expect(loaded?.version).toBe(15);
     expect(loaded?.entities[0].ageSeconds).toBe(saved.entities[0].ageSeconds);
   });
 

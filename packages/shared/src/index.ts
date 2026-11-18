@@ -45,7 +45,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 12;
+export const PERSISTED_WORLD_VERSION = 15;
 
 export const ATTRIBUTE_NAMES = [
   'strength',
@@ -91,7 +91,7 @@ export type BasicNeed = (typeof BASIC_NEEDS)[number];
 export type CharacterNeeds = Record<BasicNeed, number>;
 
 // Append only. Saved worlds store the name.
-export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work'] as const;
+export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort'] as const;
 
 export type ActionId = (typeof ACTION_IDS)[number];
 
@@ -106,6 +106,56 @@ export type ActionResult = (typeof ACTION_OUTCOMES)[number];
 export interface ActionEnding {
   action: ActionId;
   result: ActionResult;
+}
+
+export const SIMULATION_LOG_TYPES = ['action.ended', 'character.greeted', 'character.comforted'] as const;
+
+export type SimulationLogType = (typeof SIMULATION_LOG_TYPES)[number];
+
+// One world fact, many participants. Character history is a query over
+// this list, not a copy stored on each participant.
+export interface SimulationLogEvent {
+  eventId: string;
+  type: SimulationLogType;
+  tick: number;
+  elapsedSeconds: number;
+  participants: string[];
+  location: { x: number; y: number };
+  payload: {
+    action: ActionId;
+    result: ActionResult;
+    initiator?: string;
+  };
+}
+
+export interface RelationshipRecord {
+  a: string;
+  b: string;
+  meetings: number;
+  lastEventId: string;
+  lastTick: number;
+}
+
+export interface CharacterRelationship {
+  otherId: string;
+  meetings: number;
+  lastEventId: string;
+  lastTick: number;
+}
+
+// Append only. Saved worlds store the name.
+export const MEMORY_KINDS = ['greeting', 'comforting'] as const;
+
+export type MemoryKind = (typeof MEMORY_KINDS)[number];
+
+// One recollection of a logged fact. Character memories are a query over
+// participants, not a copy stored on each of them.
+export interface MemoryRecord {
+  memoryId: string;
+  kind: MemoryKind;
+  eventId: string;
+  tick: number;
+  participants: string[];
 }
 
 export const LIFECYCLE_STATES = ['alive', 'dead'] as const;
@@ -150,6 +200,8 @@ export interface PersistedEntity extends CharacterProfile {
   cooldowns: ActionCooldowns;
   // How the action before this one ended. Null until one has ended.
   outcome: ActionEnding | null;
+  // Stable ID of the other character while greeting or comforting. Empty otherwise.
+  actionTarget: string;
 }
 
 // Everything needed to resume the simulation. Unlike WorldSnapshot, which
@@ -162,6 +214,9 @@ export interface PersistedWorld {
   fixedDeltaSeconds: number;
   map: WorldMapData;
   entities: PersistedEntity[];
+  relationships: RelationshipRecord[];
+  log: SimulationLogEvent[];
+  memories: MemoryRecord[];
 }
 
 export const COMMAND_PROTOCOL_VERSION = 1;
@@ -263,6 +318,9 @@ export interface EntityInspection extends CharacterProfile {
   // Which actions can be chosen right now. Idle is always available.
   available: Record<ActionId, boolean>;
   outcome: ActionEnding | null;
+  actionTarget: string | null;
+  relationships: CharacterRelationship[];
+  memories: MemoryRecord[];
   derived: DerivedStats;
   // The tile containing the entity. An entity on the far edge of the map
   // reports the last row or column.
@@ -284,7 +342,8 @@ export type ServerToWorkerMessage =
   | { type: 'world.persist.request'; data: { requestId: number } }
   | { type: 'world.command'; data: SimulationCommand }
   | { type: 'world.status.request'; data: { requestId: number } }
-  | { type: 'world.inspect.request'; data: { requestId: number; entityId: string } };
+  | { type: 'world.inspect.request'; data: { requestId: number; entityId: string } }
+  | { type: 'world.inspect.history.request'; data: { requestId: number; entityId: string } };
 
 export type WorkerToServerMessage =
   | {
@@ -319,6 +378,10 @@ export type WorkerToServerMessage =
   | {
       type: 'world.inspected';
       data: { requestId: number; entity: EntityInspection | null };
+    }
+  | {
+      type: 'world.inspected.history';
+      data: { requestId: number; entityId: string; events: SimulationLogEvent[] | null };
     }
   | {
       type: 'world.error';

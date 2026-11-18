@@ -35,6 +35,7 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   actionSeconds?: number;
   cooldowns?: ActionCooldowns;
   outcome?: ActionEnding | null;
+  actionTarget?: string;
 }
 
 // pass in the world and character attr, and get the id of a new char entity added to the world.
@@ -90,6 +91,7 @@ export function createCharacter(
 
   Action.outcomeAction[eid] = definition.outcome ? ACTION_IDS.indexOf(definition.outcome.action) : -1;
   Action.outcomeResult[eid] = definition.outcome ? ACTION_OUTCOMES.indexOf(definition.outcome.result) : 0;
+  Action.target[eid] = definition.actionTarget ?? '';
 
   Position.x[eid] = definition.x;
   Position.y[eid] = definition.y;

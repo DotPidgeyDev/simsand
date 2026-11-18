@@ -16,6 +16,7 @@ import {
   generateWorldMap,
   getSimulationLoopTiming,
   inspectCharacter,
+  inspectCharacterHistory,
   applyTuning,
 } from '@simsand/simulation';
 
@@ -191,6 +192,23 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
           data: {
             requestId: message.data.requestId,
             entity: inspectCharacter(loop.runner.world, message.data.entityId) ?? null,
+          },
+        });
+
+        break;
+      }
+
+      case 'world.inspect.history.request': {
+        if (!loop) {
+          throw new Error('Simulation has not started');
+        }
+
+        send({
+          type: 'world.inspected.history',
+          data: {
+            requestId: message.data.requestId,
+            entityId: message.data.entityId,
+            events: inspectCharacterHistory(loop.runner.world, message.data.entityId) ?? null,
           },
         });
 

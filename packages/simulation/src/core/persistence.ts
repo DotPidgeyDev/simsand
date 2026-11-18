@@ -1,7 +1,7 @@
 import { query } from 'bitecs';
 
 import { ACTION_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
-import type { ActionId, CharacterProfile, PersistedEntity, PersistedWorld } from '@simsand/shared';
+import type { ActionId, CharacterProfile, MemoryRecord, PersistedEntity, PersistedWorld, RelationshipRecord, SimulationLogEvent } from '@simsand/shared';
 
 import { generateCharacterProfile, readCharacterProfile, spriteIdFor, startingAgeSeconds } from '../characters/profile.js';
 import { Action } from '../components/action.js';
@@ -20,6 +20,7 @@ import { Position } from '../components/position.js';
 import { Velocity } from '../components/velocity.js';
 import { Appearance } from '../components/appearance.js';
 import { createCharacter } from '../entities/create-character.js';
+import { pairKey } from '../social/relationships.js';
 
 // Version 1 predates the tile map. Version 2 predates the character profile.
 // Version 3 predates the resting flag. Version 4 stores a numeric sprite.
@@ -27,14 +28,33 @@ import { createCharacter } from '../entities/create-character.js';
 // Version 7 predates the chosen action. Version 8 predates action cooldowns.
 // Version 9 predates the outcome of the previous action.
 // Version 10 predates rock. Version 11 predates camps and work.
+// Version 12 predates greet, relationships and the character log.
+// Version 13 predates memories.
+// Version 14 predates comfort.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV11 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV14 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 14;
+  entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
+    cooldowns: Omit<PersistedEntity['cooldowns'], 'comfort'>;
+  }>;
+};
+
+export type PersistedWorldV13 = Omit<PersistedWorldV14, 'version' | 'memories'> & {
+  version: 13;
+};
+
+export type PersistedWorldV12 = Omit<PersistedWorldV13, 'version' | 'entities' | 'relationships' | 'log'> & {
+  version: 12;
+  entities: Array<Omit<PersistedEntity, 'actionTarget'>>;
+};
+
+export type PersistedWorldV11 = Omit<PersistedWorldV12, 'version' | 'entities'> & {
   version: 11;
-  entities: Array<Omit<PersistedEntity, 'working'>>;
+  entities: Array<Omit<PersistedWorldV12['entities'][number], 'working'>>;
 };
 
 export type PersistedWorldV10 = Omit<PersistedWorldV11, 'version'> & { version: 10 };
@@ -93,6 +113,9 @@ export type UpgradeableWorld =
   | PersistedWorldV9
   | PersistedWorldV10
   | PersistedWorldV11
+  | PersistedWorldV12
+  | PersistedWorldV13
+  | PersistedWorldV14
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -127,8 +150,11 @@ export function capturePersistedWorld(
         rest: Action.cooldown.rest[eid],
         drink: Action.cooldown.drink[eid],
         work: Action.cooldown.work[eid],
+        greet: Action.cooldown.greet[eid],
+        comfort: Action.cooldown.comfort[eid],
       },
       outcome: readActionOutcome(eid),
+      actionTarget: Action.target[eid] ?? '',
     });
   }
 
@@ -140,6 +166,9 @@ export function capturePersistedWorld(
     fixedDeltaSeconds: clock.fixedDeltaSeconds,
     map: toWorldMapData(world.map),
     entities,
+    relationships: [...world.relationships.values()],
+    log: [...world.log],
+    memories: [...world.memories],
   };
 }
 
@@ -310,19 +339,64 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
 
     stampCamps(map, persisted.seed, occupied);
 
-    return {
+    return upgradePersistedWorld({
       ...persisted,
-      version: PERSISTED_WORLD_VERSION,
+      version: 12,
       map: toWorldMapData(map),
       entities: persisted.entities.map((entity) => ({
         ...entity,
         cooldowns: { ...entity.cooldowns, work: 0 },
         working: false,
       })),
+    });
+  }
+
+  if (persisted.version === 12) {
+    return upgradePersistedWorld({
+      ...persisted,
+      version: 13,
+      relationships: [],
+      log: [],
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        cooldowns: { ...entity.cooldowns, greet: 0 },
+        actionTarget: '',
+      })),
+    });
+  }
+
+  if (persisted.version === 13) {
+    return upgradePersistedWorld({
+      ...persisted,
+      version: 14,
+      memories: [],
+    });
+  }
+
+  if (persisted.version === 14) {
+    return {
+      ...persisted,
+      version: PERSISTED_WORLD_VERSION,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        cooldowns: { ...entity.cooldowns, comfort: 0 },
+      })),
     };
   }
 
   return persisted as PersistedWorld;
+}
+
+function nextIdFrom(ids: string[], prefix: string): number {
+  let max = 0;
+
+  for (const id of ids) {
+    const match = new RegExp(`^${prefix}-(\\d+)$`).exec(id);
+
+    if (match) max = Math.max(max, Number(match[1]));
+  }
+
+  return max + 1;
 }
 
 export function restorePersistedWorld(persisted: PersistedWorld): {
@@ -342,6 +416,22 @@ export function restorePersistedWorld(persisted: PersistedWorld): {
   for (const entity of persisted.entities) {
     createCharacter(world, entity);
   }
+
+  world.tick = persisted.tick;
+  world.elapsedSeconds = persisted.elapsedSeconds;
+  world.log = persisted.log.map((event) => ({ ...event, participants: [...event.participants] }));
+  world.nextLogId = nextIdFrom(world.log.map((event) => event.eventId), 'log');
+  world.memories = persisted.memories.map((memory: MemoryRecord) => ({
+    ...memory,
+    participants: [...memory.participants],
+  }));
+  world.nextMemoryId = nextIdFrom(world.memories.map((memory) => memory.memoryId), 'mem');
+  world.relationships = new Map(
+    persisted.relationships.map((record: RelationshipRecord) => [
+      pairKey(record.a, record.b),
+      { ...record },
+    ]),
+  );
 
   return { world, clock };
 }

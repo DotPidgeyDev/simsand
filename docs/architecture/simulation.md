@@ -156,6 +156,7 @@ The current simulation includes:
 - Keeps the choice for at least 5 seconds. Eat, drink and rest then continue until that need falls to 0.3.
 - A need at 0.8 interrupts the current choice. The interrupted action cannot be chosen again for 20 seconds, and the ending is recorded as interrupted. Finishing an action records it as completed and does not start that cooldown. A meal or rest that cannot continue where they stand is recorded as failed, as is a drink, meal or rest they would take but have no route to start. A failure does not start that cooldown. Only one recovery runs at a time. Inspection shows the latest ending.
 - Writes the resting, eating, drinking and working flags that needs and movement read. Work does not change a need rate.
+- `greet` scores sociability times remaining comfort and starts beside any living neighbour. `comfort` scores empathy the same way and starts only when a neighbour's hunger, thirst or fatigue is above 0.3. The visit aims at the neighbour with the highest of those needs, continues until that need falls to 0.3 or the actor's own needs rise past 0.3, and fails if the neighbour leaves. Completing either action writes one shared relationship and one log event.
 
 **Lifecycle system**
 
@@ -580,7 +581,10 @@ Measure representative workloads again as systems are added, rather than assumin
 | Character profile | Implemented — name, attributes, personality, needs, lifecycle |
 | Lifecycle system | Implemented — age increases, and constitution's lifespan ends the life |
 | Needs system | Implemented — fatigue, hunger and thirst each rise and recover |
-| Action system | Implemented — idle, move, eat, rest, drink and work, chosen from needs, curiosity, industriousness and a stable personal bias |
+| Action system | Implemented — idle, move, eat, rest, drink, work, greet and comfort, chosen from needs, curiosity, industriousness, sociability, empathy and a stable personal bias |
+| Relationships | Implemented — sparse records keyed by two stable IDs, written when a greet or comfort completes |
+| Character event log | Implemented — one record per fact, queried by participant; idle/move completions omitted |
+| Memories | Implemented — first greeting and first comfort per pair each point at that log event; not copied per participant |
 | Derived statistics | Implemented — fatigue rates from constitution |
 
 ---

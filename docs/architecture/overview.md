@@ -487,7 +487,7 @@ The browser can display 20 independently moving entities. Two browser clients re
 
 The first vertical slice is complete. A headless test confirms the simulation keeps advancing with no browser connected, and the workspace tests cover the simulation and the server.
 
-Milestone 03 is complete. Characters choose idle, move, eat, rest, drink or work from needs, curiosity, industriousness and a small seeded bias. Failures are recorded. Eight personality traits stay stored until a later system reads them. Milestone 04 notes are in `docs/roadmap/notes/04-from-03.md`. Pathing refinements and the later milestones are listed in the roadmap.
+Milestone 04 is in progress. Characters greet a living neighbour while needs are quiet; sociability scores that choice. An empathetic character instead comforts a neighbour whose hunger, thirst or fatigue is above 0.3, and stays until that need recovers. A completed greet or comfort writes one relationship and one log event with both participants, and the first of each kind is one shared memory. Inspection lists a character's events. Loyalty and honesty stay unread. Pathing refinements and the later milestones are listed in the roadmap.
 
 Do not delay the visible vertical slice to build every future system.
 

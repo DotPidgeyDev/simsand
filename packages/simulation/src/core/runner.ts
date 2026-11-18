@@ -32,6 +32,9 @@ export function tickSimulation(runner: SimulationRunner): void {
 
   const deltaSeconds = runner.clock.fixedDeltaSeconds;
 
+  runner.world.tick = runner.clock.tick;
+  runner.world.elapsedSeconds = runner.clock.elapsedSeconds;
+
   updateLifecycle(runner.world, deltaSeconds);
   updateActions(runner.world, deltaSeconds);
   updateNeeds(runner.world, deltaSeconds);

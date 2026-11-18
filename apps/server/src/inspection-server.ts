@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 
-import type { EntityInspection, SimulationStatus, WorldSnapshot } from '@simsand/shared';
+import type { EntityInspection, SimulationLogEvent, SimulationStatus, WorldSnapshot } from '@simsand/shared';
 
 export interface ServerInfo {
   startedAt: Date;
@@ -12,6 +12,7 @@ export interface ServerInfo {
 export interface InspectionSource {
   getStatus(): Promise<SimulationStatus>;
   inspectEntity(id: string): Promise<EntityInspection | undefined>;
+  inspectHistory(id: string): Promise<SimulationLogEvent[] | undefined>;
   getSnapshot(): WorldSnapshot | undefined;
   getServerInfo(): ServerInfo;
 }
@@ -61,6 +62,22 @@ export function createInspectionServer(source: InspectionSource): FastifyInstanc
       count: snapshot.entities.length,
       entities: snapshot.entities.map(({ id, x, y }) => ({ id, x, y })),
     };
+  });
+
+  app.get<{ Params: { id: string } }>('/entities/:id/history', async (request, reply) => {
+    let events: SimulationLogEvent[] | undefined;
+
+    try {
+      events = await source.inspectHistory(request.params.id);
+    } catch (error) {
+      return reply.code(503).send(unavailable(error));
+    }
+
+    if (!events) {
+      return reply.code(404).send({ error: 'not_found', message: `No entity with ID ${request.params.id}` });
+    }
+
+    return { id: request.params.id, count: events.length, events };
   });
 
   app.get<{ Params: { id: string } }>('/entities/:id', async (request, reply) => {

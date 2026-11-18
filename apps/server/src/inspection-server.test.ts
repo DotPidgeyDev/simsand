@@ -34,6 +34,7 @@ const entity: EntityInspection = {
     ...generateCharacterProfile(1, 'character-0001').needs,
     curiosity: generateCharacterProfile(1, 'character-0001').personality.curiosity,
     industriousness: generateCharacterProfile(1, 'character-0001').personality.industriousness,
+    sociability: generateCharacterProfile(1, 'character-0001').personality.sociability,
   }),
   cooldowns: emptyCooldowns(),
   available: actionAvailability({
@@ -42,6 +43,9 @@ const entity: EntityInspection = {
     cooldowns: emptyCooldowns(),
   }),
   outcome: null,
+  actionTarget: null,
+  relationships: [],
+  memories: [],
   derived: derivedStats(generateCharacterProfile(1, 'character-0001').attributes.constitution),
   tile: { x: 1, y: 2, terrain: 'grass' },
 };
@@ -60,6 +64,7 @@ function source(overrides: Partial<InspectionSource> = {}): InspectionSource {
   return {
     getStatus: async () => status,
     inspectEntity: async (id) => (id === entity.id ? entity : undefined),
+    inspectHistory: async (id) => (id === entity.id ? [] : undefined),
     getSnapshot: () => snapshot,
     getServerInfo: () => ({
       startedAt: new Date(Date.now() - 90_000),
@@ -138,6 +143,26 @@ describe('inspection server', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual(entity);
+  });
+
+  it('returns history for one entity', async () => {
+    app = createInspectionServer(source({
+      inspectHistory: async () => [{
+        eventId: 'log-1',
+        type: 'character.greeted',
+        tick: 4,
+        elapsedSeconds: 0.4,
+        participants: ['character-0001', 'character-0002'],
+        location: { x: 1.5, y: 2.5 },
+        payload: { action: 'greet', result: 'completed', initiator: 'character-0001' },
+      }],
+    }));
+
+    const response = await app.inject({ method: 'GET', url: '/entities/character-0001/history' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json().count).toBe(1);
+    expect(response.json().events[0].participants).toEqual(['character-0001', 'character-0002']);
   });
 
   it('returns 404 for an unknown entity', async () => {

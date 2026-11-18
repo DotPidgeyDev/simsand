@@ -101,6 +101,7 @@ const simulation = new SimulationWorker((message) => {
 const inspectionServer = createInspectionServer({
   getStatus: () => simulation.getStatus(),
   inspectEntity: (id) => simulation.inspectEntity(id),
+  inspectHistory: (id) => simulation.inspectHistory(id),
   getSnapshot: () => browserServer.getLatestSnapshot(),
   getServerInfo: () => ({ startedAt, browserClients: browserServer.clientCount, lastSave }),
 });

@@ -1,5 +1,7 @@
 import { createWorld } from 'bitecs';
 
+import type { MemoryRecord, RelationshipRecord, SimulationLogEvent } from '@simsand/shared';
+
 import type { WorldMap } from './map.js';
 import { createWorldMap } from './map.js';
 
@@ -12,6 +14,13 @@ export interface SimulationWorld {
   // Used to derive a new character's profile. Population generation and
   // restoring a save both set it.
   seed: number;
+  tick: number;
+  elapsedSeconds: number;
+  relationships: Map<string, RelationshipRecord>;
+  log: SimulationLogEvent[];
+  nextLogId: number;
+  memories: MemoryRecord[];
+  nextMemoryId: number;
 }
 
 export function createSimulationWorld(
@@ -23,5 +32,12 @@ export function createSimulationWorld(
     entityIds: new Map(),
     map,
     seed,
+    tick: 0,
+    elapsedSeconds: 0,
+    relationships: new Map(),
+    log: [],
+    nextLogId: 1,
+    memories: [],
+    nextMemoryId: 1,
   };
 }

@@ -134,7 +134,12 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   const world = value as Record<string, unknown>;
 
-  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, PERSISTED_WORLD_VERSION].includes(world.version as number)) {
+  if (
+    typeof world.version !== 'number'
+    || !Number.isInteger(world.version)
+    || world.version < 1
+    || world.version > PERSISTED_WORLD_VERSION
+  ) {
     throw new Error(`Unsupported snapshot version: ${String(world.version)}`);
   }
 
@@ -214,6 +219,8 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
       for (const id of ACTION_IDS) {
         if (id === 'work' && Number(world.version) < 12) continue;
+        if (id === 'greet' && Number(world.version) < 13) continue;
+        if (id === 'comfort' && Number(world.version) < 15) continue;
 
         if (!isFiniteNumber(cooldowns[id]) || (cooldowns[id] as number) < 0) {
           throw new Error(`Character cooldown for ${id} is missing or invalid`);
@@ -248,6 +255,22 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
         throw new Error('Character working flag is missing');
       }
     }
+  }
+
+  if (Number(world.version) >= 13) {
+    for (const entity of world.entities as { actionTarget?: unknown }[]) {
+      if (typeof entity.actionTarget !== 'string') {
+        throw new Error('Character action target is missing');
+      }
+    }
+
+    if (!Array.isArray(world.relationships) || !Array.isArray(world.log)) {
+      throw new Error('World relationships or log are missing');
+    }
+  }
+
+  if (Number(world.version) >= 14 && !Array.isArray(world.memories)) {
+    throw new Error('World memories are missing');
   }
 
   const ids = new Set(world.entities.map((entity) => entity.id));

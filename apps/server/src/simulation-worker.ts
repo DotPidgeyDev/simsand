@@ -4,6 +4,7 @@ import type {
   CommandResult,
   EntityInspection,
   PersistedWorld,
+  SimulationLogEvent,
   SimulationStatus,
   ServerToWorkerMessage,
   SimulationCommand,
@@ -61,6 +62,11 @@ export class SimulationWorker {
 
       if (message.type === 'world.inspected') {
         this.resolveReply(`inspect:${message.data.requestId}`, message.data.entity);
+        return;
+      }
+
+      if (message.type === 'world.inspected.history') {
+        this.resolveReply(`history:${message.data.requestId}`, message.data.events);
         return;
       }
 
@@ -135,6 +141,19 @@ export class SimulationWorker {
     );
 
     return entity ?? undefined;
+  }
+
+  async inspectHistory(entityId: string, timeoutMs = 2000): Promise<SimulationLogEvent[] | undefined> {
+    const requestId = this.nextRequestId++;
+
+    const events = await this.request<SimulationLogEvent[] | null>(
+      `history:${requestId}`,
+      { type: 'world.inspect.history.request', data: { requestId, entityId } },
+      timeoutMs,
+      `history for entity ${entityId}`,
+    );
+
+    return events ?? undefined;
   }
 
   executeCommand(command: SimulationCommand, timeoutMs = 2000): Promise<CommandResult> {
