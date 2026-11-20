@@ -40,6 +40,24 @@ export function rememberMeeting(
   return created;
 }
 
+// Lowest stable ID among neighbours this character has already met.
+export function knownNeighborId(
+  world: SimulationWorld,
+  selfId: string,
+  nearby: readonly { id: string }[],
+): string | undefined {
+  let best: string | undefined;
+
+  for (const neighbor of nearby) {
+    const record = world.relationships.get(pairKey(selfId, neighbor.id));
+
+    if (!record || record.meetings < 1) continue;
+    if (best === undefined || neighbor.id < best) best = neighbor.id;
+  }
+
+  return best;
+}
+
 export function relationshipsFor(world: SimulationWorld, id: string): CharacterRelationship[] {
   const result: CharacterRelationship[] = [];
 

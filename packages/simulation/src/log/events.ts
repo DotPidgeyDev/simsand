@@ -1,5 +1,6 @@
-import type { ActionId, ActionResult, MemoryKind, SimulationLogEvent, SimulationLogType } from '@simsand/shared';
+import type { ActionId, ActionResult, CharacterNeeds, MemoryKind, SimulationLogEvent, SimulationLogType } from '@simsand/shared';
 
+import { Needs } from '../components/needs.js';
 import { Position } from '../components/position.js';
 import type { SimulationWorld } from '../core/world.js';
 import { rememberEvent } from '../social/memories.js';
@@ -41,14 +42,33 @@ function pairEventThisTick(
   return undefined;
 }
 
+function statedNeeds(eid: number, honest: boolean): CharacterNeeds {
+  const needs = {
+    hunger: Needs.hunger[eid],
+    thirst: Needs.thirst[eid],
+    fatigue: Needs.fatigue[eid],
+  };
+
+  if (honest) return needs;
+
+  const worst = Math.max(needs.hunger, needs.thirst, needs.fatigue);
+
+  return {
+    hunger: needs.hunger === worst ? 0 : needs.hunger,
+    thirst: needs.thirst === worst ? 0 : needs.thirst,
+    fatigue: needs.fatigue === worst ? 0 : needs.fatigue,
+  };
+}
+
 function recordSocialCompletion(
   world: SimulationWorld,
   initiatorEid: number,
   initiatorId: string,
   otherId: string,
   type: SimulationLogType,
-  action: 'greet' | 'comfort',
+  action: 'greet' | 'comfort' | 'keep' | 'confide' | 'bluff',
   memory: MemoryKind,
+  reportedNeeds?: CharacterNeeds,
 ): SimulationLogEvent {
   const existing = pairEventThisTick(world, type, initiatorId, otherId);
 
@@ -61,7 +81,12 @@ function recordSocialCompletion(
     elapsedSeconds: world.elapsedSeconds,
     participants: sortedPair(initiatorId, otherId),
     location: { x: Position.x[initiatorEid], y: Position.y[initiatorEid] },
-    payload: { action, result: 'completed', initiator: initiatorId },
+    payload: {
+      action,
+      result: 'completed',
+      initiator: initiatorId,
+      ...(reportedNeeds ? { reportedNeeds } : {}),
+    },
   };
 
   append(world, event);
@@ -105,6 +130,59 @@ export function recordComfort(
   );
 }
 
+export function recordKeeping(
+  world: SimulationWorld,
+  initiatorEid: number,
+  initiatorId: string,
+  otherId: string,
+): SimulationLogEvent {
+  return recordSocialCompletion(
+    world,
+    initiatorEid,
+    initiatorId,
+    otherId,
+    'character.kept',
+    'keep',
+    'keeping',
+  );
+}
+
+export function recordConfiding(
+  world: SimulationWorld,
+  initiatorEid: number,
+  initiatorId: string,
+  otherId: string,
+): SimulationLogEvent {
+  return recordSocialCompletion(
+    world,
+    initiatorEid,
+    initiatorId,
+    otherId,
+    'character.confided',
+    'confide',
+    'confiding',
+    statedNeeds(initiatorEid, true),
+  );
+}
+
+export function recordBluff(
+  world: SimulationWorld,
+  initiatorEid: number,
+  initiatorId: string,
+  otherId: string,
+): SimulationLogEvent {
+  return recordSocialCompletion(
+    world,
+    initiatorEid,
+    initiatorId,
+    otherId,
+    'character.bluffed',
+    'bluff',
+    'bluffing',
+    statedNeeds(initiatorEid, false),
+  );
+}
+
 export function recordActionEnding(
   world: SimulationWorld,
   eid: number,
@@ -123,6 +201,24 @@ export function recordActionEnding(
     if (!otherId) return undefined;
 
     return recordComfort(world, eid, actorId, otherId);
+  }
+
+  if (action === 'keep' && result === 'completed') {
+    if (!otherId) return undefined;
+
+    return recordKeeping(world, eid, actorId, otherId);
+  }
+
+  if (action === 'confide' && result === 'completed') {
+    if (!otherId) return undefined;
+
+    return recordConfiding(world, eid, actorId, otherId);
+  }
+
+  if (action === 'bluff' && result === 'completed') {
+    if (!otherId) return undefined;
+
+    return recordBluff(world, eid, actorId, otherId);
   }
 
   if (result === 'completed' && (action === 'idle' || action === 'move')) {

@@ -15,8 +15,11 @@ export const Action = {
     work: [] as number[],
     greet: [] as number[],
     comfort: [] as number[],
+    keep: [] as number[],
+    confide: [] as number[],
+    bluff: [] as number[],
   } satisfies Record<ActionId, number[]>,
-  // Stable ID of the other character while greeting or comforting. Empty otherwise.
+  // Stable ID of the other character during a social action. Empty otherwise.
   target: [] as string[],
   // Index into ACTION_IDS for the action that just ended. -1 means none yet.
   outcomeAction: [] as number[],

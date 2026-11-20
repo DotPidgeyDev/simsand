@@ -14,6 +14,7 @@ import { createSimulationRunner, tickSimulation } from '../core/runner.js';
 import { createSimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
 import { inspectCharacter, inspectCharacterHistory } from '../inspection/inspect-character.js';
+import { rememberMeeting } from '../social/relationships.js';
 import { MIN_ACTION_SECONDS, readActionOutcome, updateActions } from '../systems/actions.js';
 
 function neighbours() {
@@ -44,6 +45,9 @@ function neighbours() {
     Personality.curiosity[eid] = 0.5;
     Personality.industriousness[eid] = 0;
     Personality.sociability[eid] = 1;
+    Personality.loyalty[eid] = 0;
+    Personality.honesty[eid] = 0.5;
+    Personality.empathy[eid] = 0;
     Lifecycle.ageSeconds[eid] = 0;
     Action.elapsed[eid] = 0;
   }
@@ -416,5 +420,287 @@ describe('comfort', () => {
     updateActions(world, 0.1);
 
     expect(Action.target[left]).toBe('worse');
+  });
+});
+
+function acquainted() {
+  const pair = neighbours();
+
+  rememberMeeting(pair.world, 'left', 'right', 'prior', 0);
+  return pair;
+}
+
+describe('keep', () => {
+  it('greets a neighbour they have not met, even when loyalty is stronger', () => {
+    const { world, left } = neighbours();
+    Personality.loyalty[left] = 1;
+    Personality.sociability[left] = 1;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[left]]).toBe('greet');
+  });
+
+  it('stays with someone already met instead of greeting them again', () => {
+    const { world, left } = acquainted();
+    Personality.loyalty[left] = 1;
+    Personality.sociability[left] = 0.4;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[left]]).toBe('keep');
+    expect(Action.target[left]).toBe('right');
+  });
+
+  it('keeps standing with them until the actor’s own need rises', () => {
+    const { world, left } = acquainted();
+    Personality.loyalty[left] = 1;
+    Personality.sociability[left] = 0;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[left]]).toBe('keep');
+    expect(world.log.filter((event) => event.type === 'character.kept')).toHaveLength(0);
+
+    Needs.hunger[left] = 0.4;
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(left)).toEqual({ action: 'keep', result: 'completed' });
+    expect(world.log.filter((event) => event.type === 'character.kept')).toEqual([
+      expect.objectContaining({
+        participants: ['left', 'right'],
+        payload: { action: 'keep', result: 'completed', initiator: 'left' },
+      }),
+    ]);
+    expect(world.memories).toEqual([
+      expect.objectContaining({
+        kind: 'keeping',
+        participants: ['left', 'right'],
+      }),
+    ]);
+    expect([...world.relationships.values()][0]?.meetings).toBe(2);
+  });
+
+  it('does not add another keeping memory for a later visit', () => {
+    const { world, left } = acquainted();
+    Personality.loyalty[left] = 1;
+    Personality.sociability[left] = 0;
+
+    const finish = () => {
+      Needs.hunger[left] = 0.4;
+      Action.elapsed[left] = MIN_ACTION_SECONDS;
+      updateActions(world, 0.1);
+    };
+
+    updateActions(world, 0.1);
+    finish();
+    world.tick += 1;
+    Needs.hunger[left] = 0.2;
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+    finish();
+
+    expect(world.log.filter((event) => event.type === 'character.kept')).toHaveLength(2);
+    expect(world.memories.filter((memory) => memory.kind === 'keeping')).toHaveLength(1);
+  });
+
+  it('records one keep when each has been standing with the other', () => {
+    const { world, left, right } = acquainted();
+    Personality.loyalty[left] = 1;
+    Personality.loyalty[right] = 1;
+    Personality.sociability[left] = 0;
+    Personality.sociability[right] = 0;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    Action.elapsed[right] = MIN_ACTION_SECONDS;
+    Needs.hunger[left] = 0.4;
+    Needs.hunger[right] = 0.4;
+    updateActions(world, 0.1);
+
+    expect(world.log.filter((event) => event.type === 'character.kept')).toHaveLength(1);
+    expect([...world.relationships.values()][0]?.meetings).toBe(2);
+  });
+
+  it('fails a keep already underway when the neighbour leaves', () => {
+    const { world, left, right } = acquainted();
+    Personality.loyalty[left] = 1;
+    Personality.sociability[left] = 0;
+
+    updateActions(world, 0.1);
+    Position.x[right] = 7.5;
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(left)).toEqual({ action: 'keep', result: 'failed' });
+    expect(world.memories).toEqual([]);
+    expect([...world.relationships.values()][0]?.meetings).toBe(1);
+  });
+
+  it('comforts a known neighbour in need when empathy outranks loyalty', () => {
+    const { world, left, right } = acquainted();
+    Personality.loyalty[left] = 0.4;
+    Personality.empathy[left] = 1;
+    Personality.sociability[left] = 0;
+    Needs.hunger[right] = 0.6;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[left]]).toBe('comfort');
+    expect(Action.target[left]).toBe('right');
+  });
+
+  it('keeps the neighbour with the lowest id when more than one is known', () => {
+    const { world, left } = acquainted();
+    Personality.loyalty[left] = 1;
+    Personality.sociability[left] = 0;
+    createCharacter(world, {
+      id: 'ada',
+      x: 1.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+    rememberMeeting(world, 'left', 'ada', 'prior-ada', 0);
+
+    updateActions(world, 0.1);
+
+    expect(Action.target[left]).toBe('ada');
+  });
+});
+
+describe('confide and bluff', () => {
+  it('states the speaker’s needs when they are honest', () => {
+    const { world, left } = acquainted();
+    Personality.honesty[left] = 1;
+    Personality.loyalty[left] = 0;
+    Personality.sociability[left] = 0;
+    Needs.hunger[left] = 0.2;
+    Needs.thirst[left] = 0.1;
+    Needs.fatigue[left] = 0.05;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(left)).toEqual({ action: 'confide', result: 'completed' });
+    expect(world.log.filter((event) => event.type === 'character.confided')).toEqual([
+      expect.objectContaining({
+        participants: ['left', 'right'],
+        payload: {
+          action: 'confide',
+          result: 'completed',
+          initiator: 'left',
+          reportedNeeds: { hunger: 0.2, thirst: 0.1, fatigue: 0.05 },
+        },
+      }),
+    ]);
+    expect(world.memories).toEqual([
+      expect.objectContaining({ kind: 'confiding', participants: ['left', 'right'] }),
+    ]);
+  });
+
+  it('understates every need tied for the highest when they are dishonest', () => {
+    const { world, left } = acquainted();
+    Personality.honesty[left] = 0;
+    Personality.loyalty[left] = 0;
+    Personality.sociability[left] = 0;
+    Needs.hunger[left] = 0.2;
+    Needs.thirst[left] = 0.2;
+    Needs.fatigue[left] = 0.05;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(left)).toEqual({ action: 'bluff', result: 'completed' });
+    expect(world.log.filter((event) => event.type === 'character.bluffed')[0]?.payload.reportedNeeds).toEqual({
+      hunger: 0,
+      thirst: 0,
+      fatigue: 0.05,
+    });
+    expect(Needs.hunger[left]).toBe(0.2);
+    expect(world.memories.map((memory) => memory.kind)).toEqual(['bluffing']);
+  });
+
+  it('does not add another confiding memory for a later statement', () => {
+    const { world, left } = acquainted();
+    Personality.honesty[left] = 1;
+    Personality.loyalty[left] = 0;
+    Personality.sociability[left] = 0;
+
+    const finish = () => {
+      Action.elapsed[left] = MIN_ACTION_SECONDS;
+      updateActions(world, 0.1);
+    };
+
+    updateActions(world, 0.1);
+    finish();
+    world.tick += 1;
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(world.log.filter((event) => event.type === 'character.confided')).toHaveLength(2);
+    expect(world.memories.filter((memory) => memory.kind === 'confiding')).toHaveLength(1);
+  });
+
+  it('records one confide when each tells the other in the same tick', () => {
+    const { world, left, right } = acquainted();
+    Personality.honesty[left] = 1;
+    Personality.honesty[right] = 1;
+    Personality.loyalty[left] = 0;
+    Personality.loyalty[right] = 0;
+    Personality.sociability[left] = 0;
+    Personality.sociability[right] = 0;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    Action.elapsed[right] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(world.log.filter((event) => event.type === 'character.confided')).toHaveLength(1);
+    expect([...world.relationships.values()][0]?.meetings).toBe(2);
+  });
+
+  it('fails a confide already underway when the neighbour leaves', () => {
+    const { world, left, right } = acquainted();
+    Personality.honesty[left] = 1;
+    Personality.loyalty[left] = 0;
+    Personality.sociability[left] = 0;
+
+    updateActions(world, 0.1);
+    Position.x[right] = 7.5;
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(left)).toEqual({ action: 'confide', result: 'failed' });
+    expect(world.log[0]?.type).toBe('action.ended');
+    expect(world.memories).toEqual([]);
+  });
+
+  it('restores a bluff with the world', () => {
+    const { world, left } = acquainted();
+    Personality.honesty[left] = 0;
+    Personality.loyalty[left] = 0;
+    Personality.sociability[left] = 0;
+    Needs.hunger[left] = 0.2;
+    Needs.thirst[left] = 0.1;
+    Needs.fatigue[left] = 0.05;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    const persisted = capturePersistedWorld(world, createSimulationClock(), 0);
+    const { world: restored } = restorePersistedWorld(structuredClone(persisted));
+
+    expect(persisted.version).toBe(16);
+    expect(restored.log.filter((event) => event.type === 'character.bluffed')).toEqual(
+      world.log.filter((event) => event.type === 'character.bluffed'),
+    );
+    expect(restored.memories).toEqual(world.memories);
   });
 });

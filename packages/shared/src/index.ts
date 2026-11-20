@@ -45,7 +45,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 15;
+export const PERSISTED_WORLD_VERSION = 16;
 
 export const ATTRIBUTE_NAMES = [
   'strength',
@@ -91,7 +91,7 @@ export type BasicNeed = (typeof BASIC_NEEDS)[number];
 export type CharacterNeeds = Record<BasicNeed, number>;
 
 // Append only. Saved worlds store the name.
-export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort'] as const;
+export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort', 'keep', 'confide', 'bluff'] as const;
 
 export type ActionId = (typeof ACTION_IDS)[number];
 
@@ -108,7 +108,7 @@ export interface ActionEnding {
   result: ActionResult;
 }
 
-export const SIMULATION_LOG_TYPES = ['action.ended', 'character.greeted', 'character.comforted'] as const;
+export const SIMULATION_LOG_TYPES = ['action.ended', 'character.greeted', 'character.comforted', 'character.kept', 'character.confided', 'character.bluffed'] as const;
 
 export type SimulationLogType = (typeof SIMULATION_LOG_TYPES)[number];
 
@@ -125,6 +125,9 @@ export interface SimulationLogEvent {
     action: ActionId;
     result: ActionResult;
     initiator?: string;
+    // What the speaker claimed about their own needs. Present on confide and
+    // bluff. A bluff reports every need tied for the highest as satisfied.
+    reportedNeeds?: CharacterNeeds;
   };
 }
 
@@ -144,7 +147,7 @@ export interface CharacterRelationship {
 }
 
 // Append only. Saved worlds store the name.
-export const MEMORY_KINDS = ['greeting', 'comforting'] as const;
+export const MEMORY_KINDS = ['greeting', 'comforting', 'keeping', 'confiding', 'bluffing'] as const;
 
 export type MemoryKind = (typeof MEMORY_KINDS)[number];
 
@@ -200,7 +203,7 @@ export interface PersistedEntity extends CharacterProfile {
   cooldowns: ActionCooldowns;
   // How the action before this one ended. Null until one has ended.
   outcome: ActionEnding | null;
-  // Stable ID of the other character while greeting or comforting. Empty otherwise.
+  // Stable ID of the other character during a social action. Empty otherwise.
   actionTarget: string;
 }
 

@@ -221,6 +221,7 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
         if (id === 'work' && Number(world.version) < 12) continue;
         if (id === 'greet' && Number(world.version) < 13) continue;
         if (id === 'comfort' && Number(world.version) < 15) continue;
+        if ((id === 'keep' || id === 'confide' || id === 'bluff') && Number(world.version) < 16) continue;
 
         if (!isFiniteNumber(cooldowns[id]) || (cooldowns[id] as number) < 0) {
           throw new Error(`Character cooldown for ${id} is missing or invalid`);

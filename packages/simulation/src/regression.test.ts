@@ -71,6 +71,9 @@ describe('saved character regression', () => {
         work: -0.04566670234780759,
         greet: -0.003243945073336363,
         comfort: -0.027584953559562565,
+        keep: -0.027385083655826748,
+        confide: 0.027420115494169298,
+        bluff: 0.04461649802979082,
       },
     });
 
@@ -103,6 +106,9 @@ describe('saved character regression', () => {
         work: 0.03581320659723133,
         greet: 0.02465537975076586,
         comfort: -0.009815051499754191,
+        keep: -0.003977843187749386,
+        confide: 0.02543283784762025,
+        bluff: -0.029123423085547984,
       },
     });
   });
@@ -156,7 +162,7 @@ describe('saved character regression', () => {
 // they must not change this cycle.
 describe('milestone 03 behaviour', () => {
   it('keeps the action and outcome catalogs', () => {
-    expect(ACTION_IDS).toEqual(['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort']);
+    expect(ACTION_IDS.slice(0, 8)).toEqual(['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort']);
     expect(ACTION_OUTCOMES).toEqual(['completed', 'interrupted', 'failed']);
     expect([...PERSONALITY_TRAITS]).toEqual([
       'aggression',

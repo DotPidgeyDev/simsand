@@ -15,6 +15,7 @@ import { Position } from '../components/position.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
 import { recordActionEnding } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, distressOf, isAdjacentLiving, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
+import { knownNeighborId } from '../social/relationships.js';
 import { steerToward } from './movement.js';
 import { createRandom } from '../core/random.js';
 import {
@@ -70,6 +71,8 @@ interface NeedState {
   industriousness: number;
   sociability: number;
   empathy: number;
+  loyalty: number;
+  honesty: number;
   alive: boolean;
   onWater: boolean;
   onCamp: boolean;
@@ -78,6 +81,7 @@ interface NeedState {
   canReachLand: boolean;
   canReachCamp: boolean;
   hasNeighbor: boolean;
+  hasKnownNeighbor: boolean;
   targetAdjacent: boolean;
   // Highest need of a living neighbour, or of the character already chosen.
   neighborDistress: number;
@@ -139,7 +143,7 @@ interface ActionDefinition {
 }
 
 // Order is the tie break: eat, then drink, then rest, then work, then comfort,
-// then greet, then move, then idle.
+// then keep, then confide, then bluff, then greet, then move, then idle.
 export const actionDefinitions: readonly ActionDefinition[] = [
   {
     id: 'eat',
@@ -216,6 +220,49 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     losesTarget: true,
   },
   {
+    id: 'keep',
+    score: (state) => state.loyalty * comfort(state),
+    requiresLife: true,
+    // Only someone they have already met. The first meeting is still a greeting.
+    ready: (state) => comfortable(state) && state.hasKnownNeighbor,
+    holds: (state) => state.targetAdjacent,
+    sustain: (state) => comfortable(state) && state.targetAdjacent,
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: false,
+    losesTarget: true,
+  },
+  {
+    id: 'confide',
+    score: (state) => state.honesty * comfort(state),
+    requiresLife: true,
+    ready: (state) => comfortable(state) && state.hasKnownNeighbor,
+    holds: (state) => state.targetAdjacent,
+    sustain: () => false,
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: false,
+    losesTarget: true,
+  },
+  {
+    id: 'bluff',
+    score: (state) => (1 - state.honesty) * comfort(state),
+    requiresLife: true,
+    ready: (state) => comfortable(state) && state.hasKnownNeighbor,
+    holds: (state) => state.targetAdjacent,
+    sustain: () => false,
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: false,
+    losesTarget: true,
+  },
+  {
     id: 'greet',
     score: (state) => state.sociability * comfort(state),
     requiresLife: true,
@@ -279,6 +326,8 @@ function needState(input: {
   industriousness?: number;
   sociability?: number;
   empathy?: number;
+  loyalty?: number;
+  honesty?: number;
   alive?: boolean;
   onWater?: boolean;
   onCamp?: boolean;
@@ -286,6 +335,7 @@ function needState(input: {
   canReachLand?: boolean;
   canReachCamp?: boolean;
   hasNeighbor?: boolean;
+  hasKnownNeighbor?: boolean;
   targetAdjacent?: boolean;
   neighborDistress?: number;
   targetDistress?: number;
@@ -298,6 +348,8 @@ function needState(input: {
     industriousness: Math.min(1, Math.max(0, input.industriousness ?? 1)),
     sociability: Math.min(1, Math.max(0, input.sociability ?? 0)),
     empathy: Math.min(1, Math.max(0, input.empathy ?? 0)),
+    loyalty: Math.min(1, Math.max(0, input.loyalty ?? 0)),
+    honesty: Math.min(1, Math.max(0, input.honesty ?? 0)),
     alive: input.alive ?? true,
     onWater: input.onWater ?? false,
     onCamp: input.onCamp ?? false,
@@ -305,6 +357,7 @@ function needState(input: {
     canReachLand: input.canReachLand ?? true,
     canReachCamp: input.canReachCamp ?? false,
     hasNeighbor: input.hasNeighbor ?? false,
+    hasKnownNeighbor: input.hasKnownNeighbor ?? false,
     targetAdjacent: input.targetAdjacent ?? false,
     neighborDistress: Math.min(1, Math.max(0, input.neighborDistress ?? 0)),
     targetDistress: Math.min(1, Math.max(0, input.targetDistress ?? 0)),
@@ -333,6 +386,8 @@ export function actionUtilities(input: {
   industriousness?: number;
   sociability?: number;
   empathy?: number;
+  loyalty?: number;
+  honesty?: number;
 }): Record<ActionId, number> {
   const state = needState(input);
   const utilities = emptyCooldowns();
@@ -387,12 +442,15 @@ export function actionAvailability(input: {
   industriousness?: number;
   sociability?: number;
   empathy?: number;
+  loyalty?: number;
+  honesty?: number;
   onWater?: boolean;
   onCamp?: boolean;
   canReachWater?: boolean;
   canReachLand?: boolean;
   canReachCamp?: boolean;
   hasNeighbor?: boolean;
+  hasKnownNeighbor?: boolean;
   targetAdjacent?: boolean;
   neighborDistress?: number;
   targetDistress?: number;
@@ -506,6 +564,9 @@ function readCooldowns(eid: number): ActionCooldowns {
     work: Action.cooldown.work[eid],
     greet: Action.cooldown.greet[eid],
     comfort: Action.cooldown.comfort[eid],
+    keep: Action.cooldown.keep[eid],
+    confide: Action.cooldown.confide[eid],
+    bluff: Action.cooldown.bluff[eid],
   };
 }
 
@@ -572,6 +633,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
 
     const nearby = livingNeighbors(world, eid, occupancy);
     const neighborId = adjacentLivingId(nearby);
+    const knownId = knownNeighborId(world, Identity.id[eid], nearby);
     const distressed = mostDistressedNeighbor(nearby);
     const targetId = Action.target[eid];
     const onWater = standingOnWater(world, Position.x[eid], Position.y[eid]);
@@ -587,6 +649,8 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       industriousness: Personality.industriousness[eid],
       sociability: Personality.sociability[eid],
       empathy: Personality.empathy[eid],
+      loyalty: Personality.loyalty[eid],
+      honesty: Personality.honesty[eid],
       alive: true,
       onWater,
       onCamp,
@@ -594,6 +658,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
       hasNeighbor: neighborId !== undefined,
+      hasKnownNeighbor: knownId !== undefined,
       targetAdjacent: Boolean(targetId) && isAdjacentLiving(world, eid, targetId),
       neighborDistress: distressed?.distress ?? 0,
       targetDistress: targetId ? distressOf(world, targetId) : 0,
@@ -631,12 +696,15 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       industriousness: state.industriousness,
       sociability: state.sociability,
       empathy: state.empathy,
+      loyalty: state.loyalty,
+      honesty: state.honesty,
       onWater: state.onWater,
       canReachWater: state.canReachWater,
       canReachLand: state.canReachLand,
       onCamp: state.onCamp,
       canReachCamp: state.canReachCamp,
       hasNeighbor: state.hasNeighbor,
+      hasKnownNeighbor: state.hasKnownNeighbor,
       targetAdjacent: state.targetAdjacent,
       neighborDistress: state.neighborDistress,
       targetDistress: state.targetDistress,
@@ -651,14 +719,23 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
     const next = chooseAction(utilities, available);
     Action.kind[eid] = ACTION_IDS.indexOf(next);
     Action.elapsed[eid] = deltaSeconds;
-    Action.target[eid] = next === 'greet'
-      ? neighborId ?? ''
-      : next === 'comfort'
-        ? distressed?.id ?? ''
-        : '';
+    Action.target[eid] = socialTarget(next, neighborId, distressed?.id, knownId);
     applyAction(eid, next);
     directMove(world, eid, next, state);
   }
+}
+
+function socialTarget(
+  action: ActionId,
+  neighborId: string | undefined,
+  distressedId: string | undefined,
+  knownId: string | undefined,
+): string {
+  if (action === 'greet') return neighborId ?? '';
+  if (action === 'comfort') return distressedId ?? '';
+  if (action === 'keep' || action === 'confide' || action === 'bluff') return knownId ?? '';
+
+  return '';
 }
 
 function noteEnding(

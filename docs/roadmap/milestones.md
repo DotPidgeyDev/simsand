@@ -2,7 +2,7 @@
 
 **Status:** Active — Milestone 04 in progress  
 **Version:** 1.8  
-**Last updated:** 2026-11-18
+**Last updated:** 2026-11-20
 
 ## Guiding approach
 
@@ -290,7 +290,7 @@ The first increment is in the world:
   participants. If both greet each other in the same tick, that is still
   one event and one meeting.
 - The log also records failed and interrupted actions, and completed
-  eat, drink, rest, work, greet and comfort. Idle and move completions are not
+  eat, drink, rest, work, greet, comfort, keep, confide and bluff. Idle and move completions are not
   stored. The in-memory log keeps the newest 10,000 events.
 - Inspection shows relationships on the character and lists that
   character's events at `GET /entities/:id/history`.
@@ -310,13 +310,31 @@ The first increment is in the world:
   both participants, and counts as a meeting on the same relationship.
   The first comfort between a pair also writes one `comforting` memory
   that points at that event. A later comfort does not add another.
-- Saves are format version 15: greet and comfort cooldowns,
-  `actionTarget`, `relationships`, `log` and `memories`. A version 14
-  save gains a comfort cooldown of zero. Older saves gain empty
-  collections.
+- `keep` reads loyalty. It can start only while the actor's own needs
+  are quiet and a living neighbour has already met them. The target is
+  the known neighbour with the lowest stable ID. The visit continues
+  while that neighbour stays adjacent and the actor's needs stay quiet,
+  and it fails if the neighbour leaves. A stranger is still greeted.
+  An equal score with greet keeps the known person. Comfort still wins
+  when that person is in need and empathy scores at least as high.
+- Completing a keep writes one `character.kept` log event with both
+  participants, and counts as a meeting on the same relationship. The
+  first keep between a pair also writes one `keeping` memory. A later
+  keep does not add another.
+- `confide` scores `honesty * comfort` and `bluff` scores
+  `(1 - honesty) * comfort`. Either can start only beside someone
+  already met, while the actor's own needs are quiet, and each ends
+  after the usual commitment unless the neighbour leaves. Confide
+  reports the speaker's hunger, thirst and fatigue. Bluff reports every
+  need tied for the highest as 0 and leaves the others unchanged. The
+  listener's needs do not change. The first of each kind is one shared
+  memory, `confiding` or `bluffing`.
+- Saves are format version 16: keep, confide and bluff cooldowns,
+  `actionTarget`, `relationships`, `log` and `memories`. A version 15
+  save gains those three cooldowns at zero. A version 14 save gains a
+  comfort cooldown of zero. Older saves gain empty collections.
 
-Still to do in this milestone: social actions that read loyalty and
-honesty. Do not add a belonging need yet.
+Loyalty and honesty are read. Do not add a belonging need yet.
 
 Memories and the character log are a world-level list plus a linear
 query. That is enough for inspection. If an action starts reading

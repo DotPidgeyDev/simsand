@@ -50,6 +50,8 @@ describe('inspectCharacter', () => {
           industriousness: generateCharacterProfile(0, 'swimmer').personality.industriousness,
           sociability: generateCharacterProfile(0, 'swimmer').personality.sociability,
           empathy: generateCharacterProfile(0, 'swimmer').personality.empathy,
+          loyalty: generateCharacterProfile(0, 'swimmer').personality.loyalty,
+          honesty: generateCharacterProfile(0, 'swimmer').personality.honesty,
         }),
         actionBias(0, 'swimmer'),
       ),
@@ -98,6 +100,9 @@ describe('inspectCharacter', () => {
       work: false,
       greet: false,
       comfort: false,
+      keep: false,
+      confide: false,
+      bluff: false,
     });
   });
 

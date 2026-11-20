@@ -31,15 +31,23 @@ import { pairKey } from '../social/relationships.js';
 // Version 12 predates greet, relationships and the character log.
 // Version 13 predates memories.
 // Version 14 predates comfort.
+// Version 15 predates keep, confide and bluff.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV14 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV15 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 15;
+  entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
+    cooldowns: Omit<PersistedEntity['cooldowns'], 'keep' | 'confide' | 'bluff'>;
+  }>;
+};
+
+export type PersistedWorldV14 = Omit<PersistedWorldV15, 'version' | 'entities'> & {
   version: 14;
   entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
-    cooldowns: Omit<PersistedEntity['cooldowns'], 'comfort'>;
+    cooldowns: Omit<PersistedWorldV15['entities'][number]['cooldowns'], 'comfort'>;
   }>;
 };
 
@@ -116,6 +124,7 @@ export type UpgradeableWorld =
   | PersistedWorldV12
   | PersistedWorldV13
   | PersistedWorldV14
+  | PersistedWorldV15
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -152,6 +161,9 @@ export function capturePersistedWorld(
         work: Action.cooldown.work[eid],
         greet: Action.cooldown.greet[eid],
         comfort: Action.cooldown.comfort[eid],
+        keep: Action.cooldown.keep[eid],
+        confide: Action.cooldown.confide[eid],
+        bluff: Action.cooldown.bluff[eid],
       },
       outcome: readActionOutcome(eid),
       actionTarget: Action.target[eid] ?? '',
@@ -374,12 +386,23 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 14) {
+    return upgradePersistedWorld({
+      ...persisted,
+      version: 15,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        cooldowns: { ...entity.cooldowns, comfort: 0 },
+      })),
+    });
+  }
+
+  if (persisted.version === 15) {
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
       entities: persisted.entities.map((entity) => ({
         ...entity,
-        cooldowns: { ...entity.cooldowns, comfort: 0 },
+        cooldowns: { ...entity.cooldowns, keep: 0, confide: 0, bluff: 0 },
       })),
     };
   }

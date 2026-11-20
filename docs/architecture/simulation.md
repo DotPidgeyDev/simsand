@@ -581,10 +581,10 @@ Measure representative workloads again as systems are added, rather than assumin
 | Character profile | Implemented — name, attributes, personality, needs, lifecycle |
 | Lifecycle system | Implemented — age increases, and constitution's lifespan ends the life |
 | Needs system | Implemented — fatigue, hunger and thirst each rise and recover |
-| Action system | Implemented — idle, move, eat, rest, drink, work, greet and comfort, chosen from needs, curiosity, industriousness, sociability, empathy and a stable personal bias |
-| Relationships | Implemented — sparse records keyed by two stable IDs, written when a greet or comfort completes |
+| Action system | Implemented — idle, move, eat, rest, drink, work, greet, comfort, keep, confide and bluff, chosen from needs, curiosity, industriousness, sociability, empathy, loyalty, honesty and a stable personal bias |
+| Relationships | Implemented — sparse records keyed by two stable IDs, written when a social action completes |
 | Character event log | Implemented — one record per fact, queried by participant; idle/move completions omitted |
-| Memories | Implemented — first greeting and first comfort per pair each point at that log event; not copied per participant |
+| Memories | Implemented — the first greeting, comfort, keep, confide and bluff per pair each point at that log event; not copied per participant |
 | Derived statistics | Implemented — fatigue rates from constitution |
 
 ---

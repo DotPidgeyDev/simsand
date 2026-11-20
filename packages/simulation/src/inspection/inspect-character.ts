@@ -14,7 +14,7 @@ import { getTile, nearestTerrainTile } from '../core/map.js';
 import { historyFor } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
 import { memoriesFor } from '../social/memories.js';
-import { relationshipsFor } from '../social/relationships.js';
+import { knownNeighborId, relationshipsFor } from '../social/relationships.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Appearance } from '../components/appearance.js';
@@ -40,6 +40,7 @@ export function inspectCharacter(
   const campRoute = nearestTerrainTile(world.map, x, y, 'camp');
   const nearby = livingNeighbors(world, eid, buildOccupancy(world));
   const neighborId = adjacentLivingId(nearby);
+  const knownId = knownNeighborId(world, id, nearby);
   const distressed = mostDistressedNeighbor(nearby);
   const cooldowns = {
     ...emptyCooldowns(),
@@ -51,6 +52,9 @@ export function inspectCharacter(
     work: Action.cooldown.work[eid],
     greet: Action.cooldown.greet[eid],
     comfort: Action.cooldown.comfort[eid],
+    keep: Action.cooldown.keep[eid],
+    confide: Action.cooldown.confide[eid],
+    bluff: Action.cooldown.bluff[eid],
   };
 
   return {
@@ -77,6 +81,8 @@ export function inspectCharacter(
         industriousness: Personality.industriousness[eid],
         sociability: Personality.sociability[eid],
         empathy: Personality.empathy[eid],
+        loyalty: Personality.loyalty[eid],
+        honesty: Personality.honesty[eid],
       }),
       actionBias(world.seed, id),
     ),
@@ -90,12 +96,15 @@ export function inspectCharacter(
       industriousness: Personality.industriousness[eid],
       sociability: Personality.sociability[eid],
       empathy: Personality.empathy[eid],
+      loyalty: Personality.loyalty[eid],
+      honesty: Personality.honesty[eid],
       onWater: standingOnWater(world, x, y),
       canReachWater: waterRoute !== undefined,
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
       onCamp: standingOnCamp(world, x, y),
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
       hasNeighbor: neighborId !== undefined,
+      hasKnownNeighbor: knownId !== undefined,
       neighborDistress: distressed?.distress ?? 0,
       cooldowns,
     }),
