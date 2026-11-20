@@ -11,7 +11,7 @@ import { Attributes } from '../components/attributes.js';
 import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns, readActionOutcome, standingOnCamp, standingOnWater } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
-import { CAMP_YIELD, heldQuantity, inventoryFor } from '../economy/inventory.js';
+import { CAMP_YIELD, CRAFT_INPUT, heldQuantity, inventoryFor } from '../economy/inventory.js';
 import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
 import { historyFor } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
@@ -61,6 +61,7 @@ export function inspectCharacter(
     bluff: Action.cooldown.bluff[eid],
     give: Action.cooldown.give[eid],
     gather: Action.cooldown.gather[eid],
+    craft: Action.cooldown.craft[eid],
   };
 
   return {
@@ -117,6 +118,7 @@ export function inspectCharacter(
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
       canGive: heldQuantity(world, id, CAMP_YIELD) >= 1,
+      heldMaterial: heldQuantity(world, id, CRAFT_INPUT),
       nodeStock: pile?.quantity ?? 0,
       neighborDistress: distressed?.distress ?? 0,
       cooldowns,

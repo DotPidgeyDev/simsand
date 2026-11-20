@@ -45,10 +45,10 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 19;
+export const PERSISTED_WORLD_VERSION = 20;
 
 // Append only. Saved inventories store the name.
-export const ITEM_IDS = ['goods', 'material'] as const;
+export const ITEM_IDS = ['goods', 'material', 'food'] as const;
 
 export type ItemId = (typeof ITEM_IDS)[number];
 
@@ -115,7 +115,7 @@ export type BasicNeed = (typeof BASIC_NEEDS)[number];
 export type CharacterNeeds = Record<BasicNeed, number>;
 
 // Append only. Saved worlds store the name.
-export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort', 'keep', 'confide', 'bluff', 'give', 'gather'] as const;
+export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort', 'keep', 'confide', 'bluff', 'give', 'gather', 'craft'] as const;
 
 export type ActionId = (typeof ACTION_IDS)[number];
 

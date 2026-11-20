@@ -233,8 +233,8 @@ model incrementally as simulation systems become real.
     cooldown of zero. Version 16 gains keep, confide and bluff
     cooldowns of zero. Version 17 gains an empty inventory list. Version
     18 gains a give cooldown of zero. Version 19 gains resource nodes
-    from the map seed and a gather cooldown of zero. The next save
-    writes version 19.
+    from the map seed and a gather cooldown of zero. Version 20 gains
+    a craft cooldown of zero. The next save writes version 20.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot reshuffle an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker

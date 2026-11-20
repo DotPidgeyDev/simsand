@@ -13,7 +13,7 @@ import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
-import { CAMP_YIELD, heldQuantity } from '../economy/inventory.js';
+import { CAMP_YIELD, CRAFT_INPUT, heldQuantity } from '../economy/inventory.js';
 import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
 import { recordActionEnding } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, distressOf, isAdjacentLiving, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
@@ -91,6 +91,7 @@ interface NeedState {
   hasKnownNeighbor: boolean;
   // True when they are holding something they can hand over.
   canGive: boolean;
+  heldMaterial: number;
   // Quantity of the pile on the tile under them. Zero when there is none.
   nodeStock: number;
   targetAdjacent: boolean;
@@ -169,8 +170,8 @@ interface ActionDefinition {
 }
 
 // Order is the tie break: eat, then drink, then rest, then work, then gather,
-// then comfort, then keep, then confide, then bluff, then greet, then give,
-// then move, then idle.
+// then craft, then comfort, then keep, then confide, then bluff, then greet,
+// then give, then move, then idle.
 export const actionDefinitions: readonly ActionDefinition[] = [
   {
     id: 'eat',
@@ -220,7 +221,8 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     score: (state) => state.industriousness * comfort(state),
     requiresLife: true,
     // A camp is the only workplace. The visit happens while every need is quiet.
-    ready: (state) => state.onCamp && comfortable(state),
+    // Holding material is the craft visit, so this one stays the visit with no input.
+    ready: (state) => state.onCamp && comfortable(state) && state.heldMaterial < 1,
     holds: (state) => state.onCamp && comfortable(state),
     sustain: (state) => state.onCamp && comfortable(state),
     urgent: () => false,
@@ -232,13 +234,27 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   },
   {
     id: 'gather',
-    // Same preference as work. The pile has to be underfoot. Nothing walks
-    // them toward one.
+    // Same preference as work. The pile has to be underfoot.
     score: (state) => state.industriousness * comfort(state),
     requiresLife: true,
     ready: (state) => state.nodeStock > 0 && comfortable(state),
     holds: (state) => state.nodeStock > 0 && comfortable(state),
     sustain: (state) => state.nodeStock > 0 && comfortable(state),
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: false,
+    losesTarget: false,
+  },
+  {
+    id: 'craft',
+    // Same preference as work. The input has to already be in hand, at a camp.
+    score: (state) => state.industriousness * comfort(state),
+    requiresLife: true,
+    ready: (state) => state.onCamp && comfortable(state) && state.heldMaterial >= 1,
+    holds: (state) => state.onCamp && comfortable(state) && state.heldMaterial >= 1,
+    sustain: (state) => state.onCamp && comfortable(state) && state.heldMaterial >= 1,
     urgent: () => false,
     resting: false,
     eating: false,
@@ -399,6 +415,7 @@ function needState(input: {
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
+  heldMaterial?: number;
   nodeStock?: number;
   targetAdjacent?: boolean;
   neighborDistress?: number;
@@ -427,6 +444,7 @@ function needState(input: {
     hasNeighbor: input.hasNeighbor ?? false,
     hasKnownNeighbor: input.hasKnownNeighbor ?? false,
     canGive: input.canGive ?? false,
+    heldMaterial: Math.max(0, input.heldMaterial ?? 0),
     nodeStock: Math.max(0, input.nodeStock ?? 0),
     targetAdjacent: input.targetAdjacent ?? false,
     neighborDistress: Math.min(1, Math.max(0, input.neighborDistress ?? 0)),
@@ -527,6 +545,7 @@ export function actionAvailability(input: {
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
+  heldMaterial?: number;
   nodeStock?: number;
   targetAdjacent?: boolean;
   neighborDistress?: number;
@@ -618,6 +637,9 @@ function endingResult(action: ActionId, state: NeedState): ActionResult {
   // Leaving the pile, or finding it empty, is not a finished gathering.
   if (action === 'gather' && state.nodeStock <= 0) return 'failed';
 
+  // Leaving the camp, or no longer holding the input, is not a finished craft.
+  if (action === 'craft' && (!state.onCamp || state.heldMaterial < 1)) return 'failed';
+
   const definition = definitionFor(action);
 
   if (definition.losesTarget && !definition.holds(state)) return 'failed';
@@ -649,6 +671,7 @@ function readCooldowns(eid: number): ActionCooldowns {
     bluff: Action.cooldown.bluff[eid],
     give: Action.cooldown.give[eid],
     gather: Action.cooldown.gather[eid],
+    craft: Action.cooldown.craft[eid],
   };
 }
 
@@ -747,6 +770,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
       canGive: heldQuantity(world, Identity.id[eid], CAMP_YIELD) >= 1,
+      heldMaterial: heldQuantity(world, Identity.id[eid], CRAFT_INPUT),
       nodeStock: nodeAt(world, Position.x[eid], Position.y[eid])?.quantity ?? 0,
       targetAdjacent: Boolean(targetId) && isAdjacentLiving(world, eid, targetId),
       neighborDistress: distressed?.distress ?? 0,
@@ -799,6 +823,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       hasNeighbor: state.hasNeighbor,
       hasKnownNeighbor: state.hasKnownNeighbor,
       canGive: state.canGive,
+      heldMaterial: state.heldMaterial,
       nodeStock: state.nodeStock,
       targetAdjacent: state.targetAdjacent,
       neighborDistress: state.neighborDistress,

@@ -387,10 +387,10 @@ the item and the quantity, and the first gift between a pair is one
 Grass tiles can hold a finite pile of `material`. `gather` takes one
 when a visit on that tile ends, the same way a camp visit yields goods.
 An empty pile fails the visit and adds nothing. An industrious character
-walks to the nearer of a camp and a pile; a tie keeps the camp. Prices
-are still unread, and work does not spend material. Saves are format
-version 19. A version 18 save gains those piles and a gather cooldown
-of zero.
+walks to the nearer of a camp and a pile; a tie keeps the camp. Holding
+material at a camp crafts one food and spends one material. The visit
+with no input still yields goods. Prices are still unread. Saves are
+format version 20. A version 19 save gains a craft cooldown of zero.
 
 Initial scope:
 

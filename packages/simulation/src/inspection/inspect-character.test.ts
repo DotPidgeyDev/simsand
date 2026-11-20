@@ -108,6 +108,7 @@ describe('inspectCharacter', () => {
       bluff: false,
       give: false,
       gather: false,
+      craft: false,
     });
   });
 

@@ -36,15 +36,23 @@ import { pairKey } from '../social/relationships.js';
 // Version 16 predates inventories.
 // Version 17 predates give.
 // Version 18 predates resource nodes and gather.
+// Version 19 predates craft.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV18 = Omit<PersistedWorld, 'version' | 'nodes' | 'entities'> & {
+export type PersistedWorldV19 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 19;
+  entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
+    cooldowns: Omit<PersistedEntity['cooldowns'], 'craft'>;
+  }>;
+};
+
+export type PersistedWorldV18 = Omit<PersistedWorldV19, 'version' | 'nodes' | 'entities'> & {
   version: 18;
   entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
-    cooldowns: Omit<PersistedEntity['cooldowns'], 'gather'>;
+    cooldowns: Omit<PersistedWorldV19['entities'][number]['cooldowns'], 'gather'>;
   }>;
 };
 
@@ -150,6 +158,7 @@ export type UpgradeableWorld =
   | PersistedWorldV16
   | PersistedWorldV17
   | PersistedWorldV18
+  | PersistedWorldV19
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -191,6 +200,7 @@ export function capturePersistedWorld(
         bluff: Action.cooldown.bluff[eid],
         give: Action.cooldown.give[eid],
         gather: Action.cooldown.gather[eid],
+        craft: Action.cooldown.craft[eid],
       },
       outcome: readActionOutcome(eid),
       actionTarget: Action.target[eid] ?? '',
@@ -461,14 +471,25 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   if (persisted.version === 18) {
     const map = fromWorldMapData(persisted.map);
 
-    return {
+    return upgradePersistedWorld({
       ...persisted,
-      version: PERSISTED_WORLD_VERSION,
+      version: 19,
       entities: persisted.entities.map((entity) => ({
         ...entity,
         cooldowns: { ...entity.cooldowns, gather: 0 },
       })),
       nodes: generateResourceNodes(map, persisted.seed),
+    });
+  }
+
+  if (persisted.version === 19) {
+    return {
+      ...persisted,
+      version: PERSISTED_WORLD_VERSION,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        cooldowns: { ...entity.cooldowns, craft: 0 },
+      })),
     };
   }
 

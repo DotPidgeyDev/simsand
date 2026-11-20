@@ -77,6 +77,7 @@ describe('saved character regression', () => {
         bluff: 0.04461649802979082,
         give: 0.000049177510663867,
         gather: 0.03511252806056291,
+        craft: -0.04739880277775228,
       },
     });
 
@@ -114,6 +115,7 @@ describe('saved character regression', () => {
         bluff: -0.029123423085547984,
         give: 0.02370677699800581,
         gather: 0.0003843397134914994,
+        craft: -0.012971484987065197,
       },
     });
   });

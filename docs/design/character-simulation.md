@@ -212,7 +212,8 @@ a need rises past 0.3. A completed visit adds one goods to that character's inve
 A character who is holding goods can give one to a neighbour they have
 already met. Greed scores against that gift. An industrious character walks to the nearer of a camp and a pile of
 material. Standing on the pile, they can gather one unit when that visit
-ends. A tie keeps the walk to the camp.
+ends. A tie keeps the walk to the camp. Holding material at a camp,
+they craft one food from it instead of the visit that needs no input.
 Sociability is read by greet. Empathy is read by comfort, which starts
 beside a neighbour whose hunger, thirst or fatigue is above 0.3 and
 continues until that need recovers. Loyalty is read by keep, which
