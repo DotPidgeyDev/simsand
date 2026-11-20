@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_IDS, ACTION_OUTCOMES, LIFECYCLE_STATES, PERSONALITY_TRAITS, TERRAIN_TYPES } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, LIFECYCLE_STATES, MEMORY_KINDS, PERSONALITY_TRAITS, SIMULATION_LOG_TYPES, TERRAIN_TYPES } from '@simsand/shared';
 
 import { generateCharacterProfile, spriteIdFor, startingAgeSeconds } from './characters/profile.js';
 import { Action } from './components/action.js';
@@ -15,7 +15,8 @@ import { createWorldMap } from './core/map.js';
 import { createSimulationRunner, tickSimulation } from './core/runner.js';
 import { createSimulationWorld } from './core/world.js';
 import { createCharacter } from './entities/create-character.js';
-import { ACTION_COOLDOWN_SECONDS, actionBias, readActionOutcome } from './systems/actions.js';
+import { inspectCharacterHistory } from './inspection/inspect-character.js';
+import { ACTION_COOLDOWN_SECONDS, MIN_ACTION_SECONDS, actionBias, readActionOutcome, updateActions } from './systems/actions.js';
 
 // The live world is seed 12345. The name, sprite, attributes, needs and bias
 // are what its saves already stored. The age is what a new character of that
@@ -349,3 +350,153 @@ describe('milestone 03 behaviour', () => {
     expect(readActionOutcome(eid)).toEqual({ action: 'move', result: 'interrupted' });
   });
 });
+
+// Milestone 04 close-out. Later milestones may append actions, memories
+// and log types. They must not change this social cycle.
+describe('milestone 04 behaviour', () => {
+  it('keeps the social catalogs appended after the earlier actions', () => {
+    expect(ACTION_IDS.slice(0, 11)).toEqual([
+      'idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort', 'keep', 'confide', 'bluff',
+    ]);
+    expect(MEMORY_KINDS.slice(0, 5)).toEqual(['greeting', 'comforting', 'keeping', 'confiding', 'bluffing']);
+    expect(SIMULATION_LOG_TYPES.slice(0, 6)).toEqual([
+      'action.ended', 'character.greeted', 'character.comforted', 'character.kept', 'character.confided', 'character.bluffed',
+    ]);
+  });
+
+  it('greets a neighbour once and shares that meeting', () => {
+    const { world, left, right } = beside();
+    Personality.sociability[left] = 1;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(left)).toEqual({ action: 'greet', result: 'completed' });
+    expect(world.relationships.size).toBe(1);
+    expect(world.memories.map((memory) => memory.kind)).toEqual(['greeting']);
+    expect(world.log.filter((event) => event.type === 'character.greeted')).toHaveLength(1);
+    expect(inspectCharacterHistory(world, 'left')).toEqual(inspectCharacterHistory(world, 'right'));
+  });
+
+  it('comforts a neighbour in need instead of greeting them', () => {
+    const { world, left, right } = beside();
+    Personality.empathy[left] = 1;
+    Needs.hunger[right] = 0.6;
+
+    updateActions(world, 0.1);
+    expect(ACTION_IDS[Action.kind[left]]).toBe('comfort');
+
+    Needs.hunger[right] = 0.2;
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(left)).toEqual({ action: 'comfort', result: 'completed' });
+    expect(world.memories.map((memory) => memory.kind)).toEqual(['comforting']);
+  });
+
+  it('keeps company with someone already met', () => {
+    const { world, left } = beside();
+    Personality.sociability[left] = 1;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    Personality.sociability[left] = 0;
+    Personality.loyalty[left] = 1;
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[left]]).toBe('keep');
+
+    Needs.hunger[left] = 0.4;
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(left)).toEqual({ action: 'keep', result: 'completed' });
+    expect(world.memories.some((memory) => memory.kind === 'keeping')).toBe(true);
+  });
+
+  it('states its own needs, or understates the highest ones', () => {
+    const truthful = beside();
+    Personality.sociability[truthful.left] = 1;
+    updateActions(truthful.world, 0.1);
+    Action.elapsed[truthful.left] = MIN_ACTION_SECONDS;
+    Personality.sociability[truthful.left] = 0;
+    Personality.honesty[truthful.left] = 1;
+    Needs.hunger[truthful.left] = 0.2;
+    Needs.thirst[truthful.left] = 0.1;
+    Needs.fatigue[truthful.left] = 0.05;
+    updateActions(truthful.world, 0.1);
+    Action.elapsed[truthful.left] = MIN_ACTION_SECONDS;
+    updateActions(truthful.world, 0.1);
+    Action.elapsed[truthful.left] = MIN_ACTION_SECONDS;
+    updateActions(truthful.world, 0.1);
+
+    expect(truthful.world.log.find((event) => event.type === 'character.confided')?.payload.reportedNeeds).toEqual({
+      hunger: 0.2,
+      thirst: 0.1,
+      fatigue: 0.05,
+    });
+
+    const dishonest = beside();
+    Personality.sociability[dishonest.left] = 1;
+    updateActions(dishonest.world, 0.1);
+    Action.elapsed[dishonest.left] = MIN_ACTION_SECONDS;
+    Personality.sociability[dishonest.left] = 0;
+    Personality.honesty[dishonest.left] = 0;
+    Needs.hunger[dishonest.left] = 0.2;
+    Needs.thirst[dishonest.left] = 0.1;
+    Needs.fatigue[dishonest.left] = 0.05;
+    updateActions(dishonest.world, 0.1);
+    Action.elapsed[dishonest.left] = MIN_ACTION_SECONDS;
+    updateActions(dishonest.world, 0.1);
+    Action.elapsed[dishonest.left] = MIN_ACTION_SECONDS;
+    updateActions(dishonest.world, 0.1);
+
+    expect(dishonest.world.log.find((event) => event.type === 'character.bluffed')?.payload.reportedNeeds).toEqual({
+      hunger: 0,
+      thirst: 0.1,
+      fatigue: 0.05,
+    });
+    expect(Needs.hunger[dishonest.left]).toBe(0.2);
+  });
+});
+
+function beside() {
+  const world = createSimulationWorld(createWorldMap(8, 8, 'grass'));
+  const left = createCharacter(world, {
+    id: 'left',
+    x: 2.5,
+    y: 2.5,
+    velocityX: 0,
+    velocityY: 0,
+    color: 0xffffff,
+    sprite: 'wanderer',
+  });
+  const right = createCharacter(world, {
+    id: 'right',
+    x: 3.5,
+    y: 2.5,
+    velocityX: 0,
+    velocityY: 0,
+    color: 0xffffff,
+    sprite: 'wanderer',
+  });
+
+  for (const eid of [left, right]) {
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 0.5;
+    Personality.industriousness[eid] = 0;
+    Personality.sociability[eid] = 0;
+    Personality.empathy[eid] = 0;
+    Personality.loyalty[eid] = 0;
+    Personality.honesty[eid] = 0.5;
+    Lifecycle.ageSeconds[eid] = 0;
+    Action.elapsed[eid] = 0;
+  }
+
+  return { world, left, right };
+}

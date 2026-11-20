@@ -1,7 +1,7 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 04 in progress  
-**Version:** 1.8  
+**Status:** Active — Milestone 05  
+**Version:** 1.9  
 **Last updated:** 2026-11-20
 
 ## Guiding approach
@@ -208,13 +208,13 @@ in `docs/roadmap/closeout.md`.
 
 The route is one shared field, and grass, dirt, water and camp cost the same number of steps. A later pathing pass can give a tile a higher cost, drink from the shore instead of standing in the water, refuse a walk that is too long, step around other people, aim at a private place, give a different body its own route, follow a target that moves, and hide a place a character has not seen.
 
-What a visit produces, and anything a character can carry or trade, is Milestone 05. Other characters, relationships and memories are Milestone 04.
+What a visit produces, and anything a character can carry or trade, is Milestone 05. Relationships and memories arrived in Milestone 04.
 
 ---
 
 ## Milestone 04 — Interaction and social behaviour
 
-**Status: In progress**
+**Status: Complete**
 
 Add interactions, sparse relationships, meaningful memories and basic social actions.
 
@@ -334,12 +334,31 @@ The first increment is in the world:
   save gains those three cooldowns at zero. A version 14 save gains a
   comfort cooldown of zero. Older saves gain empty collections.
 
-Loyalty and honesty are read. Do not add a belonging need yet.
+Closing this milestone defers a belonging need. It waits until idle,
+move, greet, comfort, keep, confide, and bluff are not enough, and it
+belongs with later social depth (Milestone 09), not with inventory.
+Memories and the character log stay a world-level list plus a linear
+query until Milestone 06 indexes them.
 
-Memories and the character log are a world-level list plus a linear
-query. That is enough for inspection. If an action starts reading
-memories in the tick, index them first (see Milestone 06). Do not
-filter the full array per character per tick.
+Regression for this cycle is in
+`packages/simulation/src/regression.test.ts`. Notes for Milestone 05
+are in `docs/roadmap/notes/05-from-04.md`. How to close a milestone is
+in `docs/roadmap/closeout.md`.
+
+### Definition of done
+
+- [x] Characters greet, comfort, keep, confide, and bluff from the same action list.
+- [x] Sociability, empathy, loyalty, and honesty are read by those actions.
+- [x] A completed social action updates one relationship and writes one log event for the pair.
+- [x] The first of each kind is one shared memory pointing at that event.
+- [x] A bluff understates the speaker's needs in the event and leaves the world unchanged.
+- [x] Inspection lists one character's events from the shared log.
+
+### Later, outside this milestone
+
+A belonging need is not part of this cycle. Indexing the log, memories,
+and relationships by participant is Milestone 06. A viewer-facing
+chronicle over the same log is Milestone 08.
 
 ---
 
@@ -348,6 +367,9 @@ filter the full array per character per tick.
 **Status: Planned**
 
 Add items, inventories, resource nodes, production, consumption and simple trade.
+
+Start from `docs/roadmap/notes/05-from-04.md`. A completed camp visit
+produces nothing yet. The first item should be what that visit yields.
 
 Initial scope:
 
@@ -461,6 +483,7 @@ Potential areas:
 - Advanced production and trade.
 - Territorial development.
 - Long-term social and economic simulation.
+- A belonging need, deferred from Milestone 04 until the existing social actions are not enough.
 
 Introduce these systems incrementally. Each should have clear ownership, inputs, outputs and interactions with existing simulation systems.
 
