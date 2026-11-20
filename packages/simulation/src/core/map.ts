@@ -161,8 +161,9 @@ const NEIGHBORS = [
 // One route for every passable tile, shared by every villager. Spread from
 // the goal tiles through grass, dirt and water. Rock is left out. The stored
 // tile is the next step, not the goal. Equal-length walks keep the earliest
-// goal in row-major order. Built once; the map does not change during a world.
-function walkField(map: WorldMap, isGoal: (index: number) => boolean): Array<TerrainRoute | undefined> {
+// goal in row-major order. Terrain goals are cached with the map. A pile
+// route is rebuilt when the set of piles changes.
+export function routesToward(map: WorldMap, isGoal: (index: number) => boolean): Array<TerrainRoute | undefined> {
   const count = map.width * map.height;
   const routes: Array<TerrainRoute | undefined> = new Array(count);
   const distance = new Int32Array(count).fill(-1);
@@ -212,9 +213,9 @@ function routeField(map: WorldMap): RouteField {
   if (cached) return cached;
 
   const field: RouteField = {
-    water: walkField(map, (index) => map.tiles[index] === WATER),
-    land: walkField(map, (index) => map.tiles[index] !== WATER && map.tiles[index] !== ROCK),
-    camp: walkField(map, (index) => map.tiles[index] === CAMP),
+    water: routesToward(map, (index) => map.tiles[index] === WATER),
+    land: routesToward(map, (index) => map.tiles[index] !== WATER && map.tiles[index] !== ROCK),
+    camp: routesToward(map, (index) => map.tiles[index] === CAMP),
   };
 
   routeFields.set(map, field);

@@ -3,6 +3,7 @@ import { query } from 'bitecs';
 import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
 
 import { getTile, nearestTerrainTile } from '../core/map.js';
+import type { TerrainRoute } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Action } from '../components/action.js';
@@ -18,8 +19,12 @@ const MOVE = ACTION_IDS.indexOf('move');
 // keeps the velocity they already have. Speed is unchanged, so a seeker is no
 // faster than anyone else.
 export function steerToward(world: SimulationWorld, eid: number, kind: 'water' | 'land' | 'camp'): void {
-  const target = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], kind);
+  steerAlong(world, eid, nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], kind));
+}
 
+// Point the current speed at the next step of a route. A missing route, or
+// already standing on the goal, leaves the velocity alone.
+export function steerAlong(world: SimulationWorld, eid: number, target: TerrainRoute | undefined): void {
   if (!target || target.distance === 0) return;
 
   const dx = target.x + 0.5 - Position.x[eid];

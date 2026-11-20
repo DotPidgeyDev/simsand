@@ -12,7 +12,7 @@ import { actionAvailability, actionBias, actionUtilities, biasedUtilities, empty
 import { derivedStats } from '../systems/needs.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
 import { CAMP_YIELD, heldQuantity, inventoryFor } from '../economy/inventory.js';
-import { nodeAt } from '../economy/nodes.js';
+import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
 import { historyFor } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
 import { memoriesFor } from '../social/memories.js';
@@ -40,6 +40,7 @@ export function inspectCharacter(
   const waterRoute = nearestTerrainTile(world.map, x, y, 'water');
   const landRoute = nearestTerrainTile(world.map, x, y, 'land');
   const campRoute = nearestTerrainTile(world.map, x, y, 'camp');
+  const nodeRoute = nearestNodeTile(world, x, y);
   const pile = nodeAt(world, x, y);
   const nearby = livingNeighbors(world, eid, buildOccupancy(world));
   const neighborId = adjacentLivingId(nearby);
@@ -110,6 +111,9 @@ export function inspectCharacter(
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
       onCamp: standingOnCamp(world, x, y),
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
+      campDistance: campRoute?.distance ?? Number.POSITIVE_INFINITY,
+      canReachNode: nodeRoute !== undefined && nodeRoute.distance > 0,
+      nodeDistance: nodeRoute?.distance ?? Number.POSITIVE_INFINITY,
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
       canGive: heldQuantity(world, id, CAMP_YIELD) >= 1,

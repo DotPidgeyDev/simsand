@@ -14,11 +14,11 @@ import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
 import { CAMP_YIELD, heldQuantity } from '../economy/inventory.js';
-import { nodeAt } from '../economy/nodes.js';
+import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
 import { recordActionEnding } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, distressOf, isAdjacentLiving, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
 import { knownNeighborId } from '../social/relationships.js';
-import { steerToward } from './movement.js';
+import { steerAlong, steerToward } from './movement.js';
 import { createRandom } from '../core/random.js';
 import {
   FATIGUE_REST_AT,
@@ -83,6 +83,10 @@ interface NeedState {
   canReachWater: boolean;
   canReachLand: boolean;
   canReachCamp: boolean;
+  // Steps along the shared route. Infinity when that route does not exist.
+  campDistance: number;
+  canReachNode: boolean;
+  nodeDistance: number;
   hasNeighbor: boolean;
   hasKnownNeighbor: boolean;
   // True when they are holding something they can hand over.
@@ -108,9 +112,15 @@ function comfortable(state: NeedState): boolean {
 function stands(state: NeedState): boolean {
   if (state.onWater) return !state.canReachLand && state.thirst <= THIRST_RESUME_AT;
   if (state.thirst > THIRST_RESUME_AT && state.canReachWater) return false;
-  if (seeksCamp(state)) return false;
+  if (labourTarget(state) !== undefined) return false;
 
   return true;
+}
+
+function labouringHere(state: NeedState): boolean {
+  if (!comfortable(state) || !workOutranksWander(state)) return false;
+
+  return state.onCamp || state.nodeStock > 0;
 }
 
 function workOutranksWander(state: NeedState): boolean {
@@ -121,10 +131,19 @@ function workOutranksWander(state: NeedState): boolean {
   return work >= move && work >= idle;
 }
 
-// Work has to beat idle and move. An incurious lazy character stands;
-// a curious lazy one keeps walking.
-function seeksCamp(state: NeedState): boolean {
-  return comfortable(state) && state.canReachCamp && !state.onCamp && workOutranksWander(state);
+// Work and gather share a score. A camp and a pile are both places to labour.
+// The nearer one wins. A tie keeps the camp, which is the older walk.
+function labourTarget(state: NeedState): 'camp' | 'node' | undefined {
+  if (!comfortable(state) || !workOutranksWander(state)) return undefined;
+
+  const camp = state.canReachCamp && !state.onCamp;
+  const node = state.canReachNode && state.nodeStock <= 0;
+
+  if (camp && node) return state.nodeDistance < state.campDistance ? 'node' : 'camp';
+  if (camp) return 'camp';
+  if (node) return 'node';
+
+  return undefined;
 }
 
 interface ActionDefinition {
@@ -321,8 +340,8 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     requiresLife: true,
     // In the water with a thirst to deal with, walking would carry them off
     // the only place they can drink.
-    ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !(state.onCamp && comfortable(state) && workOutranksWander(state)),
-    holds: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !(state.onCamp && comfortable(state) && workOutranksWander(state)),
+    ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !labouringHere(state),
+    holds: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !labouringHere(state),
     sustain: () => false,
     urgent: () => false,
     resting: false,
@@ -374,6 +393,9 @@ function needState(input: {
   canReachWater?: boolean;
   canReachLand?: boolean;
   canReachCamp?: boolean;
+  campDistance?: number;
+  canReachNode?: boolean;
+  nodeDistance?: number;
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
@@ -399,6 +421,9 @@ function needState(input: {
     canReachWater: input.canReachWater ?? true,
     canReachLand: input.canReachLand ?? true,
     canReachCamp: input.canReachCamp ?? false,
+    campDistance: input.campDistance ?? Number.POSITIVE_INFINITY,
+    canReachNode: input.canReachNode ?? false,
+    nodeDistance: input.nodeDistance ?? Number.POSITIVE_INFINITY,
     hasNeighbor: input.hasNeighbor ?? false,
     hasKnownNeighbor: input.hasKnownNeighbor ?? false,
     canGive: input.canGive ?? false,
@@ -496,6 +521,9 @@ export function actionAvailability(input: {
   canReachWater?: boolean;
   canReachLand?: boolean;
   canReachCamp?: boolean;
+  campDistance?: number;
+  canReachNode?: boolean;
+  nodeDistance?: number;
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
@@ -695,6 +723,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
     const waterRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'water');
     const landRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'land');
     const campRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'camp');
+    const nodeRoute = nearestNodeTile(world, Position.x[eid], Position.y[eid]);
     const state = needState({
       hunger: Needs.hunger[eid],
       thirst: Needs.thirst[eid],
@@ -712,6 +741,9 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       canReachWater: waterRoute !== undefined,
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
+      campDistance: campRoute?.distance ?? Number.POSITIVE_INFINITY,
+      canReachNode: nodeRoute !== undefined && nodeRoute.distance > 0,
+      nodeDistance: nodeRoute?.distance ?? Number.POSITIVE_INFINITY,
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
       canGive: heldQuantity(world, Identity.id[eid], CAMP_YIELD) >= 1,
@@ -761,6 +793,9 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       canReachLand: state.canReachLand,
       onCamp: state.onCamp,
       canReachCamp: state.canReachCamp,
+      campDistance: state.campDistance,
+      canReachNode: state.canReachNode,
+      nodeDistance: state.nodeDistance,
       hasNeighbor: state.hasNeighbor,
       hasKnownNeighbor: state.hasKnownNeighbor,
       canGive: state.canGive,
@@ -819,14 +854,16 @@ function directMove(world: SimulationWorld, eid: number, action: ActionId, state
   if (action !== 'move') return;
 
   // Thirst aims at water. Leaving the water aims at land. A quiet need aims
-  // at a camp. Any other walk keeps the direction they already had.
+  // at the nearer of a camp and a pile. Any other walk keeps its direction.
   if (state.thirst > THIRST_RESUME_AT && !state.onWater) {
     if (!state.canReachWater) return;
 
     steerToward(world, eid, 'water');
   } else if (state.onWater && state.canReachLand) {
     steerToward(world, eid, 'land');
-  } else if (seeksCamp(state)) {
+  } else if (labourTarget(state) === 'camp') {
     steerToward(world, eid, 'camp');
+  } else if (labourTarget(state) === 'node') {
+    steerAlong(world, eid, nearestNodeTile(world, Position.x[eid], Position.y[eid]));
   }
 }

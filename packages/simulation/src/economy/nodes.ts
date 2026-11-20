@@ -1,6 +1,7 @@
 import type { ResourceNode } from '@simsand/shared';
 
-import { generateResourceNodes } from '../core/map.js';
+import { generateResourceNodes, routesToward } from '../core/map.js';
+import type { TerrainRoute } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
 export function placeGeneratedNodes(world: SimulationWorld): void {
@@ -18,6 +19,30 @@ export function nodeKey(width: number, x: number, y: number): number {
 
 export function nodeAt(world: SimulationWorld, x: number, y: number): ResourceNode | undefined {
   return world.nodes.get(nodeKey(world.map.width, x, y));
+}
+
+const nodeRoutes = new WeakMap<SimulationWorld, { stamp: string; field: Array<TerrainRoute | undefined> }>();
+
+function nodeStamp(world: SimulationWorld): string {
+  return [...world.nodes.keys()].sort((left, right) => left - right).join(',');
+}
+
+// The next step toward the nearest pile. Missing when rock, or a gap, blocks
+// every pile. Rebuilt only when a pile appears or disappears.
+export function nearestNodeTile(world: SimulationWorld, x: number, y: number): TerrainRoute | undefined {
+  const stamp = nodeStamp(world);
+  let cached = nodeRoutes.get(world);
+
+  if (!cached || cached.stamp !== stamp) {
+    const goals = new Set(world.nodes.keys());
+    cached = { stamp, field: routesToward(world.map, (index) => goals.has(index)) };
+    nodeRoutes.set(world, cached);
+  }
+
+  const tileX = Math.min(world.map.width - 1, Math.max(0, Math.floor(x)));
+  const tileY = Math.min(world.map.height - 1, Math.max(0, Math.floor(y)));
+
+  return cached.field[tileY * world.map.width + tileX];
 }
 
 // Removes one unit from the pile under this point. A pile that reaches zero

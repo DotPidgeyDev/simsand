@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_IDS } from '@simsand/shared';
+import { ACTION_IDS, TERRAIN_TYPES } from '@simsand/shared';
 
 import { Action } from '../components/action.js';
 import { Needs } from '../components/needs.js';
@@ -105,7 +105,7 @@ describe('gather', () => {
     expect(inspectCharacter(world, 'picker')?.inventory).toEqual([]);
   });
 
-  it('does not walk toward a pile on another tile', () => {
+  it('walks toward a pile when that is the place to labour', () => {
     const map = createWorldMap(8, 8, 'grass');
     const world = createSimulationWorld(map, 1);
     world.nodes.set(nodeKey(map.width, 6, 2), { x: 6, y: 2, item: 'material', quantity: 3 });
@@ -128,9 +128,94 @@ describe('gather', () => {
 
     updateActions(world, 0.1);
 
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Velocity.x[eid]).toBeGreaterThan(0.9);
+    expect(Math.abs(Velocity.y[eid])).toBeLessThan(0.1);
+    expect(world.nodes.get(nodeKey(8, 6, 2))?.quantity).toBe(3);
+  });
+
+  it('walks to a nearer camp instead of a farther pile', () => {
+    const map = createWorldMap(8, 8, 'grass');
+    map.tiles[2 * 8 + 2] = TERRAIN_TYPES.indexOf('camp');
+    const world = createSimulationWorld(map, 1);
+    world.nodes.set(nodeKey(map.width, 7, 2), { x: 7, y: 2, item: 'material', quantity: 3 });
+    const eid = createCharacter(world, {
+      id: 'chooser',
+      x: 4.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 1,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 0;
+    Personality.industriousness[eid] = 1;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Velocity.x[eid]).toBeLessThan(-0.9);
+  });
+
+  it('lets a lazy character stand instead of walking to a pile', () => {
+    const map = createWorldMap(8, 8, 'grass');
+    const world = createSimulationWorld(map, 1);
+    world.nodes.set(nodeKey(map.width, 6, 2), { x: 6, y: 2, item: 'material', quantity: 3 });
+    const eid = createCharacter(world, {
+      id: 'loafer',
+      x: 1.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 1,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 0;
+    Personality.industriousness[eid] = 0;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
     expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
     expect(Velocity.x[eid]).toBe(0);
     expect(Velocity.y[eid]).toBe(1);
-    expect(world.nodes.get(nodeKey(8, 6, 2))?.quantity).toBe(3);
+  });
+
+  it('does not walk through rock to a pile it cannot reach', () => {
+    const map = createWorldMap(8, 8, 'rock');
+    map.tiles[2 * 8 + 1] = TERRAIN_TYPES.indexOf('grass');
+    map.tiles[2 * 8 + 6] = TERRAIN_TYPES.indexOf('grass');
+    const world = createSimulationWorld(map, 1);
+    world.nodes.set(nodeKey(map.width, 6, 2), { x: 6, y: 2, item: 'material', quantity: 3 });
+    const eid = createCharacter(world, {
+      id: 'blocked',
+      x: 1.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 1,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.2;
+    Needs.thirst[eid] = 0.2;
+    Needs.fatigue[eid] = 0.2;
+    Personality.curiosity[eid] = 0;
+    Personality.industriousness[eid] = 1;
+    Action.elapsed[eid] = 0;
+
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('idle');
+    expect(Velocity.x[eid]).toBe(0);
   });
 });
