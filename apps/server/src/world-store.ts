@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { ACTION_IDS, ACTION_OUTCOMES, PERSISTED_WORLD_VERSION } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
@@ -272,6 +272,48 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   if (Number(world.version) >= 14 && !Array.isArray(world.memories)) {
     throw new Error('World memories are missing');
+  }
+
+  if (Number(world.version) >= 17) {
+    if (!Array.isArray(world.inventories)) {
+      throw new Error('World inventories are missing');
+    }
+
+    const holders = new Set<string>();
+
+    for (const record of world.inventories as { holderId?: unknown; stacks?: unknown }[]) {
+      if (typeof record.holderId !== 'string' || record.holderId.length === 0) {
+        throw new Error('Inventory holder is missing');
+      }
+
+      if (holders.has(record.holderId)) {
+        throw new Error(`Duplicate inventory for ${record.holderId}`);
+      }
+
+      holders.add(record.holderId);
+
+      if (!Array.isArray(record.stacks)) {
+        throw new Error('Inventory stacks are missing');
+      }
+
+      const items = new Set<string>();
+
+      for (const stack of record.stacks as { item?: unknown; quantity?: unknown }[]) {
+        if (!(ITEM_IDS as readonly string[]).includes(String(stack.item))) {
+          throw new Error(`Unknown item: ${String(stack.item)}`);
+        }
+
+        if (items.has(String(stack.item))) {
+          throw new Error(`Duplicate stack of ${String(stack.item)}`);
+        }
+
+        items.add(String(stack.item));
+
+        if (!Number.isInteger(stack.quantity) || Number(stack.quantity) < 1) {
+          throw new Error('Item quantity must be a positive integer');
+        }
+      }
+    }
   }
 
   const ids = new Set(world.entities.map((entity) => entity.id));

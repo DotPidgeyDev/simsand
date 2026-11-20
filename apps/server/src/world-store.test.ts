@@ -11,7 +11,7 @@ function world(tick: number): PersistedWorld {
   const profile = generateCharacterProfile(12345, 'character-0001');
 
   return {
-    version: 16,
+    version: 17,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -42,6 +42,7 @@ function world(tick: number): PersistedWorld {
     relationships: [],
     log: [],
     memories: [],
+    inventories: [],
   };
 }
 
@@ -137,7 +138,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(16);
+    expect(loaded?.version).toBe(17);
     expect(loaded?.entities).toEqual(saved.entities);
     expect(loaded?.map.tiles[1]).toBe(1);
     expect(loaded?.map.tiles[2]).toBe(2);
@@ -157,7 +158,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(16);
+    expect(loaded?.version).toBe(17);
     expect(loaded?.entities[0].eating).toBe(false);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].resting).toBe(true);
@@ -179,7 +180,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(16);
+    expect(loaded?.version).toBe(17);
     expect(loaded?.entities[0].eating).toBe(true);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].needs.hunger).toBe(0.9);
@@ -198,8 +199,32 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(16);
+    expect(loaded?.version).toBe(17);
     expect(loaded?.entities[0].ageSeconds).toBe(saved.entities[0].ageSeconds);
+  });
+
+  it('upgrades a version 16 snapshot with an empty inventory list', () => {
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const { inventories: _inventories, ...legacy } = world(10);
+
+    insertRaw(db, 10, JSON.stringify({ ...legacy, version: 16 }));
+
+    expect(store.loadLatest()).toEqual(world(10));
+  });
+
+  it('rejects an inventory quantity that is not a positive integer', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+
+    insertRaw(db, 10, JSON.stringify({
+      ...world(10),
+      inventories: [{ holderId: 'character-0001', stacks: [{ item: 'goods', quantity: 0 }] }],
+    }));
+
+    expect(() => store.loadLatest()).toThrow('No valid world snapshot');
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('positive integer'));
   });
 
   it('rejects a snapshot whose character profile is out of range', () => {

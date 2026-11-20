@@ -45,7 +45,23 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 16;
+export const PERSISTED_WORLD_VERSION = 17;
+
+// Append only. Saved inventories store the name.
+export const ITEM_IDS = ['goods'] as const;
+
+export type ItemId = (typeof ITEM_IDS)[number];
+
+// One kind of item held by one character. A holder with nothing has no record.
+export interface InventoryStack {
+  item: ItemId;
+  quantity: number;
+}
+
+export interface InventoryRecord {
+  holderId: string;
+  stacks: InventoryStack[];
+}
 
 export const ATTRIBUTE_NAMES = [
   'strength',
@@ -220,6 +236,7 @@ export interface PersistedWorld {
   relationships: RelationshipRecord[];
   log: SimulationLogEvent[];
   memories: MemoryRecord[];
+  inventories: InventoryRecord[];
 }
 
 export const COMMAND_PROTOCOL_VERSION = 1;
@@ -324,6 +341,8 @@ export interface EntityInspection extends CharacterProfile {
   actionTarget: string | null;
   relationships: CharacterRelationship[];
   memories: MemoryRecord[];
+  // Stacks this character holds. Empty when they have no record.
+  inventory: InventoryStack[];
   derived: DerivedStats;
   // The tile containing the entity. An entity on the far edge of the map
   // reports the last row or column.

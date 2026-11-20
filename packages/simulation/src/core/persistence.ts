@@ -1,7 +1,7 @@
 import { query } from 'bitecs';
 
 import { ACTION_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
-import type { ActionId, CharacterProfile, MemoryRecord, PersistedEntity, PersistedWorld, RelationshipRecord, SimulationLogEvent } from '@simsand/shared';
+import type { ActionId, CharacterProfile, InventoryRecord, MemoryRecord, PersistedEntity, PersistedWorld, RelationshipRecord, SimulationLogEvent } from '@simsand/shared';
 
 import { generateCharacterProfile, readCharacterProfile, spriteIdFor, startingAgeSeconds } from '../characters/profile.js';
 import { Action } from '../components/action.js';
@@ -32,12 +32,17 @@ import { pairKey } from '../social/relationships.js';
 // Version 13 predates memories.
 // Version 14 predates comfort.
 // Version 15 predates keep, confide and bluff.
+// Version 16 predates inventories.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV15 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV16 = Omit<PersistedWorld, 'version' | 'inventories'> & {
+  version: 16;
+};
+
+export type PersistedWorldV15 = Omit<PersistedWorldV16, 'version' | 'entities'> & {
   version: 15;
   entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
     cooldowns: Omit<PersistedEntity['cooldowns'], 'keep' | 'confide' | 'bluff'>;
@@ -102,7 +107,7 @@ export type PersistedWorldV3 = Omit<PersistedWorldV4, 'version' | 'entities'> & 
   entities: Array<Omit<PersistedWorldV4['entities'][number], 'resting'>>;
 };
 
-export type PersistedWorldV2 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV2 = Omit<PersistedWorldV16, 'version' | 'entities'> & {
   version: 2;
   entities: PersistedEntityV2[];
 };
@@ -125,6 +130,7 @@ export type UpgradeableWorld =
   | PersistedWorldV13
   | PersistedWorldV14
   | PersistedWorldV15
+  | PersistedWorldV16
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -181,6 +187,10 @@ export function capturePersistedWorld(
     relationships: [...world.relationships.values()],
     log: [...world.log],
     memories: [...world.memories],
+    inventories: [...world.inventories.values()].map((record) => ({
+      holderId: record.holderId,
+      stacks: record.stacks.map((stack) => ({ ...stack })),
+    })),
   };
 }
 
@@ -397,13 +407,21 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 15) {
-    return {
+    return upgradePersistedWorld({
       ...persisted,
-      version: PERSISTED_WORLD_VERSION,
+      version: 16,
       entities: persisted.entities.map((entity) => ({
         ...entity,
         cooldowns: { ...entity.cooldowns, keep: 0, confide: 0, bluff: 0 },
       })),
+    });
+  }
+
+  if (persisted.version === 16) {
+    return {
+      ...persisted,
+      version: PERSISTED_WORLD_VERSION,
+      inventories: [],
     };
   }
 
@@ -453,6 +471,15 @@ export function restorePersistedWorld(persisted: PersistedWorld): {
     persisted.relationships.map((record: RelationshipRecord) => [
       pairKey(record.a, record.b),
       { ...record },
+    ]),
+  );
+  world.inventories = new Map(
+    persisted.inventories.map((record: InventoryRecord) => [
+      record.holderId,
+      {
+        holderId: record.holderId,
+        stacks: record.stacks.map((stack) => ({ ...stack })),
+      },
     ]),
   );
 

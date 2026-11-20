@@ -11,6 +11,7 @@ import { Attributes } from '../components/attributes.js';
 import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns, readActionOutcome, standingOnCamp, standingOnWater } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
+import { inventoryFor } from '../economy/inventory.js';
 import { historyFor } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
 import { memoriesFor } from '../social/memories.js';
@@ -112,6 +113,7 @@ export function inspectCharacter(
     actionTarget: Action.target[eid] || null,
     relationships: relationshipsFor(world, id),
     memories: memoriesFor(world, id),
+    inventory: inventoryFor(world, id),
     derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };

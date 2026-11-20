@@ -15,6 +15,7 @@ export function removeCharacter(
 
   removeEntity(world.ecs, eid);
   world.entityIds.delete(id);
+  world.inventories.delete(id);
 
   return true;
 }

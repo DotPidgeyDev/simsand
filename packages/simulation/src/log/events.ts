@@ -3,6 +3,7 @@ import type { ActionId, ActionResult, CharacterNeeds, MemoryKind, SimulationLogE
 import { Needs } from '../components/needs.js';
 import { Position } from '../components/position.js';
 import type { SimulationWorld } from '../core/world.js';
+import { CAMP_YIELD, CAMP_YIELD_QUANTITY, grantItem } from '../economy/inventory.js';
 import { rememberEvent } from '../social/memories.js';
 import { pairKey, rememberMeeting, sortedPair } from '../social/relationships.js';
 
@@ -219,6 +220,10 @@ export function recordActionEnding(
     if (!otherId) return undefined;
 
     return recordBluff(world, eid, actorId, otherId);
+  }
+
+  if (action === 'work' && result === 'completed') {
+    grantItem(world, actorId, CAMP_YIELD, CAMP_YIELD_QUANTITY);
   }
 
   if (result === 'completed' && (action === 'idle' || action === 'move')) {

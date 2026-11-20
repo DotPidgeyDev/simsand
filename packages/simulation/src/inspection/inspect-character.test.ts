@@ -69,6 +69,7 @@ describe('inspectCharacter', () => {
       actionTarget: null,
       relationships: [],
       memories: [],
+      inventory: [],
       derived: derivedStats(generateCharacterProfile(0, 'swimmer').attributes.constitution),
       tile: { x: 2, y: 3, terrain: 'water' },
     });
