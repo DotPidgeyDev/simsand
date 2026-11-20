@@ -209,13 +209,17 @@ A drink with no water to reach is recorded as failed, and a meal or rest
 already underway in the water ends as a failure. While every need is quiet and
 work outranks idle and move they walk to the nearest camp and work there until
 a need rises past 0.3. A completed visit adds one goods to that character's inventory. An interrupted visit does not.
+A character who is holding goods can give one to a neighbour they have
+already met. Greed scores against that gift. Standing on a pile of
+material, an industrious character can gather one unit when that visit
+ends. They do not walk toward a pile.
 Sociability is read by greet. Empathy is read by comfort, which starts
 beside a neighbour whose hunger, thirst or fatigue is above 0.3 and
 continues until that need recovers. Loyalty is read by keep, which
 starts only beside someone already met. Honesty is read by confide and
 bluff, which state or understate the speaker's own needs to someone
-already met. Aggression and courage wait for conflict, greed
-for trade or hoarding, ambition for goals. Skills and goals stay later.
+already met. Aggression and courage wait for conflict, ambition for goals.
+Greed is read by give. Skills and goals stay later.
 Relationships exist as sparse records written when a greet or a comfort
 completes. The first greeting and the first comfort are each one memory
 that points at that log event.

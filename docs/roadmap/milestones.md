@@ -375,10 +375,20 @@ completed camp visit yields.
 
 A completed camp visit adds one `goods` to a sparse inventory keyed by
 the worker's stable ID. A second visit stacks on that same record.
-An interrupted visit adds nothing. Inspection lists the stacks, and
-saves are format version 17. A version 16 save gains an empty inventory
-list. Removing a character drops their record. Trade, prices, resource
-nodes and greed are still unread.
+An interrupted visit adds nothing. Inspection lists the stacks.
+Removing a character drops their record.
+
+`give` hands one goods to a neighbour they have already met. Greed
+scores against that gift, so a greedy character keeps the stack. The
+transfer is one `item.transferred` log event with both participants,
+the item and the quantity, and the first gift between a pair is one
+`giving` memory. It does not count as another meeting.
+
+Grass tiles can hold a finite pile of `material`. `gather` takes one
+when a visit on that tile ends, the same way a camp visit yields goods.
+An empty pile fails the visit and adds nothing. A pile on another tile
+is not a destination. Prices are still unread. Saves are format version
+19. A version 18 save gains those piles and a gather cooldown of zero.
 
 Initial scope:
 
@@ -392,8 +402,7 @@ Initial scope:
 - Economy invariants.
 - Item and resource lifecycle.
 
-Greed is stored on the profile and unread. Wire it when trade or
-hoarding exists.
+Greed is read by `give`. Prices are still unread.
 
 Establish reliable ownership and transfer rules before introducing more complex economic behaviour.
 

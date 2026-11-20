@@ -13,6 +13,8 @@ import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
+import { CAMP_YIELD, heldQuantity } from '../economy/inventory.js';
+import { nodeAt } from '../economy/nodes.js';
 import { recordActionEnding } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, distressOf, isAdjacentLiving, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
 import { knownNeighborId } from '../social/relationships.js';
@@ -73,6 +75,7 @@ interface NeedState {
   empathy: number;
   loyalty: number;
   honesty: number;
+  greed: number;
   alive: boolean;
   onWater: boolean;
   onCamp: boolean;
@@ -82,6 +85,10 @@ interface NeedState {
   canReachCamp: boolean;
   hasNeighbor: boolean;
   hasKnownNeighbor: boolean;
+  // True when they are holding something they can hand over.
+  canGive: boolean;
+  // Quantity of the pile on the tile under them. Zero when there is none.
+  nodeStock: number;
   targetAdjacent: boolean;
   // Highest need of a living neighbour, or of the character already chosen.
   neighborDistress: number;
@@ -142,8 +149,9 @@ interface ActionDefinition {
   losesTarget: boolean;
 }
 
-// Order is the tie break: eat, then drink, then rest, then work, then comfort,
-// then keep, then confide, then bluff, then greet, then move, then idle.
+// Order is the tie break: eat, then drink, then rest, then work, then gather,
+// then comfort, then keep, then confide, then bluff, then greet, then give,
+// then move, then idle.
 export const actionDefinitions: readonly ActionDefinition[] = [
   {
     id: 'eat',
@@ -201,6 +209,22 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     eating: false,
     drinking: false,
     working: true,
+    losesTarget: false,
+  },
+  {
+    id: 'gather',
+    // Same preference as work. The pile has to be underfoot. Nothing walks
+    // them toward one.
+    score: (state) => state.industriousness * comfort(state),
+    requiresLife: true,
+    ready: (state) => state.nodeStock > 0 && comfortable(state),
+    holds: (state) => state.nodeStock > 0 && comfortable(state),
+    sustain: (state) => state.nodeStock > 0 && comfortable(state),
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: false,
     losesTarget: false,
   },
   {
@@ -277,6 +301,21 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     losesTarget: true,
   },
   {
+    id: 'give',
+    // A greedy character keeps the stack. Giving scores what greed does not.
+    score: (state) => (1 - state.greed) * comfort(state),
+    requiresLife: true,
+    ready: (state) => comfortable(state) && state.hasKnownNeighbor && state.canGive,
+    holds: (state) => state.targetAdjacent && state.canGive,
+    sustain: () => false,
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: false,
+    losesTarget: true,
+  },
+  {
     id: 'move',
     score: (state) => state.curiosity * comfort(state),
     requiresLife: true,
@@ -328,6 +367,7 @@ function needState(input: {
   empathy?: number;
   loyalty?: number;
   honesty?: number;
+  greed?: number;
   alive?: boolean;
   onWater?: boolean;
   onCamp?: boolean;
@@ -336,6 +376,8 @@ function needState(input: {
   canReachCamp?: boolean;
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
+  canGive?: boolean;
+  nodeStock?: number;
   targetAdjacent?: boolean;
   neighborDistress?: number;
   targetDistress?: number;
@@ -350,6 +392,7 @@ function needState(input: {
     empathy: Math.min(1, Math.max(0, input.empathy ?? 0)),
     loyalty: Math.min(1, Math.max(0, input.loyalty ?? 0)),
     honesty: Math.min(1, Math.max(0, input.honesty ?? 0)),
+    greed: Math.min(1, Math.max(0, input.greed ?? 0)),
     alive: input.alive ?? true,
     onWater: input.onWater ?? false,
     onCamp: input.onCamp ?? false,
@@ -358,6 +401,8 @@ function needState(input: {
     canReachCamp: input.canReachCamp ?? false,
     hasNeighbor: input.hasNeighbor ?? false,
     hasKnownNeighbor: input.hasKnownNeighbor ?? false,
+    canGive: input.canGive ?? false,
+    nodeStock: Math.max(0, input.nodeStock ?? 0),
     targetAdjacent: input.targetAdjacent ?? false,
     neighborDistress: Math.min(1, Math.max(0, input.neighborDistress ?? 0)),
     targetDistress: Math.min(1, Math.max(0, input.targetDistress ?? 0)),
@@ -388,6 +433,7 @@ export function actionUtilities(input: {
   empathy?: number;
   loyalty?: number;
   honesty?: number;
+  greed?: number;
 }): Record<ActionId, number> {
   const state = needState(input);
   const utilities = emptyCooldowns();
@@ -444,6 +490,7 @@ export function actionAvailability(input: {
   empathy?: number;
   loyalty?: number;
   honesty?: number;
+  greed?: number;
   onWater?: boolean;
   onCamp?: boolean;
   canReachWater?: boolean;
@@ -451,6 +498,8 @@ export function actionAvailability(input: {
   canReachCamp?: boolean;
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
+  canGive?: boolean;
+  nodeStock?: number;
   targetAdjacent?: boolean;
   neighborDistress?: number;
   targetDistress?: number;
@@ -538,6 +587,9 @@ function selectionFailed(action: ActionId, available: Record<ActionId, boolean>,
 function endingResult(action: ActionId, state: NeedState): ActionResult {
   if (isUrgent(action, state)) return 'interrupted';
 
+  // Leaving the pile, or finding it empty, is not a finished gathering.
+  if (action === 'gather' && state.nodeStock <= 0) return 'failed';
+
   const definition = definitionFor(action);
 
   if (definition.losesTarget && !definition.holds(state)) return 'failed';
@@ -567,6 +619,8 @@ function readCooldowns(eid: number): ActionCooldowns {
     keep: Action.cooldown.keep[eid],
     confide: Action.cooldown.confide[eid],
     bluff: Action.cooldown.bluff[eid],
+    give: Action.cooldown.give[eid],
+    gather: Action.cooldown.gather[eid],
   };
 }
 
@@ -651,6 +705,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       empathy: Personality.empathy[eid],
       loyalty: Personality.loyalty[eid],
       honesty: Personality.honesty[eid],
+      greed: Personality.greed[eid],
       alive: true,
       onWater,
       onCamp,
@@ -659,6 +714,8 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
+      canGive: heldQuantity(world, Identity.id[eid], CAMP_YIELD) >= 1,
+      nodeStock: nodeAt(world, Position.x[eid], Position.y[eid])?.quantity ?? 0,
       targetAdjacent: Boolean(targetId) && isAdjacentLiving(world, eid, targetId),
       neighborDistress: distressed?.distress ?? 0,
       targetDistress: targetId ? distressOf(world, targetId) : 0,
@@ -698,6 +755,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       empathy: state.empathy,
       loyalty: state.loyalty,
       honesty: state.honesty,
+      greed: state.greed,
       onWater: state.onWater,
       canReachWater: state.canReachWater,
       canReachLand: state.canReachLand,
@@ -705,6 +763,8 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       canReachCamp: state.canReachCamp,
       hasNeighbor: state.hasNeighbor,
       hasKnownNeighbor: state.hasKnownNeighbor,
+      canGive: state.canGive,
+      nodeStock: state.nodeStock,
       targetAdjacent: state.targetAdjacent,
       neighborDistress: state.neighborDistress,
       targetDistress: state.targetDistress,
@@ -733,7 +793,7 @@ function socialTarget(
 ): string {
   if (action === 'greet') return neighborId ?? '';
   if (action === 'comfort') return distressedId ?? '';
-  if (action === 'keep' || action === 'confide' || action === 'bluff') return knownId ?? '';
+  if (action === 'keep' || action === 'confide' || action === 'bluff' || action === 'give') return knownId ?? '';
 
   return '';
 }

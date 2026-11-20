@@ -3,7 +3,8 @@ import type { ActionId, ActionResult, CharacterNeeds, MemoryKind, SimulationLogE
 import { Needs } from '../components/needs.js';
 import { Position } from '../components/position.js';
 import type { SimulationWorld } from '../core/world.js';
-import { CAMP_YIELD, CAMP_YIELD_QUANTITY, grantItem } from '../economy/inventory.js';
+import { CAMP_YIELD, CAMP_YIELD_QUANTITY, grantItem, transferItem } from '../economy/inventory.js';
+import { takeResource } from '../economy/nodes.js';
 import { rememberEvent } from '../social/memories.js';
 import { pairKey, rememberMeeting, sortedPair } from '../social/relationships.js';
 
@@ -166,6 +167,38 @@ export function recordConfiding(
   );
 }
 
+export function recordGiving(
+  world: SimulationWorld,
+  initiatorEid: number,
+  initiatorId: string,
+  otherId: string,
+): SimulationLogEvent | undefined {
+  const moved = transferItem(world, initiatorId, otherId, CAMP_YIELD, CAMP_YIELD_QUANTITY);
+
+  if (!moved) return undefined;
+
+  const event: SimulationLogEvent = {
+    eventId: nextEventId(world),
+    type: 'item.transferred',
+    tick: world.tick,
+    elapsedSeconds: world.elapsedSeconds,
+    participants: sortedPair(initiatorId, otherId),
+    location: { x: Position.x[initiatorEid], y: Position.y[initiatorEid] },
+    payload: {
+      action: 'give',
+      result: 'completed',
+      initiator: initiatorId,
+      item: CAMP_YIELD,
+      quantity: CAMP_YIELD_QUANTITY,
+    },
+  };
+
+  append(world, event);
+  rememberEvent(world, 'giving', event.eventId, initiatorId, otherId);
+
+  return event;
+}
+
 export function recordBluff(
   world: SimulationWorld,
   initiatorEid: number,
@@ -222,8 +255,20 @@ export function recordActionEnding(
     return recordBluff(world, eid, actorId, otherId);
   }
 
+  if (action === 'give' && result === 'completed') {
+    if (!otherId) return undefined;
+
+    return recordGiving(world, eid, actorId, otherId);
+  }
+
   if (action === 'work' && result === 'completed') {
     grantItem(world, actorId, CAMP_YIELD, CAMP_YIELD_QUANTITY);
+  }
+
+  if (action === 'gather' && result === 'completed') {
+    const taken = takeResource(world, Position.x[eid], Position.y[eid]);
+
+    if (taken) grantItem(world, actorId, taken.item, taken.quantity);
   }
 
   if (result === 'completed' && (action === 'idle' || action === 'move')) {

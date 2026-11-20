@@ -1,5 +1,5 @@
 import { TERRAIN_TYPES } from '@simsand/shared';
-import type { TerrainType, WorldMapData } from '@simsand/shared';
+import type { ResourceNode, TerrainType, WorldMapData } from '@simsand/shared';
 
 import { createRandom } from './random.js';
 
@@ -24,6 +24,12 @@ const CAMP_FRACTION = 0.015;
 const MAP_SEED_SALT = 0x9e3779b9;
 const ROCK_SEED_SALT = 0x6a09e667;
 const CAMP_SEED_SALT = 0xbb67ae85;
+const NODE_SEED_SALT = 0x3c6ef372;
+
+// A grass tile's pile. Small enough that most grass is empty, large enough
+// that a generated map has some. Gathering does not walk toward these.
+const NODE_FRACTION = 0.02;
+export const RESOURCE_NODE_STOCK = 3;
 
 // Static terrain. Rock cannot be entered. Grass, dirt and water can, at the
 // same cost.
@@ -104,6 +110,28 @@ export function stampCamps(map: WorldMap, seed: number, occupied: ReadonlySet<nu
 
     map.tiles[i] = CAMP;
   }
+}
+
+// Nodes are not terrain. They sit on grass, from their own salt, so camps,
+// rock, water and dirt stay put. An empty pile is not stored.
+export function generateResourceNodes(map: WorldMap, seed: number): ResourceNode[] {
+  const random = createRandom((seed ^ NODE_SEED_SALT) >>> 0);
+  const noise = fractalNoise(random, map.width, map.height);
+  const level = quantile(noise, NODE_FRACTION);
+  const nodes: ResourceNode[] = [];
+
+  for (let i = 0; i < map.tiles.length; i++) {
+    if (map.tiles[i] !== GRASS || noise[i] >= level) continue;
+
+    nodes.push({
+      x: i % map.width,
+      y: Math.floor(i / map.width),
+      item: 'material',
+      quantity: RESOURCE_NODE_STOCK,
+    });
+  }
+
+  return nodes;
 }
 
 // The next tile toward the nearest tile of that kind, and how many steps that

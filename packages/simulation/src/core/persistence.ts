@@ -1,7 +1,7 @@
 import { query } from 'bitecs';
 
 import { ACTION_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
-import type { ActionId, CharacterProfile, InventoryRecord, MemoryRecord, PersistedEntity, PersistedWorld, RelationshipRecord, SimulationLogEvent } from '@simsand/shared';
+import type { ActionId, CharacterProfile, InventoryRecord, MemoryRecord, PersistedEntity, PersistedWorld, RelationshipRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 
 import { generateCharacterProfile, readCharacterProfile, spriteIdFor, startingAgeSeconds } from '../characters/profile.js';
 import { Action } from '../components/action.js';
@@ -10,7 +10,7 @@ import { Condition } from '../components/condition.js';
 import { FATIGUE_REST_AT, HUNGER_EAT_AT, THIRST_DRINK_AT } from '../systems/needs.js';
 import type { SimulationClock } from './clock.js';
 import { createSimulationClock } from './clock.js';
-import { fromWorldMapData, generateWorldMap, stampCamps, stampRocks, toWorldMapData } from './map.js';
+import { fromWorldMapData, generateResourceNodes, generateWorldMap, stampCamps, stampRocks, toWorldMapData } from './map.js';
 import type { SimulationWorld } from './world.js';
 import { createSimulationWorld } from './world.js';
 
@@ -20,6 +20,7 @@ import { Position } from '../components/position.js';
 import { Velocity } from '../components/velocity.js';
 import { Appearance } from '../components/appearance.js';
 import { createCharacter } from '../entities/create-character.js';
+import { nodeKey } from '../economy/nodes.js';
 import { pairKey } from '../social/relationships.js';
 
 // Version 1 predates the tile map. Version 2 predates the character profile.
@@ -33,12 +34,28 @@ import { pairKey } from '../social/relationships.js';
 // Version 14 predates comfort.
 // Version 15 predates keep, confide and bluff.
 // Version 16 predates inventories.
+// Version 17 predates give.
+// Version 18 predates resource nodes and gather.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV16 = Omit<PersistedWorld, 'version' | 'inventories'> & {
+export type PersistedWorldV18 = Omit<PersistedWorld, 'version' | 'nodes' | 'entities'> & {
+  version: 18;
+  entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
+    cooldowns: Omit<PersistedEntity['cooldowns'], 'gather'>;
+  }>;
+};
+
+export type PersistedWorldV17 = Omit<PersistedWorldV18, 'version' | 'entities'> & {
+  version: 17;
+  entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
+    cooldowns: Omit<PersistedWorldV18['entities'][number]['cooldowns'], 'give'>;
+  }>;
+};
+
+export type PersistedWorldV16 = Omit<PersistedWorldV17, 'version' | 'inventories'> & {
   version: 16;
 };
 
@@ -131,6 +148,8 @@ export type UpgradeableWorld =
   | PersistedWorldV14
   | PersistedWorldV15
   | PersistedWorldV16
+  | PersistedWorldV17
+  | PersistedWorldV18
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -170,6 +189,8 @@ export function capturePersistedWorld(
         keep: Action.cooldown.keep[eid],
         confide: Action.cooldown.confide[eid],
         bluff: Action.cooldown.bluff[eid],
+        give: Action.cooldown.give[eid],
+        gather: Action.cooldown.gather[eid],
       },
       outcome: readActionOutcome(eid),
       actionTarget: Action.target[eid] ?? '',
@@ -191,6 +212,7 @@ export function capturePersistedWorld(
       holderId: record.holderId,
       stacks: record.stacks.map((stack) => ({ ...stack })),
     })),
+    nodes: [...world.nodes.values()].map((node) => ({ ...node })),
   };
 }
 
@@ -418,10 +440,35 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 16) {
+    return upgradePersistedWorld({
+      ...persisted,
+      version: 17,
+      inventories: [],
+    });
+  }
+
+  if (persisted.version === 17) {
+    return upgradePersistedWorld({
+      ...persisted,
+      version: 18,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        cooldowns: { ...entity.cooldowns, give: 0 },
+      })),
+    });
+  }
+
+  if (persisted.version === 18) {
+    const map = fromWorldMapData(persisted.map);
+
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
-      inventories: [],
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        cooldowns: { ...entity.cooldowns, gather: 0 },
+      })),
+      nodes: generateResourceNodes(map, persisted.seed),
     };
   }
 
@@ -471,6 +518,12 @@ export function restorePersistedWorld(persisted: PersistedWorld): {
     persisted.relationships.map((record: RelationshipRecord) => [
       pairKey(record.a, record.b),
       { ...record },
+    ]),
+  );
+  world.nodes = new Map(
+    persisted.nodes.map((node: ResourceNode) => [
+      nodeKey(world.map.width, node.x, node.y),
+      { ...node },
     ]),
   );
   world.inventories = new Map(

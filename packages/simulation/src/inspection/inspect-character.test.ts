@@ -52,6 +52,7 @@ describe('inspectCharacter', () => {
           empathy: generateCharacterProfile(0, 'swimmer').personality.empathy,
           loyalty: generateCharacterProfile(0, 'swimmer').personality.loyalty,
           honesty: generateCharacterProfile(0, 'swimmer').personality.honesty,
+          greed: generateCharacterProfile(0, 'swimmer').personality.greed,
         }),
         actionBias(0, 'swimmer'),
       ),
@@ -70,6 +71,7 @@ describe('inspectCharacter', () => {
       relationships: [],
       memories: [],
       inventory: [],
+      node: null,
       derived: derivedStats(generateCharacterProfile(0, 'swimmer').attributes.constitution),
       tile: { x: 2, y: 3, terrain: 'water' },
     });
@@ -104,6 +106,8 @@ describe('inspectCharacter', () => {
       keep: false,
       confide: false,
       bluff: false,
+      give: false,
+      gather: false,
     });
   });
 

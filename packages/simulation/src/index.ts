@@ -65,11 +65,14 @@ export type { PersistedWorldV1, PersistedWorldV2, UpgradeableWorld } from './cor
 export { createWorldSnapshot } from './systems/snapshot.js';
 export { createWorldDelta } from './systems/delta.js';
 
+export { placeGeneratedNodes } from './economy/nodes.js';
+
 export {
   DEFAULT_MAP_WIDTH,
   DEFAULT_MAP_HEIGHT,
   createWorldMap,
   generateWorldMap,
+  generateResourceNodes,
   getTile,
   toWorldMapData,
   fromWorldMapData,

@@ -14,6 +14,7 @@ import {
   restorePersistedWorld,
   executeCommand,
   generateWorldMap,
+  placeGeneratedNodes,
   getSimulationLoopTiming,
   inspectCharacter,
   inspectCharacterHistory,
@@ -73,6 +74,7 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
         } else {
           seed = message.data?.seed ?? 12345;
           world = createSimulationWorld(generateWorldMap(seed), seed);
+          placeGeneratedNodes(world);
           clock = createSimulationClock();
           createPopulation(world, message.data?.population ?? 20, seed);
         }

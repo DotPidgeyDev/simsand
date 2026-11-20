@@ -45,10 +45,10 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 17;
+export const PERSISTED_WORLD_VERSION = 19;
 
 // Append only. Saved inventories store the name.
-export const ITEM_IDS = ['goods'] as const;
+export const ITEM_IDS = ['goods', 'material'] as const;
 
 export type ItemId = (typeof ITEM_IDS)[number];
 
@@ -61,6 +61,14 @@ export interface InventoryStack {
 export interface InventoryRecord {
   holderId: string;
   stacks: InventoryStack[];
+}
+
+// A finite pile on one tile. Absent once the quantity is gone.
+export interface ResourceNode {
+  x: number;
+  y: number;
+  item: ItemId;
+  quantity: number;
 }
 
 export const ATTRIBUTE_NAMES = [
@@ -107,7 +115,7 @@ export type BasicNeed = (typeof BASIC_NEEDS)[number];
 export type CharacterNeeds = Record<BasicNeed, number>;
 
 // Append only. Saved worlds store the name.
-export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort', 'keep', 'confide', 'bluff'] as const;
+export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort', 'keep', 'confide', 'bluff', 'give', 'gather'] as const;
 
 export type ActionId = (typeof ACTION_IDS)[number];
 
@@ -124,7 +132,7 @@ export interface ActionEnding {
   result: ActionResult;
 }
 
-export const SIMULATION_LOG_TYPES = ['action.ended', 'character.greeted', 'character.comforted', 'character.kept', 'character.confided', 'character.bluffed'] as const;
+export const SIMULATION_LOG_TYPES = ['action.ended', 'character.greeted', 'character.comforted', 'character.kept', 'character.confided', 'character.bluffed', 'item.transferred'] as const;
 
 export type SimulationLogType = (typeof SIMULATION_LOG_TYPES)[number];
 
@@ -144,6 +152,9 @@ export interface SimulationLogEvent {
     // What the speaker claimed about their own needs. Present on confide and
     // bluff. A bluff reports every need tied for the highest as satisfied.
     reportedNeeds?: CharacterNeeds;
+    // Present on a transfer. One event records the item and the quantity.
+    item?: ItemId;
+    quantity?: number;
   };
 }
 
@@ -163,7 +174,7 @@ export interface CharacterRelationship {
 }
 
 // Append only. Saved worlds store the name.
-export const MEMORY_KINDS = ['greeting', 'comforting', 'keeping', 'confiding', 'bluffing'] as const;
+export const MEMORY_KINDS = ['greeting', 'comforting', 'keeping', 'confiding', 'bluffing', 'giving'] as const;
 
 export type MemoryKind = (typeof MEMORY_KINDS)[number];
 
@@ -237,6 +248,7 @@ export interface PersistedWorld {
   log: SimulationLogEvent[];
   memories: MemoryRecord[];
   inventories: InventoryRecord[];
+  nodes: ResourceNode[];
 }
 
 export const COMMAND_PROTOCOL_VERSION = 1;
@@ -343,6 +355,8 @@ export interface EntityInspection extends CharacterProfile {
   memories: MemoryRecord[];
   // Stacks this character holds. Empty when they have no record.
   inventory: InventoryStack[];
+  // The pile on the tile under this character. Null when the tile has none.
+  node: { item: ItemId; quantity: number } | null;
   derived: DerivedStats;
   // The tile containing the entity. An entity on the far edge of the map
   // reports the last row or column.

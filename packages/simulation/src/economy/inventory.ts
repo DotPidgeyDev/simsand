@@ -31,6 +31,46 @@ export function grantItem(
   world.inventories.set(holderId, { holderId, stacks });
 }
 
+export function heldQuantity(world: SimulationWorld, holderId: string, item: ItemId): number {
+  const stack = world.inventories.get(holderId)?.stacks.find((entry) => entry.item === item);
+
+  return stack?.quantity ?? 0;
+}
+
+// Moves quantity from one holder to another. One transfer, one stock change
+// on each side. A holder left with nothing drops out of the map.
+export function transferItem(
+  world: SimulationWorld,
+  fromId: string,
+  toId: string,
+  item: ItemId,
+  quantity: number,
+): boolean {
+  if (fromId === toId) return false;
+  if (!(ITEM_IDS as readonly string[]).includes(item)) {
+    throw new Error(`Unknown item: ${item}`);
+  }
+
+  if (!Number.isInteger(quantity) || quantity < 1) {
+    throw new Error('Item quantity must be a positive integer');
+  }
+
+  const existing = world.inventories.get(fromId);
+  const stacks = existing ? existing.stacks.map((stack) => ({ ...stack })) : [];
+  const stack = stacks.find((entry) => entry.item === item);
+
+  if (!stack || stack.quantity < quantity) return false;
+
+  stack.quantity -= quantity;
+  const remaining = stacks.filter((entry) => entry.quantity > 0);
+
+  if (remaining.length === 0) world.inventories.delete(fromId);
+  else world.inventories.set(fromId, { holderId: fromId, stacks: remaining });
+
+  grantItem(world, toId, item, quantity);
+  return true;
+}
+
 export function inventoryFor(world: SimulationWorld, holderId: string): InventoryStack[] {
   const record = world.inventories.get(holderId);
 

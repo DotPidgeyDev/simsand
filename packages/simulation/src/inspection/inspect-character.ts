@@ -11,7 +11,8 @@ import { Attributes } from '../components/attributes.js';
 import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns, readActionOutcome, standingOnCamp, standingOnWater } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
-import { inventoryFor } from '../economy/inventory.js';
+import { CAMP_YIELD, heldQuantity, inventoryFor } from '../economy/inventory.js';
+import { nodeAt } from '../economy/nodes.js';
 import { historyFor } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
 import { memoriesFor } from '../social/memories.js';
@@ -39,6 +40,7 @@ export function inspectCharacter(
   const waterRoute = nearestTerrainTile(world.map, x, y, 'water');
   const landRoute = nearestTerrainTile(world.map, x, y, 'land');
   const campRoute = nearestTerrainTile(world.map, x, y, 'camp');
+  const pile = nodeAt(world, x, y);
   const nearby = livingNeighbors(world, eid, buildOccupancy(world));
   const neighborId = adjacentLivingId(nearby);
   const knownId = knownNeighborId(world, id, nearby);
@@ -56,6 +58,8 @@ export function inspectCharacter(
     keep: Action.cooldown.keep[eid],
     confide: Action.cooldown.confide[eid],
     bluff: Action.cooldown.bluff[eid],
+    give: Action.cooldown.give[eid],
+    gather: Action.cooldown.gather[eid],
   };
 
   return {
@@ -84,6 +88,7 @@ export function inspectCharacter(
         empathy: Personality.empathy[eid],
         loyalty: Personality.loyalty[eid],
         honesty: Personality.honesty[eid],
+        greed: Personality.greed[eid],
       }),
       actionBias(world.seed, id),
     ),
@@ -99,6 +104,7 @@ export function inspectCharacter(
       empathy: Personality.empathy[eid],
       loyalty: Personality.loyalty[eid],
       honesty: Personality.honesty[eid],
+      greed: Personality.greed[eid],
       onWater: standingOnWater(world, x, y),
       canReachWater: waterRoute !== undefined,
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
@@ -106,6 +112,8 @@ export function inspectCharacter(
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
+      canGive: heldQuantity(world, id, CAMP_YIELD) >= 1,
+      nodeStock: pile?.quantity ?? 0,
       neighborDistress: distressed?.distress ?? 0,
       cooldowns,
     }),
@@ -114,6 +122,7 @@ export function inspectCharacter(
     relationships: relationshipsFor(world, id),
     memories: memoriesFor(world, id),
     inventory: inventoryFor(world, id),
+    node: pile ? { item: pile.item, quantity: pile.quantity } : null,
     derived: derivedStats(Attributes.constitution[eid]),
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };

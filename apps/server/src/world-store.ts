@@ -3,6 +3,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
+import type { ResourceNode } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
@@ -222,6 +223,8 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
         if (id === 'greet' && Number(world.version) < 13) continue;
         if (id === 'comfort' && Number(world.version) < 15) continue;
         if ((id === 'keep' || id === 'confide' || id === 'bluff') && Number(world.version) < 16) continue;
+        if (id === 'give' && Number(world.version) < 18) continue;
+        if (id === 'gather' && Number(world.version) < 19) continue;
 
         if (!isFiniteNumber(cooldowns[id]) || (cooldowns[id] as number) < 0) {
           throw new Error(`Character cooldown for ${id} is missing or invalid`);
@@ -312,6 +315,44 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
         if (!Number.isInteger(stack.quantity) || Number(stack.quantity) < 1) {
           throw new Error('Item quantity must be a positive integer');
         }
+      }
+    }
+  }
+
+  if (Number(world.version) >= 19) {
+    if (!Array.isArray(world.nodes)) {
+      throw new Error('World nodes are missing');
+    }
+
+    const map = world.map as WorldMapData;
+    const tiles = new Set<string>();
+
+    for (const node of world.nodes as ResourceNode[]) {
+      if (
+        !Number.isInteger(node.x)
+        || !Number.isInteger(node.y)
+        || node.x < 0
+        || node.y < 0
+        || node.x >= map.width
+        || node.y >= map.height
+      ) {
+        throw new Error('Resource node is outside the map');
+      }
+
+      const tile = `${node.x},${node.y}`;
+
+      if (tiles.has(tile)) {
+        throw new Error(`Duplicate resource node at ${tile}`);
+      }
+
+      tiles.add(tile);
+
+      if (!(ITEM_IDS as readonly string[]).includes(node.item)) {
+        throw new Error(`Unknown item: ${String(node.item)}`);
+      }
+
+      if (!Number.isInteger(node.quantity) || node.quantity < 1) {
+        throw new Error('Item quantity must be a positive integer');
       }
     }
   }

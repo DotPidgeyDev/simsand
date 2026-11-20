@@ -1,6 +1,6 @@
 import { createWorld } from 'bitecs';
 
-import type { InventoryRecord, MemoryRecord, RelationshipRecord, SimulationLogEvent } from '@simsand/shared';
+import type { InventoryRecord, MemoryRecord, RelationshipRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 
 import type { WorldMap } from './map.js';
 import { createWorldMap } from './map.js';
@@ -23,6 +23,8 @@ export interface SimulationWorld {
   nextMemoryId: number;
   // Sparse: a holder appears only once they carry something.
   inventories: Map<string, InventoryRecord>;
+  // Sparse: a tile appears only while its pile has quantity left.
+  nodes: Map<number, ResourceNode>;
 }
 
 export function createSimulationWorld(
@@ -42,5 +44,6 @@ export function createSimulationWorld(
     memories: [],
     nextMemoryId: 1,
     inventories: new Map(),
+    nodes: new Map(),
   };
 }

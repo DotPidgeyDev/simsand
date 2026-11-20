@@ -199,7 +199,7 @@ model incrementally as simulation systems become real.
     is stored in `PRAGMA user_version`. A database from a newer schema
     is refused.
 -   **Snapshot format:** `PersistedWorld` in `packages/shared`, version
-    17: seed, tick, elapsed time, fixed timestep, the tile map, sparse
+    19: seed, tick, elapsed time, fixed timestep, the tile map, sparse
     inventories and every
     entity's stable ID, position, velocity, appearance (colour and a
     named sprite), character profile (name, attributes, personality,
@@ -231,8 +231,10 @@ model incrementally as simulation systems become real.
     empty action target, empty relationships and an empty character log.
     Version 14 gains an empty memory list. Version 15 gains a comfort
     cooldown of zero. Version 16 gains keep, confide and bluff
-    cooldowns of zero. Version 17 gains an empty inventory list. The
-    next save writes version 17.
+    cooldowns of zero. Version 17 gains an empty inventory list. Version
+    18 gains a give cooldown of zero. Version 19 gains resource nodes
+    from the map seed and a gather cooldown of zero. The next save
+    writes version 19.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot reshuffle an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker

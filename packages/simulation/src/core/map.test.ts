@@ -5,8 +5,10 @@ import { TERRAIN_TYPES } from '@simsand/shared';
 import {
   createWorldMap,
   fromWorldMapData,
+  generateResourceNodes,
   generateWorldMap,
   getTile,
+  RESOURCE_NODE_STOCK,
   toWorldMapData,
 } from './map.js';
 
@@ -54,6 +56,21 @@ describe('world map', () => {
     expect(getTile(map, 4, 0)).toBeUndefined();
     expect(getTile(map, 0, -1)).toBeUndefined();
     expect(getTile(map, 0.5, 0)).toBeUndefined();
+  });
+
+  it('places material only on grass, from the map seed', () => {
+    const map = generateWorldMap(12345);
+    const nodes = generateResourceNodes(map, 12345);
+
+    expect(nodes.length).toBeGreaterThan(0);
+    expect(generateResourceNodes(map, 12345)).toEqual(nodes);
+    expect(generateResourceNodes(map, 99)).not.toEqual(nodes);
+
+    for (const node of nodes) {
+      expect(getTile(map, node.x, node.y)).toBe('grass');
+      expect(node.item).toBe('material');
+      expect(node.quantity).toBe(RESOURCE_NODE_STOCK);
+    }
   });
 
   it('round-trips through the shared map data format', () => {
