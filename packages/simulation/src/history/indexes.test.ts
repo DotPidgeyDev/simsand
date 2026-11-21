@@ -5,6 +5,7 @@ import { createWorldMap } from '../core/map.js';
 import { capturePersistedWorld, restorePersistedWorld } from '../core/persistence.js';
 import { createSimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
+import { acknowledgePendingLog } from '../history/records.js';
 import { LOG_LIMIT, historyFor, historyForPair, recordActionEnding, recordGreeting } from '../log/events.js';
 import { memoriesFor } from '../social/memories.js';
 import { relationshipsFor, rememberMeeting } from '../social/relationships.js';
@@ -108,6 +109,11 @@ describe('history indexes', () => {
     expect(historyFor(world, 'left').some((event) => event.eventId === oldest)).toBe(false);
     expect(historyForPair(world, 'left', 'right')).toEqual([]);
     expect(historyFor(world, 'right')).toEqual([]);
+    expect(world.pendingLog.map((event) => event.eventId)).toEqual([oldest]);
+
+    acknowledgePendingLog(world, [oldest]);
+
+    expect(world.pendingLog).toEqual([]);
   });
 
   it('rebuilds the indexes when a save is restored', () => {

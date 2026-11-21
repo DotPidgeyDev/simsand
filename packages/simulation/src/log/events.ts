@@ -25,7 +25,10 @@ function append(world: SimulationWorld, event: SimulationLogEvent): SimulationLo
   if (overflow > 0) {
     const removed = world.log.splice(0, overflow);
 
-    for (const old of removed) unindexLogEvent(world, old);
+    for (const old of removed) {
+      unindexLogEvent(world, old);
+      world.pendingLog.push(old);
+    }
   }
 
   return event;

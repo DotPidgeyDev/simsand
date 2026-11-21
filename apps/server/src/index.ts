@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 
+import { mergeHistory } from './log-history.js';
 import { createInspectionServer } from './inspection-server.js';
 import type { ServerInfo } from './inspection-server.js';
 import { log } from './logger.js';
@@ -17,7 +18,13 @@ const INSPECT_HOST = '127.0.0.1';
 
 const startedAt = new Date();
 
-const store = WorldStore.open(DB_PATH);
+const LOG_RETENTION = Number(process.env.SIMSAND_LOG_RETENTION ?? 100_000);
+
+if (!Number.isInteger(LOG_RETENTION) || LOG_RETENTION < 1) {
+  throw new Error('SIMSAND_LOG_RETENTION must be a positive integer');
+}
+
+const store = WorldStore.open(DB_PATH, LOG_RETENTION);
 const savedWorld = store.loadLatest();
 
 const browserServer = new BrowserWebSocketServer(WS_PORT);
@@ -29,11 +36,12 @@ let lastTicksDropped = 0;
 
 async function saveWorld(reason: string): Promise<void> {
   try {
-    const world = await simulation.capturePersistedWorld();
-    store.save(world);
-    lastSave = { tick: world.tick, savedAt: new Date().toISOString() };
+    const captured = await simulation.capturePersistedWorld();
+    store.save(captured.world, captured.pendingEvents);
+    simulation.acknowledgePersisted(captured.pendingEvents.map((event) => event.eventId));
+    lastSave = { tick: captured.world.tick, savedAt: new Date().toISOString() };
 
-    const message = `Saved world at tick ${world.tick} (${reason})`;
+    const message = `Saved world at tick ${captured.world.tick} (${reason})`;
     if (reason === 'periodic') log.debug(message);
     else log.info(message);
   } catch (error) {
@@ -101,7 +109,13 @@ const simulation = new SimulationWorker((message) => {
 const inspectionServer = createInspectionServer({
   getStatus: () => simulation.getStatus(),
   inspectEntity: (id) => simulation.inspectEntity(id),
-  inspectHistory: (id) => simulation.inspectHistory(id),
+  inspectHistory: async (id) => {
+    const live = await simulation.inspectHistory(id);
+
+    if (!live) return undefined;
+
+    return mergeHistory(store.eventsForParticipant(id), live);
+  },
   getSnapshot: () => browserServer.getLatestSnapshot(),
   getServerInfo: () => ({ startedAt, browserClients: browserServer.clientCount, lastSave }),
 });

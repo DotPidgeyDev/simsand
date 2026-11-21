@@ -22,6 +22,9 @@ export interface SimulationWorld {
   relationshipsByParticipant: Map<string, RelationshipRecord[]>;
   log: SimulationLogEvent[];
   nextLogId: number;
+  // Events the live log has dropped and the store has not confirmed.
+  // They are not indexed and not part of the snapshot body.
+  pendingLog: SimulationLogEvent[];
   // Derived from `log`. Built when an event is written, dropped when
   // the cap removes it. Not saved.
   logByParticipant: Map<string, SimulationLogEvent[]>;
@@ -54,6 +57,7 @@ export function createSimulationWorld(
     relationshipsByParticipant: new Map(),
     log: [],
     nextLogId: 1,
+    pendingLog: [],
     logByParticipant: new Map(),
     logByPair: new Map(),
     memories: [],

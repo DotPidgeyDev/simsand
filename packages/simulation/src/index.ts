@@ -44,6 +44,7 @@ export type {
 } from './core/loop.js';
 
 export { inspectCharacter, inspectCharacterHistory } from './inspection/inspect-character.js';
+export { acknowledgePendingLog } from './history/records.js';
 
 export {
   assertCharacterProfile,

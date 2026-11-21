@@ -1,33 +1,48 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync, backup } from 'node:sqlite';
 
-import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
-import type { PileReturn, ResourceNode } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION, SIMULATION_LOG_TYPES } from '@simsand/shared';
+import type { PileReturn, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
 
 import { log } from './logger.js';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+
+export const DEFAULT_LOG_RETENTION = 100_000;
 
 // A failed or corrupt write must never leave the store without a valid
 // snapshot, so older snapshots are kept until newer ones are committed.
 const SNAPSHOTS_TO_KEEP = 2;
 
 export class WorldStore {
-  constructor(private readonly db: DatabaseSync) {
+  private insertEventStatement: ReturnType<DatabaseSync['prepare']> | undefined;
+
+  private insertParticipantStatement: ReturnType<DatabaseSync['prepare']> | undefined;
+
+  private insertPairStatement: ReturnType<DatabaseSync['prepare']> | undefined;
+
+  constructor(
+    private readonly db: DatabaseSync,
+    private readonly eventRetention = DEFAULT_LOG_RETENTION,
+  ) {
+    if (!Number.isInteger(eventRetention) || eventRetention < 1) {
+      throw new Error('Event retention must be a positive integer');
+    }
+
     this.db.exec('PRAGMA journal_mode = WAL');
     this.migrate();
   }
 
-  static open(path: string): WorldStore {
+  static open(path: string, eventRetention = DEFAULT_LOG_RETENTION): WorldStore {
     mkdirSync(dirname(path), { recursive: true });
-    return new WorldStore(new DatabaseSync(path));
+    return new WorldStore(new DatabaseSync(path), eventRetention);
   }
 
-  save(world: PersistedWorld): void {
+  save(world: PersistedWorld, pendingEvents: readonly SimulationLogEvent[] = []): void {
     this.db.exec('BEGIN');
 
     try {
@@ -47,11 +62,49 @@ export class WorldStore {
         `)
         .run(SNAPSHOTS_TO_KEEP);
 
+      this.recordEvents([...pendingEvents, ...world.log]);
+
       this.db.exec('COMMIT');
     } catch (error) {
       this.db.exec('ROLLBACK');
       throw error;
     }
+  }
+
+  eventsForParticipant(id: string): SimulationLogEvent[] {
+    const rows = this.db
+      .prepare(`
+        SELECT e.payload
+        FROM simulation_events e
+        INNER JOIN simulation_event_participants p ON p.event_id = e.event_id
+        WHERE p.participant_id = ?
+        ORDER BY e.tick, e.sequence
+      `)
+      .all(id) as { payload: string }[];
+
+    return rows.map((row) => parseStoredEvent(row.payload));
+  }
+
+  eventsForPair(a: string, b: string): SimulationLogEvent[] {
+    const rows = this.db
+      .prepare(`
+        SELECT e.payload
+        FROM simulation_events e
+        INNER JOIN simulation_event_pairs p ON p.event_id = e.event_id
+        WHERE p.pair_key = ?
+        ORDER BY e.tick, e.sequence
+      `)
+      .all(pairKey(a, b)) as { payload: string }[];
+
+    return rows.map((row) => parseStoredEvent(row.payload));
+  }
+
+  // A consistent copy of this database. Restore by stopping the server,
+  // replacing the database file with this copy, and deleting any -wal and
+  // -shm files beside the original path.
+  async backupTo(path: string): Promise<void> {
+    mkdirSync(dirname(path), { recursive: true });
+    await backup(this.db, path);
   }
 
   // Returns undefined only when no world has ever been saved. If snapshots
@@ -83,27 +136,233 @@ export class WorldStore {
   }
 
   private migrate(): void {
-    const { user_version: version } = this.db
+    const { user_version: current } = this.db
       .prepare('PRAGMA user_version')
       .get() as { user_version: number };
 
-    if (version > SCHEMA_VERSION) {
-      throw new Error(`Database schema version ${version} is newer than supported version ${SCHEMA_VERSION}`);
+    if (current > SCHEMA_VERSION) {
+      throw new Error(`Database schema version ${current} is newer than supported version ${SCHEMA_VERSION}`);
     }
 
-    if (version < 1) {
+    if (current === SCHEMA_VERSION) {
+      this.prepareEventStatements();
+      return;
+    }
+
+    this.db.exec('BEGIN');
+
+    try {
+      if (current < 1) {
+        this.db.exec(`
+          CREATE TABLE world_snapshots (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            format_version INTEGER NOT NULL,
+            tick INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            payload TEXT NOT NULL
+          );
+        `);
+      }
+
       this.db.exec(`
-        CREATE TABLE world_snapshots (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          format_version INTEGER NOT NULL,
+        CREATE TABLE simulation_events (
+          event_id TEXT PRIMARY KEY,
           tick INTEGER NOT NULL,
-          created_at TEXT NOT NULL,
+          sequence INTEGER NOT NULL,
           payload TEXT NOT NULL
         );
-        PRAGMA user_version = 1;
+        CREATE INDEX simulation_events_order ON simulation_events (tick, sequence);
+        CREATE TABLE simulation_event_participants (
+          participant_id TEXT NOT NULL,
+          event_id TEXT NOT NULL,
+          PRIMARY KEY (participant_id, event_id)
+        );
+        CREATE TABLE simulation_event_pairs (
+          pair_key TEXT NOT NULL,
+          event_id TEXT NOT NULL,
+          PRIMARY KEY (pair_key, event_id)
+        );
       `);
+      this.prepareEventStatements();
+      this.backfillEvents();
+      this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
     }
   }
+
+  private prepareEventStatements(): void {
+    this.insertEventStatement = this.db.prepare(`
+      INSERT INTO simulation_events (event_id, tick, sequence, payload)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(event_id) DO NOTHING
+    `);
+    this.insertParticipantStatement = this.db.prepare(`
+      INSERT OR IGNORE INTO simulation_event_participants (participant_id, event_id)
+      VALUES (?, ?)
+    `);
+    this.insertPairStatement = this.db.prepare(`
+      INSERT OR IGNORE INTO simulation_event_pairs (pair_key, event_id)
+      VALUES (?, ?)
+    `);
+  }
+
+  private backfillEvents(): void {
+    const rows = this.db
+      .prepare('SELECT id, tick, payload FROM world_snapshots ORDER BY id')
+      .all() as { id: number; tick: number; payload: string }[];
+
+    for (const row of rows) {
+      try {
+        const world = parsePersistedWorld(row.payload);
+        this.recordEvents(world.log);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        log.error(`Skipping events in invalid world snapshot ${row.id} (tick ${row.tick}): ${reason}`);
+      }
+    }
+  }
+
+  private recordEvents(events: readonly SimulationLogEvent[]): void {
+    const seen = new Set<string>();
+
+    for (const event of events) {
+      if (seen.has(event.eventId)) continue;
+
+      seen.add(event.eventId);
+      this.insertEvent(event);
+    }
+
+    this.pruneEvents();
+  }
+
+  private insertEvent(event: SimulationLogEvent): void {
+    assertLogEvent(event);
+
+    const inserted = this.insertEventStatement!.run(
+      event.eventId,
+      event.tick,
+      eventSequence(event.eventId),
+      JSON.stringify(event),
+    );
+
+    if (Number(inserted.changes) !== 1) return;
+
+    const participants = new Set(event.participants);
+
+    for (const participant of participants) {
+      this.insertParticipantStatement!.run(participant, event.eventId);
+    }
+
+    const ordered = [...participants].sort();
+
+    for (let i = 0; i < ordered.length; i++) {
+      for (let j = i + 1; j < ordered.length; j++) {
+        this.insertPairStatement!.run(pairKey(ordered[i], ordered[j]), event.eventId);
+      }
+    }
+  }
+
+  private pruneEvents(): void {
+    this.db.prepare(`
+      DELETE FROM simulation_event_participants
+      WHERE event_id IN (
+        SELECT event_id FROM simulation_events
+        ORDER BY tick DESC, sequence DESC
+        LIMIT -1 OFFSET ?
+      )
+    `).run(this.eventRetention);
+
+    this.db.prepare(`
+      DELETE FROM simulation_event_pairs
+      WHERE event_id IN (
+        SELECT event_id FROM simulation_events
+        ORDER BY tick DESC, sequence DESC
+        LIMIT -1 OFFSET ?
+      )
+    `).run(this.eventRetention);
+
+    this.db.prepare(`
+      DELETE FROM simulation_events
+      WHERE event_id IN (
+        SELECT event_id FROM simulation_events
+        ORDER BY tick DESC, sequence DESC
+        LIMIT -1 OFFSET ?
+      )
+    `).run(this.eventRetention);
+  }
+}
+
+function eventSequence(eventId: string): number {
+  const match = /^log-(\d+)$/.exec(eventId);
+
+  return match ? Number(match[1]) : 0;
+}
+
+function pairKey(a: string, b: string): string {
+  return a < b ? `${a}\t${b}` : `${b}\t${a}`;
+}
+
+function assertLogEvent(value: unknown): asserts value is SimulationLogEvent {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('Log event is not an object');
+  }
+
+  const event = value as SimulationLogEvent;
+
+  if (typeof event.eventId !== 'string' || event.eventId.length === 0) {
+    throw new Error('Log event id is missing');
+  }
+
+  if (!(SIMULATION_LOG_TYPES as readonly string[]).includes(event.type)) {
+    throw new Error(`Unknown log event type: ${String(event.type)}`);
+  }
+
+  if (!isFiniteNumber(event.tick) || event.tick < 0 || !Number.isInteger(event.tick)) {
+    throw new Error(`Log event ${event.eventId} tick is invalid`);
+  }
+
+  if (!isFiniteNumber(event.elapsedSeconds) || event.elapsedSeconds < 0) {
+    throw new Error(`Log event ${event.eventId} time is invalid`);
+  }
+
+  if (
+    !Array.isArray(event.participants)
+    || event.participants.length === 0
+    || event.participants.some((id) => typeof id !== 'string' || id.length === 0)
+  ) {
+    throw new Error(`Log event ${event.eventId} participants are missing`);
+  }
+
+  if (
+    typeof event.location !== 'object'
+    || event.location === null
+    || !isFiniteNumber(event.location.x)
+    || !isFiniteNumber(event.location.y)
+  ) {
+    throw new Error(`Log event ${event.eventId} location is missing`);
+  }
+
+  if (typeof event.payload !== 'object' || event.payload === null) {
+    throw new Error(`Log event ${event.eventId} payload is missing`);
+  }
+
+  if (!(ACTION_IDS as readonly string[]).includes(event.payload.action)) {
+    throw new Error(`Unknown action: ${String(event.payload.action)}`);
+  }
+
+  if (!(ACTION_OUTCOMES as readonly string[]).includes(event.payload.result)) {
+    throw new Error(`Unknown action result: ${String(event.payload.result)}`);
+  }
+}
+
+function parseStoredEvent(payload: string): SimulationLogEvent {
+  const value: unknown = JSON.parse(payload);
+
+  assertLogEvent(value);
+  return value;
 }
 
 function isFiniteNumber(value: unknown): value is number {

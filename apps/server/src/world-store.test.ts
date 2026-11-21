@@ -1,8 +1,11 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { PersistedWorld } from '@simsand/shared';
+import type { PersistedWorld, SimulationLogEvent } from '@simsand/shared';
 import { generateCharacterProfile, generateResourceNodes, generateWorldMap, spriteIdFor, startingAgeSeconds, toWorldMapData } from '@simsand/simulation';
 
 import { WorldStore } from './world-store.js';
@@ -45,6 +48,22 @@ function world(tick: number): PersistedWorld {
     inventories: [],
     nodes: [],
     returning: [],
+  };
+}
+
+function logEvent(
+  eventId: string,
+  tick: number,
+  participants: string[],
+): SimulationLogEvent {
+  return {
+    eventId,
+    type: 'action.ended',
+    tick,
+    elapsedSeconds: tick / 10,
+    participants,
+    location: { x: 1, y: 1 },
+    payload: { action: 'eat', result: 'completed', initiator: participants[0] },
   };
 }
 
@@ -273,8 +292,100 @@ describe('WorldStore', () => {
 
   it('refuses a database created by a newer schema', () => {
     const db = new DatabaseSync(':memory:');
-    db.exec('PRAGMA user_version = 2');
+    db.exec('PRAGMA user_version = 3');
 
     expect(() => new WorldStore(db)).toThrow('newer than supported');
+  });
+
+  it('keeps a log event after the snapshot that contained it is pruned', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+    const older = logEvent('log-1', 1, ['left', 'right']);
+    const newer = logEvent('log-2', 2, ['left']);
+
+    store.save({ ...world(1), log: [older] });
+    store.save({ ...world(2), log: [newer] });
+    store.save({ ...world(3), log: [newer] });
+
+    expect(store.eventsForParticipant('left')).toEqual([older, newer]);
+    expect(store.eventsForParticipant('right')).toEqual([older]);
+    expect(store.eventsForPair('right', 'left')).toEqual([older]);
+    expect(store.eventsForPair('left', 'nobody')).toEqual([]);
+  });
+
+  it('stores an event that the live log has already dropped', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+    const dropped = logEvent('log-1', 1, ['left']);
+    const kept = logEvent('log-2', 2, ['left']);
+
+    store.save({ ...world(2), log: [kept] }, [dropped]);
+
+    expect(store.eventsForParticipant('left')).toEqual([dropped, kept]);
+  });
+
+  it('does not store the same event twice', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+    const entry = logEvent('log-4', 4, ['left']);
+
+    store.save({ ...world(4), log: [entry] });
+    store.save({ ...world(5), log: [entry] }, [entry]);
+
+    expect(store.eventsForParticipant('left')).toEqual([entry]);
+  });
+
+  it('drops the oldest retained events past the retention limit', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'), 2);
+    const first = logEvent('log-1', 1, ['left']);
+    const second = logEvent('log-2', 2, ['left']);
+    const third = logEvent('log-10', 3, ['left']);
+
+    store.save({ ...world(3), log: [first, second, third] });
+
+    expect(store.eventsForParticipant('left').map((entry) => entry.eventId)).toEqual([
+      'log-2',
+      'log-10',
+    ]);
+    expect(store.eventsForPair('left', 'right')).toEqual([]);
+  });
+
+  it('copies a schema version 1 log into the event tables', () => {
+    const db = new DatabaseSync(':memory:');
+    const entry = logEvent('log-7', 7, ['left', 'right']);
+
+    db.exec(`
+      CREATE TABLE world_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        format_version INTEGER NOT NULL,
+        tick INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        payload TEXT NOT NULL
+      );
+      PRAGMA user_version = 1;
+    `);
+    insertRaw(db, 7, JSON.stringify({ ...world(7), log: [entry] }));
+
+    const store = new WorldStore(db);
+    const { user_version: version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
+
+    expect(version).toBe(2);
+    expect(store.eventsForParticipant('right')).toEqual([entry]);
+    expect(store.loadLatest()?.log).toEqual([entry]);
+  });
+
+  it('restores a backup as a separate database', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'simsand-backup-'));
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+    const entry = logEvent('log-3', 3, ['left']);
+
+    store.save({ ...world(3), log: [entry] });
+    await store.backupTo(join(directory, 'backup.sqlite'));
+
+    const restored = WorldStore.open(join(directory, 'backup.sqlite'));
+
+    expect(restored.loadLatest()?.tick).toBe(3);
+    expect(restored.eventsForParticipant('left')).toEqual([entry]);
+
+    restored.close();
+    store.close();
+    rmSync(directory, { recursive: true, force: true });
   });
 });

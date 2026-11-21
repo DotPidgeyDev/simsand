@@ -468,6 +468,17 @@ relationship is filed under both characters when it is created. The
 indexes are derived. A save is still format version 23, and loading one
 rebuilds them. Inspection and the same-tick pair check read the indexes.
 
+The same log is stored in SQLite, one row per event. Participant and
+pair rows point at that row. A save writes the live log and any events
+the live log has dropped since the previous confirmed save. The store
+keeps the newest 100,000 events (`SIMSAND_LOG_RETENTION`). Character
+history is those rows plus anything still only in the live log. The
+database schema is version 2. A version 1 database gains the event
+tables on open and copies the log out of the snapshots it already holds.
+`backupTo` writes a consistent copy. Restoring it means replacing the
+database file while the server is stopped, and removing any `-wal` and
+`-shm` files beside that path.
+
 Restart resumes at the saved tick. Time the process was stopped is not
 simulated, so a restart does not age needs or complete camp visits.
 The running loop still catches up a few ticks when a frame runs long.

@@ -445,7 +445,7 @@ The server receives updates from the worker and broadcasts them to connected bro
 
 The server caches the most recently received full snapshot and folds each delta into that cache, so a newly connected client initializes from the current world before receiving incremental updates.
 
-Persistent IDs and durable event handling remain future work.
+Stable character IDs are stored with the world. The character log is retained in the database, up to the newest 100,000 events.
 
 ---
 
@@ -454,9 +454,9 @@ Persistent IDs and durable event handling remain future work.
 - Final character death, descendants and inheritance rules.
 - Whether one viewer can own multiple active characters.
 - Population caps and background simulation detail.
-- Exact snapshot cadence and durable-event retention.
+- Exact snapshot cadence. Durable history keeps the newest 100,000 log events.
 - When, if ever, to introduce multiple simulation workers.
-- How much world history is retained and exposed.
+- How much of the retained log a viewer-facing chronicle shows. Debugging history already returns the retained log for one character.
 - Time scaling and fast-forward behaviour.
 - How far is too far to start a walk. The route is a shared field; a cutoff is not chosen.
 - Long-term ECS abstraction and data migration strategy.

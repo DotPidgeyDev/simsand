@@ -46,7 +46,10 @@ export class SimulationWorker {
 
     this.worker.on('message', (message: WorkerToServerMessage) => {
       if (message.type === 'world.persisted') {
-        this.resolveReply(`persist:${message.data.requestId}`, message.data.world);
+        this.resolveReply(`persist:${message.data.requestId}`, {
+          world: message.data.world,
+          pendingEvents: message.data.pendingEvents,
+        });
         return;
       }
 
@@ -108,15 +111,24 @@ export class SimulationWorker {
     this.send({ type: 'world.snapshot.request' });
   }
 
-  capturePersistedWorld(timeoutMs = 2000): Promise<PersistedWorld> {
+  capturePersistedWorld(timeoutMs = 2000): Promise<{
+    world: PersistedWorld;
+    pendingEvents: SimulationLogEvent[];
+  }> {
     const requestId = this.nextRequestId++;
 
-    return this.request<PersistedWorld>(
+    return this.request(
       `persist:${requestId}`,
       { type: 'world.persist.request', data: { requestId } },
       timeoutMs,
       'a world snapshot',
     );
+  }
+
+  acknowledgePersisted(eventIds: readonly string[]): void {
+    if (eventIds.length === 0) return;
+
+    this.send({ type: 'world.persist.ack', data: { eventIds: [...eventIds] } });
   }
 
   getStatus(timeoutMs = 2000): Promise<SimulationStatus> {

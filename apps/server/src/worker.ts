@@ -10,6 +10,7 @@ import {
   stopSimulationLoop,
   createWorldSnapshot,
   createWorldDelta,
+  acknowledgePendingLog,
   capturePersistedWorld,
   restorePersistedWorld,
   executeCommand,
@@ -154,9 +155,20 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
           data: {
             requestId: message.data.requestId,
             world: capturePersistedWorld(world, clock, seed),
+            pendingEvents: world.pendingLog.map((event) => ({
+              ...event,
+              participants: [...event.participants],
+              location: { ...event.location },
+              payload: { ...event.payload },
+            })),
           },
         });
 
+        break;
+      }
+
+      case 'world.persist.ack': {
+        if (loop) acknowledgePendingLog(loop.runner.world, message.data.eventIds);
         break;
       }
 

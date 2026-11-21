@@ -1,7 +1,7 @@
 # Persistence Architecture
 
-**Status:** Active implementation — snapshot save/restore, history indexes\
-**Version:** 1.2
+**Status:** Active implementation — snapshot save/restore, retained log\
+**Version:** 1.3
 
 ## 1. Purpose
 
@@ -183,10 +183,12 @@ model incrementally as simulation systems become real.
     native dependency to build. It logs an `ExperimentalWarning` at
     startup. The database is `apps/server/data/simsand.sqlite` (git
     ignored), overridable with `SIMSAND_DB_PATH`. It runs in WAL mode.
--   **Schema:** a single `world_snapshots` table holding the format
-    version, tick, creation time and a JSON payload. The schema version
-    is stored in `PRAGMA user_version`. A database from a newer schema
-    is refused.
+-   **Schema:** `world_snapshots` holds the format version, tick,
+    creation time and a JSON payload. `simulation_events` holds one JSON
+    log event per id, and the participant and pair tables index that id.
+    The schema version is stored in `PRAGMA user_version` and is 2. A
+    database from a newer schema is refused. A version 1 database is
+    migrated on open.
 -   **Snapshot format:** `PersistedWorld` in `packages/shared`, version
     23: seed, tick, elapsed time, fixed timestep, the tile map, sparse
     inventories, resource piles, piles waiting to return, and every
@@ -246,11 +248,25 @@ model incrementally as simulation systems become real.
 The character log, memories, and relationships are part of that
 snapshot. Live queries do not scan those lists. The simulation keeps a
 participant index and a pair index, built when a record is written and
-rebuilt when a snapshot is restored. The indexes are not stored. The
-log kept in the snapshot is still the newest 10,000 events.
+rebuilt when a snapshot is restored. Those indexes are not stored. The
+log inside the snapshot is the newest 10,000 events.
 
-Not yet implemented: durable retention of that log beyond the snapshot
-cap, world IDs for more than one world, backups, and migrations beyond
-the initial schema. A process that is killed without a signal loses up
-to one save interval of progress. Restart does not simulate the time
-the process was stopped.
+The same events are retained in `simulation_events`. One row is the
+event. `simulation_event_participants` and `simulation_event_pairs`
+store ids that point at it, not a second copy of the payload. A save
+inserts the snapshot log and any events the live log has dropped since
+the previous save was confirmed. Inserts are ignored when the event id
+is already stored. The table then keeps the newest 100,000 events
+(`SIMSAND_LOG_RETENTION`). Character history reads that table and the
+live log together, preferring the live copy of an id that is in both.
+The database schema is version 2. Opening a version 1 database creates
+the event tables and copies the log out of the snapshots already saved.
+`WorldStore.backupTo` writes a consistent copy through SQLite's backup
+API. To restore it, stop the server, replace the database file with the
+copy, delete any `-wal` and `-shm` files beside that path, and start
+the server again.
+
+Not yet implemented: world IDs for more than one world, and scheduled
+backups. A process that is killed without a signal loses up to one save
+interval of progress, including log events that had not been confirmed.
+Restart does not simulate the time the process was stopped.

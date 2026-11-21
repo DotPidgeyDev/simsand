@@ -114,6 +114,14 @@ export function relationshipsFor(world: SimulationWorld, id: string): Relationsh
 }
 
 // Indexes are derived. A restored world rebuilds them from the saved lists.
+export function acknowledgePendingLog(world: SimulationWorld, eventIds: readonly string[]): void {
+  if (eventIds.length === 0 || world.pendingLog.length === 0) return;
+
+  const saved = new Set(eventIds);
+
+  world.pendingLog = world.pendingLog.filter((event) => !saved.has(event.eventId));
+}
+
 export function rebuildHistoryIndexes(world: SimulationWorld): void {
   world.logByParticipant.clear();
   world.logByPair.clear();

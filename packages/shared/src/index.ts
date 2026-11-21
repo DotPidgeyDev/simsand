@@ -387,6 +387,7 @@ export type ServerToWorkerMessage =
   | { type: 'world.resume' }
   | { type: 'world.snapshot.request' }
   | { type: 'world.persist.request'; data: { requestId: number } }
+  | { type: 'world.persist.ack'; data: { eventIds: string[] } }
   | { type: 'world.command'; data: SimulationCommand }
   | { type: 'world.status.request'; data: { requestId: number } }
   | { type: 'world.inspect.request'; data: { requestId: number; entityId: string } }
@@ -412,7 +413,12 @@ export type WorkerToServerMessage =
     }
   | {
       type: 'world.persisted';
-      data: { requestId: number; world: PersistedWorld };
+      data: {
+        requestId: number;
+        world: PersistedWorld;
+        // Events the live log dropped after the previous confirmed save.
+        pendingEvents: SimulationLogEvent[];
+      };
     }
   | {
       type: 'world.command.result';
