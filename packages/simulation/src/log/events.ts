@@ -4,7 +4,7 @@ import { Needs } from '../components/needs.js';
 import { HUNGER_RESUME_AT } from '../systems/needs.js';
 import { Position } from '../components/position.js';
 import type { SimulationWorld } from '../core/world.js';
-import { CAMP_YIELD, CAMP_YIELD_QUANTITY, CRAFT_INPUT, CRAFT_OUTPUT, CRAFT_QUANTITY, MEAL_ITEM, MEAL_QUANTITY, grantItem, spendItem, transferItem } from '../economy/inventory.js';
+import { CAMP_YIELD, CAMP_YIELD_QUANTITY, CRAFT_INPUT, CRAFT_OUTPUT, CRAFT_QUANTITY, FOOD_PRICE, MEAL_ITEM, MEAL_QUANTITY, buyFood, grantItem, spendItem, transferItem } from '../economy/inventory.js';
 import { takeResource } from '../economy/nodes.js';
 import { rememberEvent } from '../social/memories.js';
 import { pairKey, rememberMeeting, sortedPair } from '../social/relationships.js';
@@ -200,6 +200,39 @@ export function recordGiving(
   return event;
 }
 
+export function recordBuying(
+  world: SimulationWorld,
+  initiatorEid: number,
+  initiatorId: string,
+  otherId: string,
+): SimulationLogEvent | undefined {
+  const moved = buyFood(world, initiatorId, otherId);
+
+  if (!moved) return undefined;
+
+  const event: SimulationLogEvent = {
+    eventId: nextEventId(world),
+    type: 'item.traded',
+    tick: world.tick,
+    elapsedSeconds: world.elapsedSeconds,
+    participants: sortedPair(initiatorId, otherId),
+    location: { x: Position.x[initiatorEid], y: Position.y[initiatorEid] },
+    payload: {
+      action: 'buy',
+      result: 'completed',
+      initiator: initiatorId,
+      item: MEAL_ITEM,
+      quantity: MEAL_QUANTITY,
+      price: FOOD_PRICE,
+    },
+  };
+
+  append(world, event);
+  rememberEvent(world, 'trading', event.eventId, initiatorId, otherId);
+
+  return event;
+}
+
 export function recordBluff(
   world: SimulationWorld,
   initiatorEid: number,
@@ -260,6 +293,12 @@ export function recordActionEnding(
     if (!otherId) return undefined;
 
     return recordGiving(world, eid, actorId, otherId);
+  }
+
+  if (action === 'buy' && result === 'completed') {
+    if (!otherId) return undefined;
+
+    return recordBuying(world, eid, actorId, otherId);
   }
 
   if (action === 'work' && result === 'completed') {

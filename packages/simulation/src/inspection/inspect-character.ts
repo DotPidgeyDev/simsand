@@ -11,7 +11,7 @@ import { Attributes } from '../components/attributes.js';
 import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns, readActionOutcome, standingOnCamp, standingOnWater } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
-import { CAMP_YIELD, CRAFT_INPUT, MEAL_ITEM, heldQuantity, inventoryFor } from '../economy/inventory.js';
+import { CAMP_YIELD, CRAFT_INPUT, FOOD_PRICE, MEAL_ITEM, heldQuantity, inventoryFor } from '../economy/inventory.js';
 import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
 import { historyFor } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
@@ -63,6 +63,7 @@ export function inspectCharacter(
     gather: Action.cooldown.gather[eid],
     craft: Action.cooldown.craft[eid],
     dine: Action.cooldown.dine[eid],
+    buy: Action.cooldown.buy[eid],
   };
 
   return {
@@ -119,6 +120,8 @@ export function inspectCharacter(
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
       canGive: heldQuantity(world, id, CAMP_YIELD) >= 1,
+      canPay: heldQuantity(world, id, CAMP_YIELD) >= FOOD_PRICE,
+      neighborFood: knownId === undefined ? 0 : heldQuantity(world, knownId, MEAL_ITEM),
       heldMaterial: heldQuantity(world, id, CRAFT_INPUT),
       heldFood: heldQuantity(world, id, MEAL_ITEM),
       nodeStock: pile?.quantity ?? 0,

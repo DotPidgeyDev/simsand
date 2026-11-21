@@ -235,7 +235,8 @@ model incrementally as simulation systems become real.
     18 gains a give cooldown of zero. Version 19 gains resource nodes
     from the map seed and a gather cooldown of zero. Version 20 gains
     a craft cooldown of zero. Version 21 gains a dine cooldown of zero.
-    The next save writes version 21.
+    Version 22 gains a buy cooldown of zero. The next save writes version
+    22.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot reshuffle an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker

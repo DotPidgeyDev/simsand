@@ -697,7 +697,7 @@ describe('confide and bluff', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(), 0);
     const { world: restored } = restorePersistedWorld(structuredClone(persisted));
 
-    expect(persisted.version).toBe(21);
+    expect(persisted.version).toBe(22);
     expect(restored.log.filter((event) => event.type === 'character.bluffed')).toEqual(
       world.log.filter((event) => event.type === 'character.bluffed'),
     );

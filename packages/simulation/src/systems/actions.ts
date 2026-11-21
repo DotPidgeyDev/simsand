@@ -13,7 +13,7 @@ import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
-import { CAMP_YIELD, CRAFT_INPUT, MEAL_ITEM, heldQuantity } from '../economy/inventory.js';
+import { CAMP_YIELD, CRAFT_INPUT, FOOD_PRICE, MEAL_ITEM, heldQuantity } from '../economy/inventory.js';
 import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
 import { recordActionEnding } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, distressOf, isAdjacentLiving, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
@@ -93,6 +93,9 @@ interface NeedState {
   hasKnownNeighbor: boolean;
   // True when they are holding something they can hand over.
   canGive: boolean;
+  canPay: boolean;
+  // Food held by the known neighbour they would trade with. Zero when there is none.
+  neighborFood: number;
   heldMaterial: number;
   heldFood: number;
   // Quantity of the pile on the tile under them. Zero when there is none.
@@ -174,7 +177,7 @@ interface ActionDefinition {
 
 // Order is the tie break: eat, then dine, then drink, then rest, then work,
 // then gather, then craft, then comfort, then keep, then confide, then bluff,
-// then greet, then give, then move, then idle.
+// then greet, then give, then buy, then move, then idle.
 export const actionDefinitions: readonly ActionDefinition[] = [
   {
     id: 'eat',
@@ -371,6 +374,21 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     losesTarget: true,
   },
   {
+    id: 'buy',
+    // A greedy character pays for food. Giving scores what greed does not.
+    score: (state) => state.greed * comfort(state),
+    requiresLife: true,
+    ready: (state) => comfortable(state) && state.hasKnownNeighbor && state.canPay && state.neighborFood >= 1,
+    holds: (state) => state.targetAdjacent && state.canPay && state.neighborFood >= 1,
+    sustain: () => false,
+    urgent: () => false,
+    resting: false,
+    eating: false,
+    drinking: false,
+    working: false,
+    losesTarget: true,
+  },
+  {
     id: 'move',
     score: (state) => state.curiosity * comfort(state),
     requiresLife: true,
@@ -435,6 +453,8 @@ function needState(input: {
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
+  canPay?: boolean;
+  neighborFood?: number;
   heldMaterial?: number;
   heldFood?: number;
   nodeStock?: number;
@@ -465,6 +485,8 @@ function needState(input: {
     hasNeighbor: input.hasNeighbor ?? false,
     hasKnownNeighbor: input.hasKnownNeighbor ?? false,
     canGive: input.canGive ?? false,
+    canPay: input.canPay ?? false,
+    neighborFood: Math.max(0, input.neighborFood ?? 0),
     heldMaterial: Math.max(0, input.heldMaterial ?? 0),
     heldFood: Math.max(0, input.heldFood ?? 0),
     nodeStock: Math.max(0, input.nodeStock ?? 0),
@@ -567,6 +589,8 @@ export function actionAvailability(input: {
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
+  canPay?: boolean;
+  neighborFood?: number;
   heldMaterial?: number;
   heldFood?: number;
   nodeStock?: number;
@@ -699,6 +723,7 @@ function readCooldowns(eid: number): ActionCooldowns {
     gather: Action.cooldown.gather[eid],
     craft: Action.cooldown.craft[eid],
     dine: Action.cooldown.dine[eid],
+    buy: Action.cooldown.buy[eid],
   };
 }
 
@@ -797,6 +822,8 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
       canGive: heldQuantity(world, Identity.id[eid], CAMP_YIELD) >= 1,
+      canPay: heldQuantity(world, Identity.id[eid], CAMP_YIELD) >= FOOD_PRICE,
+      neighborFood: knownId === undefined ? 0 : heldQuantity(world, knownId, MEAL_ITEM),
       heldMaterial: heldQuantity(world, Identity.id[eid], CRAFT_INPUT),
       heldFood: heldQuantity(world, Identity.id[eid], MEAL_ITEM),
       nodeStock: nodeAt(world, Position.x[eid], Position.y[eid])?.quantity ?? 0,
@@ -851,6 +878,8 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       hasNeighbor: state.hasNeighbor,
       hasKnownNeighbor: state.hasKnownNeighbor,
       canGive: state.canGive,
+      canPay: state.canPay,
+      neighborFood: state.neighborFood,
       heldMaterial: state.heldMaterial,
       heldFood: state.heldFood,
       nodeStock: state.nodeStock,
@@ -882,7 +911,7 @@ function socialTarget(
 ): string {
   if (action === 'greet') return neighborId ?? '';
   if (action === 'comfort') return distressedId ?? '';
-  if (action === 'keep' || action === 'confide' || action === 'bluff' || action === 'give') return knownId ?? '';
+  if (action === 'keep' || action === 'confide' || action === 'bluff' || action === 'give' || action === 'buy') return knownId ?? '';
 
   return '';
 }

@@ -16,6 +16,9 @@ export const CRAFT_QUANTITY = 1;
 export const MEAL_ITEM: ItemId = 'food';
 export const MEAL_QUANTITY = 1;
 
+// Goods a character pays a known neighbour for one food.
+export const FOOD_PRICE = 2;
+
 export function grantItem(
   world: SimulationWorld,
   holderId: string,
@@ -78,6 +81,19 @@ export function transferItem(
 
   grantItem(world, toId, item, quantity);
   return true;
+}
+
+// Pays FOOD_PRICE goods for one food. Either both stacks move, or neither does.
+export function buyFood(world: SimulationWorld, buyerId: string, sellerId: string): boolean {
+  if (buyerId === sellerId) return false;
+  if (heldQuantity(world, buyerId, CAMP_YIELD) < FOOD_PRICE) return false;
+  if (heldQuantity(world, sellerId, MEAL_ITEM) < MEAL_QUANTITY) return false;
+
+  if (!transferItem(world, buyerId, sellerId, CAMP_YIELD, FOOD_PRICE)) return false;
+  if (transferItem(world, sellerId, buyerId, MEAL_ITEM, MEAL_QUANTITY)) return true;
+
+  transferItem(world, sellerId, buyerId, CAMP_YIELD, FOOD_PRICE);
+  return false;
 }
 
 // Removes quantity from one holder. A holder left with nothing drops out of the map.

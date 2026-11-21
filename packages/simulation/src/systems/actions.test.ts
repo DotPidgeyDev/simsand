@@ -58,7 +58,7 @@ function character() {
 describe('updateActions', () => {
   it('defines every action once, in tie-break order', () => {
     expect(actionDefinitions.map((definition) => definition.id)).toEqual([
-      'eat', 'dine', 'drink', 'rest', 'work', 'gather', 'craft', 'comfort', 'keep', 'confide', 'bluff', 'greet', 'give', 'move', 'idle',
+      'eat', 'dine', 'drink', 'rest', 'work', 'gather', 'craft', 'comfort', 'keep', 'confide', 'bluff', 'greet', 'give', 'buy', 'move', 'idle',
     ]);
   });
 
@@ -334,6 +334,7 @@ describe('updateActions', () => {
       gather: false,
       craft: false,
       dine: false,
+      buy: false,
     });
   });
 
@@ -397,6 +398,7 @@ describe('updateActions', () => {
       gather: false,
       craft: false,
       dine: false,
+      buy: false,
     });
   });
 

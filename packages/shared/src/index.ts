@@ -45,7 +45,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 21;
+export const PERSISTED_WORLD_VERSION = 22;
 
 // Append only. Saved inventories store the name.
 export const ITEM_IDS = ['goods', 'material', 'food'] as const;
@@ -115,7 +115,7 @@ export type BasicNeed = (typeof BASIC_NEEDS)[number];
 export type CharacterNeeds = Record<BasicNeed, number>;
 
 // Append only. Saved worlds store the name.
-export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort', 'keep', 'confide', 'bluff', 'give', 'gather', 'craft', 'dine'] as const;
+export const ACTION_IDS = ['idle', 'move', 'eat', 'rest', 'drink', 'work', 'greet', 'comfort', 'keep', 'confide', 'bluff', 'give', 'gather', 'craft', 'dine', 'buy'] as const;
 
 export type ActionId = (typeof ACTION_IDS)[number];
 
@@ -132,7 +132,7 @@ export interface ActionEnding {
   result: ActionResult;
 }
 
-export const SIMULATION_LOG_TYPES = ['action.ended', 'character.greeted', 'character.comforted', 'character.kept', 'character.confided', 'character.bluffed', 'item.transferred'] as const;
+export const SIMULATION_LOG_TYPES = ['action.ended', 'character.greeted', 'character.comforted', 'character.kept', 'character.confided', 'character.bluffed', 'item.transferred', 'item.traded'] as const;
 
 export type SimulationLogType = (typeof SIMULATION_LOG_TYPES)[number];
 
@@ -155,6 +155,8 @@ export interface SimulationLogEvent {
     // Present on a transfer. One event records the item and the quantity.
     item?: ItemId;
     quantity?: number;
+    // Goods paid for the item. Present on a trade.
+    price?: number;
   };
 }
 
@@ -174,7 +176,7 @@ export interface CharacterRelationship {
 }
 
 // Append only. Saved worlds store the name.
-export const MEMORY_KINDS = ['greeting', 'comforting', 'keeping', 'confiding', 'bluffing', 'giving'] as const;
+export const MEMORY_KINDS = ['greeting', 'comforting', 'keeping', 'confiding', 'bluffing', 'giving', 'trading'] as const;
 
 export type MemoryKind = (typeof MEMORY_KINDS)[number];
 

@@ -38,15 +38,23 @@ import { pairKey } from '../social/relationships.js';
 // Version 18 predates resource nodes and gather.
 // Version 19 predates craft.
 // Version 20 predates dine.
+// Version 21 predates buy.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV20 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV21 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 21;
+  entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
+    cooldowns: Omit<PersistedEntity['cooldowns'], 'buy'>;
+  }>;
+};
+
+export type PersistedWorldV20 = Omit<PersistedWorldV21, 'version' | 'entities'> & {
   version: 20;
   entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
-    cooldowns: Omit<PersistedEntity['cooldowns'], 'dine'>;
+    cooldowns: Omit<PersistedWorldV21['entities'][number]['cooldowns'], 'dine'>;
   }>;
 };
 
@@ -168,6 +176,7 @@ export type UpgradeableWorld =
   | PersistedWorldV18
   | PersistedWorldV19
   | PersistedWorldV20
+  | PersistedWorldV21
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -211,6 +220,7 @@ export function capturePersistedWorld(
         gather: Action.cooldown.gather[eid],
         craft: Action.cooldown.craft[eid],
         dine: Action.cooldown.dine[eid],
+        buy: Action.cooldown.buy[eid],
       },
       outcome: readActionOutcome(eid),
       actionTarget: Action.target[eid] ?? '',
@@ -504,12 +514,23 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 20) {
+    return upgradePersistedWorld({
+      ...persisted,
+      version: 21,
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        cooldowns: { ...entity.cooldowns, dine: 0 },
+      })),
+    });
+  }
+
+  if (persisted.version === 21) {
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
       entities: persisted.entities.map((entity) => ({
         ...entity,
-        cooldowns: { ...entity.cooldowns, dine: 0 },
+        cooldowns: { ...entity.cooldowns, buy: 0 },
       })),
     };
   }

@@ -206,7 +206,7 @@ in `docs/roadmap/closeout.md`.
 
 ### Later, outside this milestone
 
-The route is one shared field, and grass, dirt, water and camp cost the same number of steps. A later pathing pass can give a tile a higher cost, drink from the shore instead of standing in the water, refuse a walk that is too long, step around other people, aim at a private place, give a different body its own route, follow a target that moves, and hide a place a character has not seen.
+The route is one shared field, and grass, dirt, water and camp cost the same number of steps. A later pathing pass can give a tile a higher cost, drink from the shore instead of standing in the water, refuse a walk that is too long, step around other people, aim at a private place, give a different body its own route, and hide a place a character has not seen. Seeking a person or a stack, and following a target that moves, is Milestone 09. The field today seeks water, land, camps, and piles.
 
 What a visit produces, and anything a character can carry or trade, is Milestone 05. Relationships and memories arrived in Milestone 04.
 
@@ -390,9 +390,11 @@ An empty pile fails the visit and adds nothing. An industrious character
 walks to the nearer of a camp and a pile; a tie keeps the camp. Holding
 material at a camp crafts one food and spends one material. The visit
 with no input still yields goods. One food brings hunger down to the
-quiet line. The meal with no food is unchanged. Prices are still unread.
-Saves are format version 21. A version 20 save gains a dine cooldown of
-zero.
+quiet line. The meal with no food is unchanged. A greedy character
+beside someone they have met pays two goods for one food. The purchase
+is one `item.traded` event, and the first between a pair is one
+`trading` memory. It does not count as another meeting. Saves are
+format version 22. A version 21 save gains a buy cooldown of zero.
 
 Initial scope:
 
@@ -406,7 +408,9 @@ Initial scope:
 - Economy invariants.
 - Item and resource lifecycle.
 
-Greed is read by `give`. Prices are still unread.
+Greed is read by `give` and by `buy`. The price of food is two goods.
+
+Before this milestone closes, settle the loop the items have already opened. A pile is gone at zero and does not come back, so once the grass is gathered the only meal is the one that spends nothing and the only camp visit is the one that mints goods. Buying food spends goods, and nothing else does. Say, as part of the economy invariants, whether a pile returns and whether those two visits stay complete substitutes. Basic trade stays beside someone already met. A route to a person or a stack, and a declared preference when two jobs share a score, are Milestone 09. Death already leaves a holder's stacks on the corpse. Removing the character deletes them. What those stacks do on the day someone dies is Milestone 09.
 
 Establish reliable ownership and transfer rules before introducing more complex economic behaviour.
 
@@ -478,6 +482,7 @@ Initial scope:
 - Chronicle entries.
 - Presentation priorities.
 - Camera focus and event-driven presentation.
+- Inventories and resource piles on the map snapshot. It currently carries position, terrain, and the resting, eating, drinking, and working flags. Stacks and piles are already on the saved world and on inspection.
 
 Ensure presentation is grounded in recorded simulation events. The director should react to the world rather than dictate ordinary character behaviour.
 
@@ -508,6 +513,16 @@ Potential areas:
 - A belonging need, deferred from Milestone 04 until the existing social actions are not enough.
 
 Introduce these systems incrementally. Each should have clear ownership, inputs, outputs and interactions with existing simulation systems.
+
+Three rules the earlier milestones leave open have to exist before combat, trade across the map, or a family can use what someone is holding.
+
+A route that seeks a person or a stack. Milestone 03's shared field seeks water, land, camps, and piles. Give, comfort, and the other social actions start only when someone is already beside the actor. Following a target that moves was left under that closed milestone. Bringing food to someone, taking it, and meeting them across the map all use this route.
+
+A dead holder's stacks. Death already leaves them on the corpse. Removing the character deletes them. Families need a rule for the day someone dies: the stacks move, they stay on the body, or they are gone.
+
+A declared preference when two jobs share a score. The earlier definition wins a tie, and a bias of 0.05 can flip it. Craft wins by suppressing work while material is in hand. Dine wins by a bonus wider than that bias. A profession says which job wins without another one-off bonus.
+
+Milestone 05 decides whether a depleted pile returns. Wildlife, weather, and farming here renew or replace that input. They start from whatever that decision left on the map.
 
 ---
 
