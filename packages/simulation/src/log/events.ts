@@ -6,6 +6,7 @@ import { Position } from '../components/position.js';
 import type { SimulationWorld } from '../core/world.js';
 import { CAMP_YIELD, CAMP_YIELD_QUANTITY, CRAFT_INPUT, CRAFT_OUTPUT, CRAFT_QUANTITY, FOOD_PRICE, MEAL_ITEM, MEAL_QUANTITY, buyFood, grantItem, spendItem, transferItem } from '../economy/inventory.js';
 import { takeResource } from '../economy/nodes.js';
+import { eventsFor, eventsForPair, indexLogEvent, unindexLogEvent } from '../history/records.js';
 import { rememberEvent } from '../social/memories.js';
 import { pairKey, rememberMeeting, sortedPair } from '../social/relationships.js';
 
@@ -17,9 +18,14 @@ function nextEventId(world: SimulationWorld): string {
 
 function append(world: SimulationWorld, event: SimulationLogEvent): SimulationLogEvent {
   world.log.push(event);
+  indexLogEvent(world, event);
 
-  if (world.log.length > LOG_LIMIT) {
-    world.log.splice(0, world.log.length - LOG_LIMIT);
+  const overflow = world.log.length - LOG_LIMIT;
+
+  if (overflow > 0) {
+    const removed = world.log.splice(0, overflow);
+
+    for (const old of removed) unindexLogEvent(world, old);
   }
 
   return event;
@@ -31,15 +37,15 @@ function pairEventThisTick(
   a: string,
   b: string,
 ): SimulationLogEvent | undefined {
-  const key = pairKey(a, b);
+  const list = world.logByPair.get(pairKey(a, b));
 
-  for (let i = world.log.length - 1; i >= 0; i--) {
-    const event = world.log[i];
+  if (!list) return undefined;
+
+  for (let i = list.length - 1; i >= 0; i--) {
+    const event = list[i];
 
     if (event.tick !== world.tick) break;
-    if (event.type !== type) continue;
-    if (event.participants.length < 2) continue;
-    if (pairKey(event.participants[0], event.participants[1]) === key) return event;
+    if (event.type === type) return event;
   }
 
   return undefined;
@@ -339,5 +345,13 @@ export function recordActionEnding(
 }
 
 export function historyFor(world: SimulationWorld, id: string): SimulationLogEvent[] {
-  return world.log.filter((event) => event.participants.includes(id));
+  return eventsFor(world, id);
+}
+
+export function historyForPair(
+  world: SimulationWorld,
+  a: string,
+  b: string,
+): SimulationLogEvent[] {
+  return eventsForPair(world, a, b);
 }

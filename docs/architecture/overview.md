@@ -405,7 +405,7 @@ The simulation loop accumulates real elapsed time and advances the simulation th
 
 This separates simulation time from browser rendering frequency.
 
-The current implementation does not yet support configurable time scaling, offline progression or restart catch-up.
+The current implementation does not support configurable time scaling. A restart resumes at the saved tick. Time the process was stopped is not simulated.
 
 Future time controls should preserve the fixed simulation timestep while changing how many simulation ticks are executed relative to real time.
 
@@ -451,7 +451,6 @@ Persistent IDs and durable event handling remain future work.
 
 ## 13. Decisions still open
 
-- Offline progression policy and restart catch-up.
 - Final character death, descendants and inheritance rules.
 - Whether one viewer can own multiple active characters.
 - Population caps and background simulation detail.

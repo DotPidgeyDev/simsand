@@ -452,10 +452,25 @@ relationships is Milestone 06.
 
 ## Milestone 06 — Durable world
 
-**Status: Planned**
+**Status: In progress**
 
-Start from `docs/roadmap/notes/06-from-05.md`. The log, memories, and
-relationships are still linear scans.
+Start from `docs/roadmap/notes/06-from-05.md`.
+
+### Current implementation
+
+The log, memories, and relationships stay one record per fact. Reading
+them no longer walks the whole list. Each event is filed under its
+participants and, when it has two, under the pair, at the moment it is
+written. The oldest events leave those indexes when the log drops them
+at 10,000. A memory is filed under its participants and under its kind
+and pair, which is how a second meeting finds the first memory. A
+relationship is filed under both characters when it is created. The
+indexes are derived. A save is still format version 23, and loading one
+rebuilds them. Inspection and the same-tick pair check read the indexes.
+
+Restart resumes at the saved tick. Time the process was stopped is not
+simulated, so a restart does not age needs or complete camp visits.
+The running loop still catches up a few ticks when a frame runs long.
 
 Expand snapshots and durable events to cover implemented gameplay state.
 

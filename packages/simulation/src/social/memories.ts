@@ -1,6 +1,7 @@
 import type { MemoryKind, MemoryRecord } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
+import { indexMemory, memoriesFor as memoriesForParticipant, memoryForPair } from '../history/records.js';
 import { sortedPair } from './relationships.js';
 
 function nextMemoryId(world: SimulationWorld): string {
@@ -15,11 +16,7 @@ export function rememberEvent(
   b: string,
 ): MemoryRecord {
   const participants = sortedPair(a, b);
-  const existing = world.memories.find((memory) => (
-    memory.kind === kind
-    && memory.participants[0] === participants[0]
-    && memory.participants[1] === participants[1]
-  ));
+  const existing = memoryForPair(world, kind, participants[0], participants[1]);
 
   if (existing) return existing;
 
@@ -32,9 +29,10 @@ export function rememberEvent(
   };
 
   world.memories.push(created);
+  indexMemory(world, created);
   return created;
 }
 
 export function memoriesFor(world: SimulationWorld, id: string): MemoryRecord[] {
-  return world.memories.filter((memory) => memory.participants.includes(id));
+  return memoriesForParticipant(world, id);
 }

@@ -1,6 +1,7 @@
 import type { CharacterRelationship, RelationshipRecord } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
+import { indexRelationship, relationshipsFor as recordsFor } from '../history/records.js';
 
 export function pairKey(a: string, b: string): string {
   return a < b ? `${a}\t${b}` : `${b}\t${a}`;
@@ -37,6 +38,7 @@ export function rememberMeeting(
   };
 
   world.relationships.set(key, created);
+  indexRelationship(world, created);
   return created;
 }
 
@@ -61,9 +63,7 @@ export function knownNeighborId(
 export function relationshipsFor(world: SimulationWorld, id: string): CharacterRelationship[] {
   const result: CharacterRelationship[] = [];
 
-  for (const record of world.relationships.values()) {
-    if (record.a !== id && record.b !== id) continue;
-
+  for (const record of recordsFor(world, id)) {
     result.push({
       otherId: record.a === id ? record.b : record.a,
       meetings: record.meetings,

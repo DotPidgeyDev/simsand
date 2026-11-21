@@ -21,6 +21,7 @@ import { Velocity } from '../components/velocity.js';
 import { Appearance } from '../components/appearance.js';
 import { createCharacter } from '../entities/create-character.js';
 import { nodeKey } from '../economy/nodes.js';
+import { rebuildHistoryIndexes } from '../history/records.js';
 import { pairKey } from '../social/relationships.js';
 
 // Version 1 predates the tile map. Version 2 predates the character profile.
@@ -623,6 +624,7 @@ export function restorePersistedWorld(persisted: PersistedWorld): {
       },
     ]),
   );
+  rebuildHistoryIndexes(world);
 
   return { world, clock };
 }

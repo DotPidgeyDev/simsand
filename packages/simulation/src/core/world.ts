@@ -17,10 +17,20 @@ export interface SimulationWorld {
   tick: number;
   elapsedSeconds: number;
   relationships: Map<string, RelationshipRecord>;
+  // Derived from `relationships`. One record stays one fact; each
+  // participant's list points at that same object.
+  relationshipsByParticipant: Map<string, RelationshipRecord[]>;
   log: SimulationLogEvent[];
   nextLogId: number;
+  // Derived from `log`. Built when an event is written, dropped when
+  // the cap removes it. Not saved.
+  logByParticipant: Map<string, SimulationLogEvent[]>;
+  logByPair: Map<string, SimulationLogEvent[]>;
   memories: MemoryRecord[];
   nextMemoryId: number;
+  // Derived from `memories`. The pair-and-kind map is the first-memory check.
+  memoriesByParticipant: Map<string, MemoryRecord[]>;
+  memoryByPairKind: Map<string, MemoryRecord>;
   // Sparse: a holder appears only once they carry something.
   inventories: Map<string, InventoryRecord>;
   // Sparse: a tile appears only while its pile has quantity left.
@@ -41,10 +51,15 @@ export function createSimulationWorld(
     tick: 0,
     elapsedSeconds: 0,
     relationships: new Map(),
+    relationshipsByParticipant: new Map(),
     log: [],
     nextLogId: 1,
+    logByParticipant: new Map(),
+    logByPair: new Map(),
     memories: [],
     nextMemoryId: 1,
+    memoriesByParticipant: new Map(),
+    memoryByPairKind: new Map(),
     inventories: new Map(),
     nodes: new Map(),
     returning: new Map(),

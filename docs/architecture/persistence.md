@@ -1,7 +1,7 @@
 # Persistence Architecture
 
-**Status:** Active implementation — basic snapshot save/restore\
-**Version:** 1.1
+**Status:** Active implementation — snapshot save/restore, history indexes\
+**Version:** 1.2
 
 ## 1. Purpose
 
@@ -130,31 +130,20 @@ Initial approach:
 Exact cadence should be configurable and tuned after measuring
 serialization and write cost.
 
-## 9. Offline progression: unresolved decision
+## 9. Offline progression
 
-The world may be continuous, paused or run at reduced speed while the
-stream/application is offline. This is not yet settled.
+**Decision (Milestone 06):** the world resumes at the saved tick. Time
+the process was stopped is not simulated.
 
-The current tentative preference is continuous progression with
-adjustable time scale and potentially reduced simulation detail while
-offline.
+Needs, hunger, fatigue, pile returns, and camp visits do not advance
+during downtime. A restart therefore cannot starve a character or mint
+a stack of goods from visits that never ran. The simulation loop still
+catches up a few ticks when a frame runs long. That bound covers a
+running process, not hours the process was absent.
 
-Until this is decided, the implementation resumes at the saved tick
-with no catch-up: time the process was stopped is not simulated.
-
-Before implementing offline progression, decide:
-
--   Whether simulation advances while the process is stopped.
--   Whether elapsed wall time is converted into catch-up simulation
-    time.
--   Whether needs, hunger and production advance during downtime.
--   How catch-up is bounded to prevent sudden starvation or runaway
-    production.
--   Whether offline simulation uses simplified aggregate updates.
--   How the streamer can inspect events that occurred while away.
-
-Do not implement naive wall-clock catch-up that causes characters to
-starve instantly after a long restart.
+Fast-forward, a slower offline time scale, and a streamer's review of
+events that happened while they were away are later time-scaling and
+presentation work. They are not applied on startup.
 
 ## 10. Schema and content versioning
 
@@ -254,6 +243,14 @@ model incrementally as simulation systems become real.
     exist but none are valid, startup fails rather than replacing the
     world.
 
-Not yet implemented: durable domain events, world IDs for more than one
-world, backups, and migrations beyond the initial schema. A process that
-is killed without a signal loses up to one save interval of progress.
+The character log, memories, and relationships are part of that
+snapshot. Live queries do not scan those lists. The simulation keeps a
+participant index and a pair index, built when a record is written and
+rebuilt when a snapshot is restored. The indexes are not stored. The
+log kept in the snapshot is still the newest 10,000 events.
+
+Not yet implemented: durable retention of that log beyond the snapshot
+cap, world IDs for more than one world, backups, and migrations beyond
+the initial schema. A process that is killed without a signal loses up
+to one save interval of progress. Restart does not simulate the time
+the process was stopped.
