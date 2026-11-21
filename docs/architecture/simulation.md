@@ -490,11 +490,11 @@ The following remain important future requirements:
 - Worker runtime errors must be surfaced and logged with context.
 - The server must stop accepting commands when the worker is unavailable.
 - Do not silently restart a worker with an empty world.
-- Recovery must load a valid snapshot and required durable events before simulation resumes.
+- Recovery loads the latest valid snapshot before simulation resumes. The retained log is history and is not replayed into the world.
 - Persistence errors must not be swallowed.
 - Worker recovery must preserve the authoritative world state.
 
-Automatic recovery and persistence-backed restoration are not currently implemented.
+Startup restores the latest valid snapshot. If snapshots exist and none of them validate, startup refuses to create an empty world. Automatic restart after a worker crash is not implemented.
 
 ---
 

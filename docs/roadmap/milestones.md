@@ -1,8 +1,8 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 06  
-**Version:** 1.10  
-**Last updated:** 2026-11-21
+**Status:** Active — Milestone 07  
+**Version:** 1.11  
+**Last updated:** 2026-11-22
 
 ## Guiding approach
 
@@ -70,7 +70,7 @@ The project currently has:
 These were deliberately left out of Milestone 01:
 
 - A public entry point for commands, rate limits and deduplication (Milestone 07).
-- Durable storage and delivery of domain events (Milestone 06).
+- Durable storage of the simulation log (Milestone 06). Command receipts (`character.created`, `character.removed`) are still only returned on the command result.
 - Terrain affecting movement, navigation and LDtk map loading.
 - Inspection beyond the read-only API, such as an admin UI (Milestones 02 and 10).
 
@@ -357,7 +357,7 @@ in `docs/roadmap/closeout.md`.
 ### Later, outside this milestone
 
 A belonging need is not part of this cycle. Indexing the log, memories,
-and relationships by participant is Milestone 06. A viewer-facing
+and relationships arrived in Milestone 06. A viewer-facing
 chronicle over the same log is Milestone 08.
 
 ---
@@ -446,13 +446,13 @@ in `docs/roadmap/closeout.md`.
 Showing stacks and piles on the map snapshot is Milestone 08. A route
 to a person or a stack, a dead holder's stacks, and a declared job
 preference are Milestone 09. Indexing the log, memories, and
-relationships is Milestone 06.
+relationships arrived in Milestone 06.
 
 ---
 
 ## Milestone 06 — Durable world
 
-**Status: In progress**
+**Status: Complete**
 
 Start from `docs/roadmap/notes/06-from-05.md`.
 
@@ -483,7 +483,12 @@ Restart resumes at the saved tick. Time the process was stopped is not
 simulated, so a restart does not age needs or complete camp visits.
 The running loop still catches up a few ticks when a frame runs long.
 
-Expand snapshots and durable events to cover implemented gameplay state.
+Regression for this cycle is in
+`packages/simulation/src/regression.test.ts`. The retained log, the
+schema migration, and backup are covered in
+`apps/server/src/world-store.test.ts`. Notes for Milestone 07 are in
+`docs/roadmap/notes/07-from-06.md`. How to close a milestone is in
+`docs/roadmap/closeout.md`.
 
 Initial scope:
 
@@ -502,11 +507,31 @@ Persistence foundations should be introduced during Milestone 01. This milestone
 
 The persistence strategy should reflect the actual simulation requirements. Avoid storing every transient state change as a permanent event. Character history and memory queries should read this store through participant and pair indexes, the way relationships are already keyed, not by scanning an array or duplicating rows per character.
 
+### Definition of done
+
+- [x] The log, memories, and relationships are read by participant, and the log and memories by pair, from indexes built when the record is written.
+- [x] One fact stays one record. A save does not copy it onto each character.
+- [x] Restoring a save rebuilds those indexes.
+- [x] The same log is retained in SQLite past the live cap, up to the newest 100,000 events.
+- [x] An event the live log drops is stored on the next confirmed save.
+- [x] A version 1 database gains the event tables on open.
+- [x] A backup opens as its own database and returns the saved world and log.
+- [x] A restart resumes at the saved tick. Time the process was stopped is not simulated.
+
+### Later, outside this milestone
+
+Scheduled backups are Milestone 10. A viewer-facing chronicle over this
+log is Milestone 08. Command receipts stay on the command result until
+Milestone 07 needs one to outlive the response. More than one world id
+is not part of this cycle.
+
 ---
 
 ## Milestone 07 — Viewer participation
 
 **Status: Planned**
+
+Start from `docs/roadmap/notes/07-from-06.md`.
 
 Add viewer identity, platform identity, character creation and Twitch integration.
 

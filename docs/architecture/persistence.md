@@ -83,20 +83,17 @@ Find latest valid snapshot
        |
 Restore snapshot into simulation state
        |
-Load durable events after snapshot
-       |
-Apply supported post-snapshot events
-       |
-Validate world invariants
+Rebuild history indexes from that snapshot
        |
 Start simulation worker
        |
 Publish ready state
 ```
 
-The exact replay strategy must remain limited to event types with
-well-defined replay semantics. This is not a commitment to full event
-sourcing.
+The retained log is history. It is not replayed into world state. The
+snapshot is the world. Events the live log has dropped are already in
+`simulation_events` from the save that confirmed them, and inspection
+reads that table beside the restored log.
 
 If no valid snapshot exists, initialize a new world only when explicitly
 configured to do so. Never silently replace a failed existing world with

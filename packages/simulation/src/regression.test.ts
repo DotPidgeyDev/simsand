@@ -12,12 +12,15 @@ import { Position } from './components/position.js';
 import { Velocity } from './components/velocity.js';
 import { createSimulationClock } from './core/clock.js';
 import { RESOURCE_NODE_STOCK, createWorldMap } from './core/map.js';
+import { capturePersistedWorld, restorePersistedWorld } from './core/persistence.js';
 import { createSimulationRunner, tickSimulation } from './core/runner.js';
 import { createSimulationWorld } from './core/world.js';
 import { createCharacter } from './entities/create-character.js';
 import { FOOD_PRICE } from './economy/inventory.js';
 import { PILE_RETURN_SECONDS, nodeAt, nodeKey, renewPiles, takeResource } from './economy/nodes.js';
+import { acknowledgePendingLog } from './history/records.js';
 import { inspectCharacter, inspectCharacterHistory } from './inspection/inspect-character.js';
+import { LOG_LIMIT, recordActionEnding } from './log/events.js';
 import { ACTION_COOLDOWN_SECONDS, MIN_ACTION_SECONDS, actionBias, readActionOutcome, updateActions } from './systems/actions.js';
 import { HUNGER_GAIN_PER_SECOND, HUNGER_RESUME_AT } from './systems/needs.js';
 
@@ -594,5 +597,62 @@ describe('milestone 05 behaviour', () => {
 
     expect(ACTION_IDS[Action.kind[diner]]).toBe('eat');
     expect(inspectCharacter(world, 'diner')?.inventory).toEqual([]);
+  });
+});
+
+// Milestone 06 close-out. History is one record per fact, read by
+// participant. The live log stays capped. Later milestones may append
+// catalogs. They must not copy an event onto each character, or drop a
+// trimmed event before it has been confirmed.
+describe('milestone 06 behaviour', () => {
+  it('restores one shared greeting through the history indexes', () => {
+    const { world, left } = beside();
+    Personality.sociability[left] = 1;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    const saved = capturePersistedWorld(world, createSimulationClock(), world.seed);
+    const { world: restored } = restorePersistedWorld(saved);
+
+    expect(inspectCharacterHistory(restored, 'left')).toEqual(inspectCharacterHistory(restored, 'right'));
+    expect(inspectCharacterHistory(restored, 'left')).toHaveLength(1);
+    expect(inspectCharacter(restored, 'left')?.relationships).toEqual([
+      expect.objectContaining({ otherId: 'right' }),
+    ]);
+    expect(inspectCharacter(restored, 'left')?.memories).toEqual(
+      inspectCharacter(restored, 'right')?.memories,
+    );
+    expect(restored.pendingLog).toEqual([]);
+  });
+
+  it('holds a dropped log event until that save is confirmed', () => {
+    const world = createSimulationWorld(createWorldMap(4, 4, 'grass'));
+    const eid = createCharacter(world, {
+      id: 'left',
+      x: 1.5,
+      y: 1.5,
+      velocityX: 0,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    recordActionEnding(world, eid, 'left', 'eat', 'completed');
+    const oldest = world.log[0]!.eventId;
+
+    for (let i = 0; i < LOG_LIMIT; i++) {
+      recordActionEnding(world, eid, 'left', 'eat', 'completed');
+    }
+
+    const history = inspectCharacterHistory(world, 'left') ?? [];
+
+    expect(history.some((event) => event.eventId === oldest)).toBe(false);
+    expect(world.pendingLog.map((event) => event.eventId)).toEqual([oldest]);
+
+    acknowledgePendingLog(world, [oldest]);
+
+    expect(world.pendingLog).toEqual([]);
   });
 });

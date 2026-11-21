@@ -27,7 +27,7 @@ A public entry point for commands (HTTP API or platform adapter) and streaming-p
 | Local tools ↔ server | HTTP (Fastify), `127.0.0.1` only | Read-only inspection of status and entities | Implemented |
 | Browser ↔ server APIs | HTTP | Configuration and non-streaming operations | Planned |
 | Platform ↔ server | Platform-specific SDK/API or connection | Receive chat and platform events | Planned |
-| Server ↔ persistence | `node:sqlite` in the server process | Save and restore durable world state | Implemented — snapshots |
+| Server ↔ persistence | `node:sqlite` in the server process | Save and restore the world, and retain the character log | Implemented |
 
 The browser never communicates directly with the worker.
 
@@ -44,7 +44,7 @@ The server distributes simulation updates but does not own or modify authoritati
 | `GET /status` | Worker `world.status.request`, plus server state | Uptime, browser clients, last save, and the `SimulationStatus` |
 | `GET /entities` | The server's cached snapshot | Tick, count, and each entity's ID and position |
 | `GET /entities/:id` | Worker `world.inspect.request` | `EntityInspection` (movement, appearance, profile, action, relationships), or 404 |
-| `GET /entities/:id/history` | Worker `world.inspect.history.request` | Events whose participants include that character, or 404 |
+| `GET /entities/:id/history` | The retained log, merged with the worker's live window | Events whose participants include that character, or 404 |
 
 If the worker doesn't answer within 2 seconds, the routes that query it return 503 with `simulation_unavailable`.
 
