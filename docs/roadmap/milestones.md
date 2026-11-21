@@ -393,8 +393,13 @@ with no input still yields goods. One food brings hunger down to the
 quiet line. The meal with no food is unchanged. A greedy character
 beside someone they have met pays two goods for one food. The purchase
 is one `item.traded` event, and the first between a pair is one
-`trading` memory. It does not count as another meeting. Saves are
-format version 22. A version 21 save gains a buy cooldown of zero.
+`trading` memory. It does not count as another meeting. A stack or a
+pile quantity is a positive integer, and an empty holder or pile is
+absent. Work creates one goods. Gather moves one material from the pile
+into the hand. Craft turns one material into one food. Dine spends one
+food. Give moves goods. Buy moves food and goods and creates neither.
+Saves are format version 22. A version 21 save gains a buy cooldown of
+zero.
 
 Initial scope:
 
