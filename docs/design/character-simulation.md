@@ -214,6 +214,8 @@ already met. Greed scores against that gift. An industrious character walks to t
 material. Standing on the pile, they can gather one unit when that visit
 ends. A tie keeps the walk to the camp. Holding material at a camp,
 they craft one food from it instead of the visit that needs no input.
+Holding that food while hungry spends one and brings hunger down to the
+quiet line. A meal with no food is unchanged.
 Sociability is read by greet. Empathy is read by comfort, which starts
 beside a neighbour whose hunger, thirst or fatigue is above 0.3 and
 continues until that need recovers. Loyalty is read by keep, which

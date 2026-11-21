@@ -13,7 +13,7 @@ import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
-import { CAMP_YIELD, CRAFT_INPUT, heldQuantity } from '../economy/inventory.js';
+import { CAMP_YIELD, CRAFT_INPUT, MEAL_ITEM, heldQuantity } from '../economy/inventory.js';
 import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
 import { recordActionEnding } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, distressOf, isAdjacentLiving, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
@@ -43,6 +43,8 @@ export const ACTION_COOLDOWN_SECONDS = 20;
 // between two characters who otherwise want the same thing. Stable per
 // character, from its own salt, so it never shifts the profile.
 export const ACTION_BIAS = 0.05;
+// Wider than the bias on both sides, so a held meal beats the free one.
+const HELD_MEAL_SCORE = ACTION_BIAS * 4;
 const ACTION_BIAS_SALT = 0x27d4eb2f;
 
 export function emptyCooldowns(): ActionCooldowns {
@@ -92,6 +94,7 @@ interface NeedState {
   // True when they are holding something they can hand over.
   canGive: boolean;
   heldMaterial: number;
+  heldFood: number;
   // Quantity of the pile on the tile under them. Zero when there is none.
   nodeStock: number;
   targetAdjacent: boolean;
@@ -169,9 +172,9 @@ interface ActionDefinition {
   losesTarget: boolean;
 }
 
-// Order is the tie break: eat, then drink, then rest, then work, then gather,
-// then craft, then comfort, then keep, then confide, then bluff, then greet,
-// then give, then move, then idle.
+// Order is the tie break: eat, then dine, then drink, then rest, then work,
+// then gather, then craft, then comfort, then keep, then confide, then bluff,
+// then greet, then give, then move, then idle.
 export const actionDefinitions: readonly ActionDefinition[] = [
   {
     id: 'eat',
@@ -180,7 +183,24 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     ready: (state) => !state.onWater && state.hunger > HUNGER_RESUME_AT,
     holds: (state) => !state.onWater,
     sustain: (state) => state.hunger > HUNGER_RESUME_AT,
-    urgent: (state) => !state.onWater && state.hunger >= HUNGER_EAT_AT,
+    // A held meal is the urgent one while food is in hand.
+    urgent: (state) => !state.onWater && state.hunger >= HUNGER_EAT_AT && state.heldFood < 1,
+    resting: false,
+    eating: true,
+    drinking: false,
+    working: false,
+    losesTarget: false,
+  },
+  {
+    id: 'dine',
+    // One food, then hunger is quiet. Scored above the free meal only while
+    // it can start, so a swimmer with nothing to eat still walks ashore.
+    score: (state) => state.heldFood >= 1 && !state.onWater ? state.hunger + HELD_MEAL_SCORE : 0,
+    requiresLife: true,
+    ready: (state) => !state.onWater && state.hunger > HUNGER_RESUME_AT && state.heldFood >= 1,
+    holds: (state) => !state.onWater && state.heldFood >= 1,
+    sustain: () => false,
+    urgent: (state) => !state.onWater && state.hunger >= HUNGER_EAT_AT && state.heldFood >= 1,
     resting: false,
     eating: true,
     drinking: false,
@@ -416,6 +436,7 @@ function needState(input: {
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
   heldMaterial?: number;
+  heldFood?: number;
   nodeStock?: number;
   targetAdjacent?: boolean;
   neighborDistress?: number;
@@ -445,6 +466,7 @@ function needState(input: {
     hasKnownNeighbor: input.hasKnownNeighbor ?? false,
     canGive: input.canGive ?? false,
     heldMaterial: Math.max(0, input.heldMaterial ?? 0),
+    heldFood: Math.max(0, input.heldFood ?? 0),
     nodeStock: Math.max(0, input.nodeStock ?? 0),
     targetAdjacent: input.targetAdjacent ?? false,
     neighborDistress: Math.min(1, Math.max(0, input.neighborDistress ?? 0)),
@@ -546,6 +568,7 @@ export function actionAvailability(input: {
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
   heldMaterial?: number;
+  heldFood?: number;
   nodeStock?: number;
   targetAdjacent?: boolean;
   neighborDistress?: number;
@@ -640,6 +663,9 @@ function endingResult(action: ActionId, state: NeedState): ActionResult {
   // Leaving the camp, or no longer holding the input, is not a finished craft.
   if (action === 'craft' && (!state.onCamp || state.heldMaterial < 1)) return 'failed';
 
+  // In the water, or with the food already gone, the held meal did not finish.
+  if (action === 'dine' && (state.onWater || state.heldFood < 1)) return 'failed';
+
   const definition = definitionFor(action);
 
   if (definition.losesTarget && !definition.holds(state)) return 'failed';
@@ -672,6 +698,7 @@ function readCooldowns(eid: number): ActionCooldowns {
     give: Action.cooldown.give[eid],
     gather: Action.cooldown.gather[eid],
     craft: Action.cooldown.craft[eid],
+    dine: Action.cooldown.dine[eid],
   };
 }
 
@@ -771,6 +798,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       hasKnownNeighbor: knownId !== undefined,
       canGive: heldQuantity(world, Identity.id[eid], CAMP_YIELD) >= 1,
       heldMaterial: heldQuantity(world, Identity.id[eid], CRAFT_INPUT),
+      heldFood: heldQuantity(world, Identity.id[eid], MEAL_ITEM),
       nodeStock: nodeAt(world, Position.x[eid], Position.y[eid])?.quantity ?? 0,
       targetAdjacent: Boolean(targetId) && isAdjacentLiving(world, eid, targetId),
       neighborDistress: distressed?.distress ?? 0,
@@ -824,6 +852,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       hasKnownNeighbor: state.hasKnownNeighbor,
       canGive: state.canGive,
       heldMaterial: state.heldMaterial,
+      heldFood: state.heldFood,
       nodeStock: state.nodeStock,
       targetAdjacent: state.targetAdjacent,
       neighborDistress: state.neighborDistress,

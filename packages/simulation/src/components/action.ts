@@ -21,6 +21,7 @@ export const Action = {
     give: [] as number[],
     gather: [] as number[],
     craft: [] as number[],
+    dine: [] as number[],
   } satisfies Record<ActionId, number[]>,
   // Stable ID of the other character during a social action. Empty otherwise.
   target: [] as string[],

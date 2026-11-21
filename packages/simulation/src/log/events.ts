@@ -1,9 +1,10 @@
 import type { ActionId, ActionResult, CharacterNeeds, MemoryKind, SimulationLogEvent, SimulationLogType } from '@simsand/shared';
 
 import { Needs } from '../components/needs.js';
+import { HUNGER_RESUME_AT } from '../systems/needs.js';
 import { Position } from '../components/position.js';
 import type { SimulationWorld } from '../core/world.js';
-import { CAMP_YIELD, CAMP_YIELD_QUANTITY, CRAFT_INPUT, CRAFT_OUTPUT, CRAFT_QUANTITY, grantItem, spendItem, transferItem } from '../economy/inventory.js';
+import { CAMP_YIELD, CAMP_YIELD_QUANTITY, CRAFT_INPUT, CRAFT_OUTPUT, CRAFT_QUANTITY, MEAL_ITEM, MEAL_QUANTITY, grantItem, spendItem, transferItem } from '../economy/inventory.js';
 import { takeResource } from '../economy/nodes.js';
 import { rememberEvent } from '../social/memories.js';
 import { pairKey, rememberMeeting, sortedPair } from '../social/relationships.js';
@@ -274,6 +275,12 @@ export function recordActionEnding(
   if (action === 'craft' && result === 'completed') {
     if (spendItem(world, actorId, CRAFT_INPUT, CRAFT_QUANTITY)) {
       grantItem(world, actorId, CRAFT_OUTPUT, CRAFT_QUANTITY);
+    }
+  }
+
+  if (action === 'dine' && result === 'completed') {
+    if (spendItem(world, actorId, MEAL_ITEM, MEAL_QUANTITY)) {
+      Needs.hunger[eid] = Math.min(Needs.hunger[eid], HUNGER_RESUME_AT);
     }
   }
 

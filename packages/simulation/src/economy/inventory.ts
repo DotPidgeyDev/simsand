@@ -12,6 +12,10 @@ export const CRAFT_INPUT: ItemId = 'material';
 export const CRAFT_OUTPUT: ItemId = 'food';
 export const CRAFT_QUANTITY = 1;
 
+// What a held meal spends. The free meal does not.
+export const MEAL_ITEM: ItemId = 'food';
+export const MEAL_QUANTITY = 1;
+
 export function grantItem(
   world: SimulationWorld,
   holderId: string,

@@ -109,6 +109,7 @@ describe('inspectCharacter', () => {
       give: false,
       gather: false,
       craft: false,
+      dine: false,
     });
   });
 

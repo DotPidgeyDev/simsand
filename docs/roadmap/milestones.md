@@ -389,8 +389,10 @@ when a visit on that tile ends, the same way a camp visit yields goods.
 An empty pile fails the visit and adds nothing. An industrious character
 walks to the nearer of a camp and a pile; a tie keeps the camp. Holding
 material at a camp crafts one food and spends one material. The visit
-with no input still yields goods. Prices are still unread. Saves are
-format version 20. A version 19 save gains a craft cooldown of zero.
+with no input still yields goods. One food brings hunger down to the
+quiet line. The meal with no food is unchanged. Prices are still unread.
+Saves are format version 21. A version 20 save gains a dine cooldown of
+zero.
 
 Initial scope:
 

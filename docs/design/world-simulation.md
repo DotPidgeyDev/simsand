@@ -41,7 +41,7 @@ representation independent of PixiJS.
 Current state: the map is generated from the world seed (grass, dirt
 banks, ponds, rock and camps) and saved with the world. Rock blocks
 movement. Grass, dirt, water and camp can be crossed at the same cost.
-A camp is a workplace. A completed visit there yields one goods into the worker's inventory. Some grass tiles hold a finite pile of material. An industrious character walks to the nearer of a camp and a pile, then gathers while standing on the pile. Holding that material at a camp crafts one food. LDtk loading is not yet implemented.
+A camp is a workplace. A completed visit there yields one goods into the worker's inventory. Some grass tiles hold a finite pile of material. An industrious character walks to the nearer of a camp and a pile, then gathers while standing on the pile. Holding that material at a camp crafts one food. One food brings hunger down to the quiet line. LDtk loading is not yet implemented.
 
 ## 4. Economy
 
