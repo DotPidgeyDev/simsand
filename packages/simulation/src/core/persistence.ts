@@ -39,12 +39,17 @@ import { pairKey } from '../social/relationships.js';
 // Version 19 predates craft.
 // Version 20 predates dine.
 // Version 21 predates buy.
+// Version 22 predates a depleted pile's return.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV21 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV22 = Omit<PersistedWorld, 'version' | 'returning'> & {
+  version: 22;
+};
+
+export type PersistedWorldV21 = Omit<PersistedWorldV22, 'version' | 'entities'> & {
   version: 21;
   entities: Array<Omit<PersistedEntity, 'cooldowns'> & {
     cooldowns: Omit<PersistedEntity['cooldowns'], 'buy'>;
@@ -177,6 +182,7 @@ export type UpgradeableWorld =
   | PersistedWorldV19
   | PersistedWorldV20
   | PersistedWorldV21
+  | PersistedWorldV22
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -243,6 +249,11 @@ export function capturePersistedWorld(
       stacks: record.stacks.map((stack) => ({ ...stack })),
     })),
     nodes: [...world.nodes.values()].map((node) => ({ ...node })),
+    returning: [...world.returning.entries()].map(([key, renewsAt]) => ({
+      x: key % world.map.width,
+      y: Math.floor(key / world.map.width),
+      renewsAt,
+    })),
   };
 }
 
@@ -525,13 +536,21 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 21) {
-    return {
+    return upgradePersistedWorld({
       ...persisted,
-      version: PERSISTED_WORLD_VERSION,
+      version: 22,
       entities: persisted.entities.map((entity) => ({
         ...entity,
         cooldowns: { ...entity.cooldowns, buy: 0 },
       })),
+    });
+  }
+
+  if (persisted.version === 22) {
+    return {
+      ...persisted,
+      version: PERSISTED_WORLD_VERSION,
+      returning: [],
     };
   }
 
@@ -587,6 +606,12 @@ export function restorePersistedWorld(persisted: PersistedWorld): {
     persisted.nodes.map((node: ResourceNode) => [
       nodeKey(world.map.width, node.x, node.y),
       { ...node },
+    ]),
+  );
+  world.returning = new Map(
+    persisted.returning.map((entry) => [
+      nodeKey(world.map.width, entry.x, entry.y),
+      entry.renewsAt,
     ]),
   );
   world.inventories = new Map(

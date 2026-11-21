@@ -25,6 +25,8 @@ export interface SimulationWorld {
   inventories: Map<string, InventoryRecord>;
   // Sparse: a tile appears only while its pile has quantity left.
   nodes: Map<number, ResourceNode>;
+  // Tile key to the elapsed time when that pile returns at full stock.
+  returning: Map<number, number>;
 }
 
 export function createSimulationWorld(
@@ -45,5 +47,6 @@ export function createSimulationWorld(
     nextMemoryId: 1,
     inventories: new Map(),
     nodes: new Map(),
+    returning: new Map(),
   };
 }

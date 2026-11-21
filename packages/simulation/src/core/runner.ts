@@ -5,6 +5,7 @@ import { advanceClock } from './clock.js';
 import { updateActions } from '../systems/actions.js';
 import { updateLifecycle } from '../systems/lifecycle.js';
 import { updateMovement } from '../systems/movement.js';
+import { renewPiles } from '../economy/nodes.js';
 import { updateNeeds } from '../systems/needs.js';
 
 export interface SimulationRunner {
@@ -34,6 +35,7 @@ export function tickSimulation(runner: SimulationRunner): void {
 
   runner.world.tick = runner.clock.tick;
   runner.world.elapsedSeconds = runner.clock.elapsedSeconds;
+  renewPiles(runner.world);
 
   updateLifecycle(runner.world, deltaSeconds);
   updateActions(runner.world, deltaSeconds);

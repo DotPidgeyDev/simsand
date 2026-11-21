@@ -84,5 +84,23 @@ export function economyViolations(world: SimulationWorld): string[] {
     }
   }
 
+  for (const [key, at] of world.returning) {
+    const x = key % world.map.width;
+    const y = Math.floor(key / world.map.width);
+
+    if (!Number.isFinite(at) || at < 0) {
+      violations.push(`Pile at ${x},${y} returns at ${at}`);
+    }
+
+    if (x < 0 || y < 0 || x >= world.map.width || y >= world.map.height) {
+      violations.push(`Returning pile at ${x},${y} is outside the map`);
+      continue;
+    }
+
+    if (world.nodes.has(key)) {
+      violations.push(`Pile at ${x},${y} is waiting to return while it is still here`);
+    }
+  }
+
   return violations;
 }

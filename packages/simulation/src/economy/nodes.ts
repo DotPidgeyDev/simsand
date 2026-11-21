@@ -1,6 +1,6 @@
 import type { ResourceNode } from '@simsand/shared';
 
-import { generateResourceNodes, routesToward } from '../core/map.js';
+import { generateResourceNodes, RESOURCE_NODE_STOCK, routesToward } from '../core/map.js';
 import type { TerrainRoute } from '../core/map.js';
 import type { SimulationWorld } from '../core/world.js';
 
@@ -45,8 +45,12 @@ export function nearestNodeTile(world: SimulationWorld, x: number, y: number): T
   return cached.field[tileY * world.map.width + tileX];
 }
 
+// Hunger rises from satisfied to the quiet line in 75 seconds at the default
+// rate (0.3 / 0.004). A pile stays gone longer than that, then returns here.
+export const PILE_RETURN_SECONDS = 90;
+
 // Removes one unit from the pile under this point. A pile that reaches zero
-// leaves the map.
+// leaves the map and is due back on this tile after the return delay.
 export function takeResource(world: SimulationWorld, x: number, y: number): ResourceNode | undefined {
   const key = nodeKey(world.map.width, x, y);
   const node = world.nodes.get(key);
@@ -55,7 +59,27 @@ export function takeResource(world: SimulationWorld, x: number, y: number): Reso
 
   node.quantity -= 1;
 
-  if (node.quantity === 0) world.nodes.delete(key);
+  if (node.quantity === 0) {
+    world.nodes.delete(key);
+    world.returning.set(key, world.elapsedSeconds + PILE_RETURN_SECONDS);
+  }
 
   return { x: node.x, y: node.y, item: node.item, quantity: 1 };
+}
+
+export function renewPiles(world: SimulationWorld): void {
+  const due: number[] = [];
+
+  for (const [key, at] of world.returning) {
+    if (world.elapsedSeconds >= at) due.push(key);
+  }
+
+  for (const key of due) {
+    world.returning.delete(key);
+    if (world.nodes.has(key)) continue;
+
+    const x = key % world.map.width;
+    const y = Math.floor(key / world.map.width);
+    world.nodes.set(key, { x, y, item: 'material', quantity: RESOURCE_NODE_STOCK });
+  }
 }

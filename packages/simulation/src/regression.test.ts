@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_IDS, ACTION_OUTCOMES, LIFECYCLE_STATES, MEMORY_KINDS, PERSONALITY_TRAITS, SIMULATION_LOG_TYPES, TERRAIN_TYPES } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, LIFECYCLE_STATES, MEMORY_KINDS, PERSONALITY_TRAITS, SIMULATION_LOG_TYPES, TERRAIN_TYPES } from '@simsand/shared';
 
 import { generateCharacterProfile, spriteIdFor, startingAgeSeconds } from './characters/profile.js';
 import { Action } from './components/action.js';
@@ -11,12 +11,15 @@ import { Personality } from './components/personality.js';
 import { Position } from './components/position.js';
 import { Velocity } from './components/velocity.js';
 import { createSimulationClock } from './core/clock.js';
-import { createWorldMap } from './core/map.js';
+import { RESOURCE_NODE_STOCK, createWorldMap } from './core/map.js';
 import { createSimulationRunner, tickSimulation } from './core/runner.js';
 import { createSimulationWorld } from './core/world.js';
 import { createCharacter } from './entities/create-character.js';
-import { inspectCharacterHistory } from './inspection/inspect-character.js';
+import { FOOD_PRICE } from './economy/inventory.js';
+import { PILE_RETURN_SECONDS, nodeAt, nodeKey, renewPiles, takeResource } from './economy/nodes.js';
+import { inspectCharacter, inspectCharacterHistory } from './inspection/inspect-character.js';
 import { ACTION_COOLDOWN_SECONDS, MIN_ACTION_SECONDS, actionBias, readActionOutcome, updateActions } from './systems/actions.js';
+import { HUNGER_GAIN_PER_SECOND, HUNGER_RESUME_AT } from './systems/needs.js';
 
 // The live world is seed 12345. The name, sprite, attributes, needs and bias
 // are what its saves already stored. The age is what a new character of that
@@ -510,3 +513,86 @@ function beside() {
 
   return { world, left, right };
 }
+
+// Milestone 05 close-out. A depleted pile returns. The free camp visit and
+// the free meal stay. Later milestones may append catalogs after these.
+describe('milestone 05 behaviour', () => {
+  it('keeps the economy catalogs after the social ones', () => {
+    expect(ITEM_IDS).toEqual(['goods', 'material', 'food']);
+    expect(FOOD_PRICE).toBe(2);
+    expect(ACTION_IDS.slice(11)).toEqual(['give', 'gather', 'craft', 'dine', 'buy']);
+    expect(MEMORY_KINDS.slice(5)).toEqual(['giving', 'trading']);
+    expect(SIMULATION_LOG_TYPES.slice(6)).toEqual(['item.transferred', 'item.traded']);
+    expect(PILE_RETURN_SECONDS).toBeGreaterThan(HUNGER_RESUME_AT / HUNGER_GAIN_PER_SECOND);
+  });
+
+  it('returns a depleted pile to full stock on the same tile, and not before', () => {
+    const map = createWorldMap(4, 4, 'grass');
+    const world = createSimulationWorld(map, 1);
+    world.nodes.set(nodeKey(map.width, 1, 1), { x: 1, y: 1, item: 'material', quantity: 1 });
+    takeResource(world, 1, 1);
+
+    world.elapsedSeconds = PILE_RETURN_SECONDS - 0.1;
+    renewPiles(world);
+    expect(nodeAt(world, 1, 1)).toBeUndefined();
+
+    world.elapsedSeconds = PILE_RETURN_SECONDS;
+    renewPiles(world);
+    expect(nodeAt(world, 1, 1)).toEqual({ x: 1, y: 1, item: 'material', quantity: RESOURCE_NODE_STOCK });
+  });
+
+  it('still yields goods from an empty-handed camp visit, and still eats with no food', () => {
+    const map = createWorldMap(4, 4, 'grass');
+    map.tiles[0] = TERRAIN_TYPES.indexOf('camp');
+    const world = createSimulationWorld(map);
+    const worker = createCharacter(world, {
+      id: 'worker',
+      x: 0.5,
+      y: 0.5,
+      velocityX: 0,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+    const diner = createCharacter(world, {
+      id: 'diner',
+      x: 2.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    for (const eid of [worker, diner]) {
+      Needs.hunger[eid] = 0.2;
+      Needs.thirst[eid] = 0.2;
+      Needs.fatigue[eid] = 0.2;
+      Personality.curiosity[eid] = 0;
+      Personality.industriousness[eid] = 0;
+      Personality.sociability[eid] = 0;
+      Personality.empathy[eid] = 0;
+      Personality.loyalty[eid] = 0;
+      Personality.honesty[eid] = 0.5;
+      Personality.greed[eid] = 0;
+      Lifecycle.ageSeconds[eid] = 0;
+    }
+
+    Personality.industriousness[worker] = 1;
+    Action.kind[worker] = ACTION_IDS.indexOf('work');
+    Action.elapsed[worker] = MIN_ACTION_SECONDS;
+    Needs.hunger[worker] = 0.6;
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(worker)).toEqual({ action: 'work', result: 'completed' });
+    expect(inspectCharacter(world, 'worker')?.inventory).toEqual([{ item: 'goods', quantity: 1 }]);
+
+    Needs.hunger[diner] = 0.9;
+    Action.kind[diner] = ACTION_IDS.indexOf('idle');
+    Action.elapsed[diner] = 0;
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[diner]]).toBe('eat');
+    expect(inspectCharacter(world, 'diner')?.inventory).toEqual([]);
+  });
+});

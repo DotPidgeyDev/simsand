@@ -212,7 +212,8 @@ a need rises past 0.3. A completed visit adds one goods to that character's inve
 A character who is holding goods can give one to a neighbour they have
 already met. Greed scores against that gift. An industrious character walks to the nearer of a camp and a pile of
 material. Standing on the pile, they can gather one unit when that visit
-ends. A tie keeps the walk to the camp. Holding material at a camp,
+ends. A pile that runs out returns to stock 3 on that tile after 90
+seconds, and until then it is not a place to walk. A tie keeps the walk to the camp. Holding material at a camp,
 they craft one food from it instead of the visit that needs no input.
 Holding that food while hungry spends one and brings hunger down to the
 quiet line. A meal with no food is unchanged. A greedy character pays

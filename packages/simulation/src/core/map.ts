@@ -27,7 +27,7 @@ const CAMP_SEED_SALT = 0xbb67ae85;
 const NODE_SEED_SALT = 0x3c6ef372;
 
 // A grass tile's pile. Small enough that most grass is empty, large enough
-// that a generated map has some. Gathering does not walk toward these.
+// that a generated map has some. An industrious character walks toward these.
 const NODE_FRACTION = 0.02;
 export const RESOURCE_NODE_STOCK = 3;
 

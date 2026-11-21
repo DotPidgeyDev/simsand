@@ -45,7 +45,7 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 22;
+export const PERSISTED_WORLD_VERSION = 23;
 
 // Append only. Saved inventories store the name.
 export const ITEM_IDS = ['goods', 'material', 'food'] as const;
@@ -69,6 +69,14 @@ export interface ResourceNode {
   y: number;
   item: ItemId;
   quantity: number;
+}
+
+// A pile that reached zero. It is not a node until renewsAt, so the live
+// pile map stays positive quantities only.
+export interface PileReturn {
+  x: number;
+  y: number;
+  renewsAt: number;
 }
 
 export const ATTRIBUTE_NAMES = [
@@ -251,6 +259,7 @@ export interface PersistedWorld {
   memories: MemoryRecord[];
   inventories: InventoryRecord[];
   nodes: ResourceNode[];
+  returning: PileReturn[];
 }
 
 export const COMMAND_PROTOCOL_VERSION = 1;

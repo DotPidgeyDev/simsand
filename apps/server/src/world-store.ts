@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
-import type { ResourceNode } from '@simsand/shared';
+import type { PileReturn, ResourceNode } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
@@ -356,6 +356,47 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
       if (!Number.isInteger(node.quantity) || node.quantity < 1) {
         throw new Error('Item quantity must be a positive integer');
+      }
+    }
+  }
+
+  if (Number(world.version) >= 23) {
+    if (!Array.isArray(world.returning)) {
+      throw new Error('World pile returns are missing');
+    }
+
+    const map = world.map as WorldMapData;
+    const waiting = new Set<string>();
+    const occupied = new Set(
+      ((world.nodes ?? []) as ResourceNode[]).map((node) => `${node.x},${node.y}`),
+    );
+
+    for (const entry of world.returning as PileReturn[]) {
+      if (
+        !Number.isInteger(entry.x)
+        || !Number.isInteger(entry.y)
+        || entry.x < 0
+        || entry.y < 0
+        || entry.x >= map.width
+        || entry.y >= map.height
+      ) {
+        throw new Error('Returning pile is outside the map');
+      }
+
+      const tile = `${entry.x},${entry.y}`;
+
+      if (waiting.has(tile)) {
+        throw new Error(`Duplicate returning pile at ${tile}`);
+      }
+
+      waiting.add(tile);
+
+      if (occupied.has(tile)) {
+        throw new Error(`Pile at ${tile} is waiting to return while it is still here`);
+      }
+
+      if (!Number.isFinite(entry.renewsAt) || entry.renewsAt < 0) {
+        throw new Error('Pile return time must be zero or later');
       }
     }
   }

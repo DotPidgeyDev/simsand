@@ -1,8 +1,8 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 05  
-**Version:** 1.9  
-**Last updated:** 2026-11-20
+**Status:** Active — Milestone 06  
+**Version:** 1.10  
+**Last updated:** 2026-11-21
 
 ## Guiding approach
 
@@ -364,7 +364,7 @@ chronicle over the same log is Milestone 08.
 
 ## Milestone 05 — Inventory and basic economy
 
-**Status: In progress**
+**Status: Complete**
 
 Add items, inventories, resource nodes, production, consumption and simple trade.
 
@@ -386,7 +386,10 @@ the item and the quantity, and the first gift between a pair is one
 
 Grass tiles can hold a finite pile of `material`. `gather` takes one
 when a visit on that tile ends, the same way a camp visit yields goods.
-An empty pile fails the visit and adds nothing. An industrious character
+An empty pile fails the visit and adds nothing. The same tile returns
+to stock 3 after 90 seconds, which is longer than the 75 seconds hunger
+takes to rise from satisfied to the quiet line. Until then it is not a
+pile and not a place to walk. An industrious character
 walks to the nearer of a camp and a pile; a tie keeps the camp. Holding
 material at a camp crafts one food and spends one material. The visit
 with no input still yields goods. One food brings hunger down to the
@@ -398,7 +401,8 @@ pile quantity is a positive integer, and an empty holder or pile is
 absent. Work creates one goods. Gather moves one material from the pile
 into the hand. Craft turns one material into one food. Dine spends one
 food. Give moves goods. Buy moves food and goods and creates neither.
-Saves are format version 22. A version 21 save gains a buy cooldown of
+Saves are format version 23. A version 22 save gains an empty list of
+piles waiting to return. A version 21 save gains a buy cooldown of
 zero.
 
 Initial scope:
@@ -414,16 +418,44 @@ Initial scope:
 - Item and resource lifecycle.
 
 Greed is read by `give` and by `buy`. The price of food is two goods.
+A depleted pile returns to stock 3 on the same tile after 90 seconds.
+The camp visit with empty hands and the meal with no food both stay.
+Basic trade stays beside someone already met. A route to a person or a
+stack, and a declared preference when two jobs share a score, are
+Milestone 09. Death already leaves a holder's stacks on the corpse.
+Removing the character deletes them. What those stacks do on the day
+someone dies is Milestone 09.
 
-Before this milestone closes, settle the loop the items have already opened. A pile is gone at zero and does not come back, so once the grass is gathered the only meal is the one that spends nothing and the only camp visit is the one that mints goods. Buying food spends goods, and nothing else does. Say, as part of the economy invariants, whether a pile returns and whether those two visits stay complete substitutes. Basic trade stays beside someone already met. A route to a person or a stack, and a declared preference when two jobs share a score, are Milestone 09. Death already leaves a holder's stacks on the corpse. Removing the character deletes them. What those stacks do on the day someone dies is Milestone 09.
+Regression for this cycle is in
+`packages/simulation/src/regression.test.ts`. Notes for Milestone 06
+are in `docs/roadmap/notes/06-from-05.md`. How to close a milestone is
+in `docs/roadmap/closeout.md`.
 
-Establish reliable ownership and transfer rules before introducing more complex economic behaviour.
+### Definition of done
+
+- [x] Goods, material, and food are the item catalog, held in a sparse inventory.
+- [x] A camp visit with empty hands yields one goods. Holding material there crafts one food.
+- [x] Gathering takes one material from the pile underfoot, and an industrious character walks to the nearer of a camp and a pile.
+- [x] One food brings hunger down to the quiet line. A meal with no food is unchanged.
+- [x] A generous character gives one goods. A greedy character pays two goods for one food from someone already met.
+- [x] A depleted pile is absent until 90 seconds have passed, then the same tile holds stock 3.
+- [x] Completed actions create one goods, spend one food, or move what they name, and the checker reports an empty holder, a non-positive quantity, or a pile on the wrong tile.
+
+### Later, outside this milestone
+
+Showing stacks and piles on the map snapshot is Milestone 08. A route
+to a person or a stack, a dead holder's stacks, and a declared job
+preference are Milestone 09. Indexing the log, memories, and
+relationships is Milestone 06.
 
 ---
 
 ## Milestone 06 — Durable world
 
 **Status: Planned**
+
+Start from `docs/roadmap/notes/06-from-05.md`. The log, memories, and
+relationships are still linear scans.
 
 Expand snapshots and durable events to cover implemented gameplay state.
 
@@ -527,7 +559,7 @@ A dead holder's stacks. Death already leaves them on the corpse. Removing the ch
 
 A declared preference when two jobs share a score. The earlier definition wins a tie, and a bias of 0.05 can flip it. Craft wins by suppressing work while material is in hand. Dine wins by a bonus wider than that bias. A profession says which job wins without another one-off bonus.
 
-Milestone 05 decides whether a depleted pile returns. Wildlife, weather, and farming here renew or replace that input. They start from whatever that decision left on the map.
+A depleted pile returns to stock 3 on the same tile after 90 seconds. Wildlife, weather, and farming here renew or replace that input. They start from that return, not from a pile that is gone for good.
 
 ---
 

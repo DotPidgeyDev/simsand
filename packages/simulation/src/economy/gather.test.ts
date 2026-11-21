@@ -74,6 +74,7 @@ describe('gather', () => {
     updateActions(world, 0.1);
 
     expect(world.nodes.size).toBe(0);
+    expect(world.returning.size).toBe(1);
     expect(inspectCharacter(world, 'picker')?.node).toBeNull();
     expect(inspectCharacter(world, 'picker')?.inventory).toEqual([{ item: 'material', quantity: 1 }]);
   });
