@@ -40,6 +40,9 @@ export interface SimulationWorld {
   nodes: Map<number, ResourceNode>;
   // Tile key to the elapsed time when that pile returns at full stock.
   returning: Map<number, number>;
+  // Derived from the character record. One viewer owns at most one character.
+  characterByViewer: Map<string, string>;
+  viewerByCharacter: Map<string, string>;
 }
 
 export function createSimulationWorld(
@@ -67,5 +70,7 @@ export function createSimulationWorld(
     inventories: new Map(),
     nodes: new Map(),
     returning: new Map(),
+    characterByViewer: new Map(),
+    viewerByCharacter: new Map(),
   };
 }

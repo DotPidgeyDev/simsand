@@ -73,6 +73,7 @@ describe('inspectCharacter', () => {
       inventory: [],
       node: null,
       derived: derivedStats(generateCharacterProfile(0, 'swimmer').attributes.constitution),
+      viewerId: null,
       tile: { x: 2, y: 3, terrain: 'water' },
     });
   });

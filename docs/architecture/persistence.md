@@ -183,11 +183,12 @@ model incrementally as simulation systems become real.
 -   **Schema:** `world_snapshots` holds the format version, tick,
     creation time and a JSON payload. `simulation_events` holds one JSON
     log event per id, and the participant and pair tables index that id.
-    The schema version is stored in `PRAGMA user_version` and is 2. A
-    database from a newer schema is refused. A version 1 database is
-    migrated on open.
+    The schema version is stored in `PRAGMA user_version` and is 3. A
+    database from a newer schema is refused. A version 1 database gains
+    the event tables on open. A version 2 database gains the `viewers`
+    table.
 -   **Snapshot format:** `PersistedWorld` in `packages/shared`, version
-    23: seed, tick, elapsed time, fixed timestep, the tile map, sparse
+    24: seed, tick, elapsed time, fixed timestep, the tile map, sparse
     inventories, resource piles, piles waiting to return, and every
     entity's stable ID, position, velocity, appearance (colour and a
     named sprite), character profile (name, attributes, personality,
@@ -195,7 +196,7 @@ model incrementally as simulation systems become real.
     long they have held it, how long each action is cooling down, how
     the previous action ended (`completed`, `interrupted` or `failed`),
     and whether the character is resting,
-    eating or drinking. It is separate from the render-oriented
+    eating or drinking, and the viewer id when a viewer owns them. It is separate from the render-oriented
     `WorldSnapshot`, which carries position, appearance, those three
     flags and the lifecycle state, but not the action, age, velocity or
     the rest of the profile. Older snapshots are still accepted and
@@ -224,7 +225,8 @@ model incrementally as simulation systems become real.
     from the map seed and a gather cooldown of zero. Version 20 gains
     a craft cooldown of zero. Version 21 gains a dine cooldown of zero.
     Version 22 gains a buy cooldown of zero. Version 23 gains an empty
-    list of piles waiting to return. The next save writes version 23.
+    list of piles waiting to return. Version 24 gains `viewerId` on
+    each character, null for an NPC. The next save writes version 24.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot reshuffle an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker
@@ -256,8 +258,12 @@ the previous save was confirmed. Inserts are ignored when the event id
 is already stored. The table then keeps the newest 100,000 events
 (`SIMSAND_LOG_RETENTION`). Character history reads that table and the
 live log together, preferring the live copy of an id that is in both.
-The database schema is version 2. Opening a version 1 database creates
+The database schema is version 3. Opening a version 1 database creates
 the event tables and copies the log out of the snapshots already saved.
+Opening a version 2 database creates `viewers`, which holds the
+server-issued viewer id, display name, creation time, and status.
+Those rows are not copied onto the character. The character's
+`viewerId` in the snapshot is the only world-side link.
 `WorldStore.backupTo` writes a consistent copy through SQLite's backup
 API. To restore it, stop the server, replace the database file with the
 copy, delete any `-wal` and `-shm` files beside that path, and start

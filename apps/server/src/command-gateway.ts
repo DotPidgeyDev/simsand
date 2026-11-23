@@ -39,12 +39,13 @@ const commandRequestSchema = z.strictObject({
   ]),
 });
 
-// Viewers get no commands until viewer identity and character ownership exist.
+// A viewer may create the one character they own. Removal stays with
+// admin, streamer, and system.
 const PERMISSIONS: Record<CommandSource, readonly CommandType[]> = {
   admin: ['character.create', 'character.remove'],
   streamer: ['character.create', 'character.remove'],
   system: ['character.create', 'character.remove'],
-  viewer: [],
+  viewer: ['character.create'],
 };
 
 export interface CommandDispatcher {

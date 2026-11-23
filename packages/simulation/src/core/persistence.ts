@@ -41,12 +41,18 @@ import { pairKey } from '../social/relationships.js';
 // Version 20 predates dine.
 // Version 21 predates buy.
 // Version 22 predates a depleted pile's return.
+// Version 23 predates viewer ownership.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV22 = Omit<PersistedWorld, 'version' | 'returning'> & {
+export type PersistedWorldV23 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 23;
+  entities: Array<Omit<PersistedEntity, 'viewerId'>>;
+};
+
+export type PersistedWorldV22 = Omit<PersistedWorldV23, 'version' | 'returning'> & {
   version: 22;
 };
 
@@ -184,6 +190,7 @@ export type UpgradeableWorld =
   | PersistedWorldV20
   | PersistedWorldV21
   | PersistedWorldV22
+  | PersistedWorldV23
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -231,6 +238,7 @@ export function capturePersistedWorld(
       },
       outcome: readActionOutcome(eid),
       actionTarget: Action.target[eid] ?? '',
+      viewerId: world.viewerByCharacter.get(Identity.id[eid]) ?? null,
     });
   }
 
@@ -548,10 +556,21 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 22) {
+    return upgradePersistedWorld({
+      ...persisted,
+      version: 23,
+      returning: [],
+    });
+  }
+
+  if (persisted.version === 23) {
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
-      returning: [],
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        viewerId: null,
+      })),
     };
   }
 

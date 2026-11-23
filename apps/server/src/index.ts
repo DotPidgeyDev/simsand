@@ -1,5 +1,7 @@
 import { fileURLToPath } from 'node:url';
 
+import { CommandGateway } from './command-gateway.js';
+import { createCommandServer } from './command-server.js';
 import { mergeHistory } from './log-history.js';
 import { createInspectionServer } from './inspection-server.js';
 import type { ServerInfo } from './inspection-server.js';
@@ -14,7 +16,8 @@ const SAVE_INTERVAL_MS = Number(process.env.SIMSAND_SAVE_INTERVAL_MS ?? 30_000);
 const STATUS_INTERVAL_MS = Number(process.env.SIMSAND_STATUS_INTERVAL_MS ?? 60_000);
 const WS_PORT = Number(process.env.SIMSAND_WS_PORT ?? 8766);
 const INSPECT_PORT = Number(process.env.SIMSAND_INSPECT_PORT ?? 8767);
-const INSPECT_HOST = '127.0.0.1';
+const COMMAND_PORT = Number(process.env.SIMSAND_COMMAND_PORT ?? 8768);
+const LOCAL_HOST = '127.0.0.1';
 
 const startedAt = new Date();
 
@@ -120,10 +123,18 @@ const inspectionServer = createInspectionServer({
   getServerInfo: () => ({ startedAt, browserClients: browserServer.clientCount, lastSave }),
 });
 
+const commandGateway = new CommandGateway(simulation);
+const commandServer = createCommandServer({ viewers: store, gateway: commandGateway });
+
 inspectionServer
-  .listen({ host: INSPECT_HOST, port: INSPECT_PORT })
+  .listen({ host: LOCAL_HOST, port: INSPECT_PORT })
   .then((address) => log.info(`Inspection API listening on ${address}`))
   .catch((error) => log.error('Failed to start the inspection API:', error));
+
+commandServer
+  .listen({ host: LOCAL_HOST, port: COMMAND_PORT })
+  .then((address) => log.info(`Command API listening on ${address}`))
+  .catch((error) => log.error('Failed to start the command API:', error));
 
 if (savedWorld) {
   log.info(`Restoring world from ${DB_PATH} at tick ${savedWorld.tick}`);
@@ -144,6 +155,7 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(statusTimer);
   await saveWorld('shutdown');
   await simulation.stop();
+  await commandServer.close();
   await inspectionServer.close();
   await browserServer.close();
   store.close();

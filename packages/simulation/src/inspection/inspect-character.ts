@@ -135,6 +135,7 @@ export function inspectCharacter(
     inventory: inventoryFor(world, id),
     node: pile ? { item: pile.item, quantity: pile.quantity } : null,
     derived: derivedStats(Attributes.constitution[eid]),
+    viewerId: world.viewerByCharacter.get(id) ?? null,
     tile: { x: tileX, y: tileY, terrain: getTile(world.map, tileX, tileY)! },
   };
 }

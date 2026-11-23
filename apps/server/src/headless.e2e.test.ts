@@ -24,6 +24,7 @@ describe('headless server', () => {
   let output = '';
   let dataDir: string;
   let inspectUrl: string;
+  let commandUrl: string;
   let wsPort: number;
 
   function waitForOutput(pattern: RegExp, timeoutMs = 15_000): Promise<RegExpMatchArray> {
@@ -60,6 +61,7 @@ describe('headless server', () => {
         SIMSAND_DB_PATH: join(dataDir, 'world.sqlite'),
         SIMSAND_WS_PORT: '0',
         SIMSAND_INSPECT_PORT: '0',
+        SIMSAND_COMMAND_PORT: '0',
         SIMSAND_LOG_LEVEL: 'info',
       },
     });
@@ -68,6 +70,7 @@ describe('headless server', () => {
     server.stderr.on('data', (chunk) => { output += chunk; });
 
     inspectUrl = (await waitForOutput(/Inspection API listening on (http:\/\/\S+)/))[1];
+    commandUrl = (await waitForOutput(/Command API listening on (http:\/\/\S+)/))[1];
     wsPort = Number((await waitForOutput(/WebSocket server listening on port (\d+)/))[1]);
     await waitForOutput(/Saved world at tick \d+ \(baseline\)/);
   }, 30_000);
@@ -103,6 +106,53 @@ describe('headless server', () => {
     expect(afterDisconnect.server.browserClients).toBe(0);
     expect(afterDisconnect.simulation.tick - atDisconnect.simulation.tick).toBeGreaterThanOrEqual(5);
     expect(afterDisconnect.simulation.ticksDropped).toBe(0);
+  }, 20_000);
+
+  it('lets one registered viewer create one character', async () => {
+    const registered = await fetch(`${commandUrl}/viewers`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ displayName: 'Ada' }),
+    });
+    expect(registered.status).toBe(201);
+    const viewer = await registered.json() as { id: string };
+
+    const create = await fetch(`${commandUrl}/viewers/${viewer.id}/commands`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        protocolVersion: 1,
+        command: { type: 'character.create', params: { characterId: 'visitor-e2e', x: 32, y: 32 } },
+      }),
+    });
+    expect(create.status).toBe(200);
+    expect(await create.json()).toMatchObject({ status: 'applied' });
+
+    const character = await fetch(`${inspectUrl}/entities/visitor-e2e`);
+    expect(character.status).toBe(200);
+    expect(await character.json()).toMatchObject({ id: 'visitor-e2e', viewerId: viewer.id });
+    expect((await status()).simulation.population).toBe(21);
+
+    const again = await fetch(`${commandUrl}/viewers/${viewer.id}/commands`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        protocolVersion: 1,
+        command: { type: 'character.create', params: { characterId: 'visitor-e2e-2', x: 10, y: 10 } },
+      }),
+    });
+    expect(await again.json()).toMatchObject({ status: 'rejected', reason: 'viewer_has_character' });
+
+    const removed = await fetch(`${commandUrl}/viewers/${viewer.id}/commands`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        protocolVersion: 1,
+        command: { type: 'character.remove', params: { characterId: 'visitor-e2e' } },
+      }),
+    });
+    expect(await removed.json()).toMatchObject({ status: 'rejected', reason: 'forbidden' });
+    expect((await status()).simulation.population).toBe(21);
   }, 20_000);
 
   it('saves and exits cleanly on SIGTERM', async () => {

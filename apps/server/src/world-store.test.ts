@@ -14,7 +14,7 @@ function world(tick: number): PersistedWorld {
   const profile = generateCharacterProfile(12345, 'character-0001');
 
   return {
-    version: 23,
+    version: 24,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -40,6 +40,7 @@ function world(tick: number): PersistedWorld {
         working: false,
         outcome: null,
         actionTarget: '',
+        viewerId: null,
       },
     ],
     relationships: [],
@@ -162,7 +163,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(23);
+    expect(loaded?.version).toBe(24);
     expect(loaded?.entities).toEqual(saved.entities);
     expect(loaded?.map.tiles[1]).toBe(1);
     expect(loaded?.map.tiles[2]).toBe(2);
@@ -182,7 +183,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(23);
+    expect(loaded?.version).toBe(24);
     expect(loaded?.entities[0].eating).toBe(false);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].resting).toBe(true);
@@ -204,7 +205,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(23);
+    expect(loaded?.version).toBe(24);
     expect(loaded?.entities[0].eating).toBe(true);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].needs.hunger).toBe(0.9);
@@ -223,7 +224,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(23);
+    expect(loaded?.version).toBe(24);
     expect(loaded?.entities[0].ageSeconds).toBe(saved.entities[0].ageSeconds);
   });
 
@@ -292,7 +293,7 @@ describe('WorldStore', () => {
 
   it('refuses a database created by a newer schema', () => {
     const db = new DatabaseSync(':memory:');
-    db.exec('PRAGMA user_version = 3');
+    db.exec('PRAGMA user_version = 4');
 
     expect(() => new WorldStore(db)).toThrow('newer than supported');
   });
@@ -366,7 +367,7 @@ describe('WorldStore', () => {
     const store = new WorldStore(db);
     const { user_version: version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
 
-    expect(version).toBe(2);
+    expect(version).toBe(3);
     expect(store.eventsForParticipant('right')).toEqual([entry]);
     expect(store.loadLatest()?.log).toEqual([entry]);
   });
@@ -387,5 +388,67 @@ describe('WorldStore', () => {
     restored.close();
     store.close();
     rmSync(directory, { recursive: true, force: true });
+  });
+
+  it('adds the viewers table when opening a schema version 2 database', () => {
+    const db = new DatabaseSync(':memory:');
+
+    db.exec(`
+      CREATE TABLE world_snapshots (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        format_version INTEGER NOT NULL,
+        tick INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        payload TEXT NOT NULL
+      );
+      CREATE TABLE simulation_events (
+        event_id TEXT PRIMARY KEY,
+        tick INTEGER NOT NULL,
+        sequence INTEGER NOT NULL,
+        payload TEXT NOT NULL
+      );
+      CREATE INDEX simulation_events_order ON simulation_events (tick, sequence);
+      CREATE TABLE simulation_event_participants (
+        participant_id TEXT NOT NULL,
+        event_id TEXT NOT NULL,
+        PRIMARY KEY (participant_id, event_id)
+      );
+      CREATE TABLE simulation_event_pairs (
+        pair_key TEXT NOT NULL,
+        event_id TEXT NOT NULL,
+        PRIMARY KEY (pair_key, event_id)
+      );
+      PRAGMA user_version = 2;
+    `);
+
+    const store = new WorldStore(db);
+    const viewer = {
+      id: 'viewer-1',
+      displayName: 'Ada',
+      createdAt: '2026-11-23T00:00:00.000Z',
+      status: 'active' as const,
+    };
+
+    store.createViewer(viewer);
+
+    const { user_version: version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
+
+    expect(version).toBe(3);
+    expect(store.getViewer('viewer-1')).toEqual(viewer);
+    expect(store.getViewer('viewer-2')).toBeUndefined();
+  });
+
+  it('rejects two characters owned by the same viewer', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const saved = world(10);
+    const first = { ...saved.entities[0], viewerId: 'viewer-1' };
+    const second = { ...first, id: 'character-0002' };
+
+    insertRaw(db, 10, JSON.stringify({ ...saved, entities: [first, second] }));
+
+    expect(() => store.loadLatest()).toThrow('No valid world snapshot');
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Two characters belong to viewer viewer-1'));
   });
 });

@@ -395,8 +395,10 @@ The current gameplay checks are:
 
 | Command | Rejected when | Event on success |
 |---|---|---|
-| `character.create` | The ID already exists (`character_exists`) or the position is outside the 64 × 64 world (`out_of_bounds`) | `character.created` |
+| `character.create` | The ID already exists (`character_exists`), the position is outside the 64 × 64 world (`out_of_bounds`), the issuer is a viewer who already owns a character (`viewer_has_character`), or that viewer id was not issued by the server (`invalid_issuer`) | `character.created` |
 | `character.remove` | No character has the ID (`character_not_found`) | `character.removed` |
+
+A viewer create records that viewer's id on the character. An admin, streamer, or system create leaves it empty. The character is otherwise the same as any other.
 
 Events are stamped with the current tick and elapsed simulation seconds. Commands are not yet queued or recorded for replay.
 

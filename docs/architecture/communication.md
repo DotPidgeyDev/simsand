@@ -14,7 +14,7 @@ The simulation worker owns authoritative gameplay state. The application server 
 
 The current implementation supports worker lifecycle messages, world snapshots, incremental deltas, browser WebSocket connections, and a validated command contract that produces domain events.
 
-A public entry point for commands (HTTP API or platform adapter) and streaming-platform integrations remain future work.
+A local command API accepts a registered viewer's character create. Streaming-platform integrations remain future work.
 
 ---
 
@@ -24,7 +24,8 @@ A public entry point for commands (HTTP API or platform adapter) and streaming-p
 |---|---|---|---|
 | Server ↔ simulation worker | Node.js worker message channel | Lifecycle, snapshots, deltas and errors | Implemented |
 | Browser ↔ server | WebSockets (`ws`) | Initial state and incremental updates | Implemented |
-| Local tools ↔ server | HTTP (Fastify), `127.0.0.1` only | Read-only inspection of status and entities | Implemented |
+| Local tools ↔ server | HTTP (Fastify), `127.0.0.1:8767` | Read-only inspection of status and entities | Implemented |
+| Local tools ↔ server | HTTP (Fastify), `127.0.0.1:8768` | Register a viewer and submit that viewer's commands | Implemented |
 | Browser ↔ server APIs | HTTP | Configuration and non-streaming operations | Planned |
 | Platform ↔ server | Platform-specific SDK/API or connection | Receive chat and platform events | Planned |
 | Server ↔ persistence | `node:sqlite` in the server process | Save and restore the world, and retain the character log | Implemented |
@@ -43,7 +44,7 @@ The server distributes simulation updates but does not own or modify authoritati
 |---|---|---|
 | `GET /status` | Worker `world.status.request`, plus server state | Uptime, browser clients, last save, and the `SimulationStatus` |
 | `GET /entities` | The server's cached snapshot | Tick, count, and each entity's ID and position |
-| `GET /entities/:id` | Worker `world.inspect.request` | `EntityInspection` (movement, appearance, profile, action, relationships), or 404 |
+| `GET /entities/:id` | Worker `world.inspect.request` | `EntityInspection` (movement, appearance, profile, action, relationships, viewer id), or 404 |
 | `GET /entities/:id/history` | The retained log, merged with the worker's live window | Events whose participants include that character, or 404 |
 
 If the worker doesn't answer within 2 seconds, the routes that query it return 503 with `simulation_unavailable`.
@@ -185,7 +186,7 @@ TypeScript types alone do not validate runtime data. External command input is v
 
 ## 6. External command lifecycle
 
-**Status: Partially implemented — contract and gateway, no public entry point yet**
+**Status: Partially implemented — local viewer create, no platform adapter yet**
 
 External callers will submit commands through the application server.
 
@@ -239,18 +240,25 @@ The gateway checks, in order:
 2. The command matches a strict Zod schema. Unknown fields, unknown types, malformed IDs and out-of-range values are rejected as `invalid_command`.
 3. The issuer's source is permitted to issue the command type. Otherwise `forbidden`.
 
-It then adds a `commandId`, the issuer and `submittedAt`, and sends the command to the worker. The worker handles it between ticks and either applies it or rejects it with a gameplay reason (`character_exists`, `character_not_found`, `out_of_bounds`). If the worker is unavailable or does not reply within 2 seconds, the result is `simulation_unavailable`.
+It then adds a `commandId`, the issuer and `submittedAt`, and sends the command to the worker. The worker handles it between ticks and either applies it or rejects it with a gameplay reason (`character_exists`, `character_not_found`, `out_of_bounds`, `viewer_has_character`, `invalid_issuer`). If the worker is unavailable or does not reply within 2 seconds, the result is `simulation_unavailable`.
 
 The first command types are:
 
 | Command | Parameters | Allowed sources |
 |---|---|---|
-| `character.create` | `characterId`, `x`, `y`, optional `velocityX`, `velocityY`, `color` | admin, streamer, system |
+| `character.create` | `characterId`, `x`, `y`, optional `velocityX`, `velocityY`, `color` | admin, streamer, system, viewer |
 | `character.remove` | `characterId` | admin, streamer, system |
 
-Viewers have no command permissions until viewer identity is implemented.
+A viewer may create one character. The world rejects a second create with `viewer_has_character`, including when the first character is dead. Viewers cannot remove a character.
 
-Nothing exposes the gateway to the network yet. The HTTP API, admin tooling and platform adapters will call it once they exist. Rate limits and deduplication are not implemented.
+`createCommandServer` (`apps/server/src/command-server.ts`) is a Fastify server on `127.0.0.1:8768` (`SIMSAND_COMMAND_PORT`). It has no authentication, so it must not be bound to a public interface.
+
+| Route | What it does |
+|---|---|
+| `POST /viewers` | Stores a viewer with a server-issued id and the display name from the body. Returns that record. |
+| `POST /viewers/:id/commands` | Submits the body to `CommandGateway` as `{ source: 'viewer', id }`. Unknown viewers are 404. The response is the `CommandResult`. |
+
+The command body cannot set the issuer. Rate limits and deduplication are not implemented. Platform adapters are not connected.
 
 ---
 

@@ -45,7 +45,10 @@ export interface WorldDelta {
   removed: string[];
 }
 
-export const PERSISTED_WORLD_VERSION = 23;
+export const PERSISTED_WORLD_VERSION = 24;
+
+// Server-issued viewer ids. A platform user id is not one of these.
+export const VIEWER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
 // Append only. Saved inventories store the name.
 export const ITEM_IDS = ['goods', 'material', 'food'] as const;
@@ -242,6 +245,8 @@ export interface PersistedEntity extends CharacterProfile {
   outcome: ActionEnding | null;
   // Stable ID of the other character during a social action. Empty otherwise.
   actionTarget: string;
+  // The server-issued viewer who owns this character. Null for an NPC.
+  viewerId: string | null;
 }
 
 // Everything needed to resume the simulation. Unlike WorldSnapshot, which
@@ -321,7 +326,9 @@ export type CommandRejectionReason =
   | 'simulation_unavailable'
   | 'character_exists'
   | 'character_not_found'
-  | 'out_of_bounds';
+  | 'out_of_bounds'
+  | 'viewer_has_character'
+  | 'invalid_issuer';
 
 export type CommandResult =
   | { commandId: string; status: 'applied'; tick: number; events: DomainEvent[] }
@@ -369,6 +376,8 @@ export interface EntityInspection extends CharacterProfile {
   // The pile on the tile under this character. Null when the tile has none.
   node: { item: ItemId; quantity: number } | null;
   derived: DerivedStats;
+  // Null when the character is an NPC.
+  viewerId: string | null;
   // The tile containing the entity. An entity on the far edge of the map
   // reports the last row or column.
   tile: { x: number; y: number; terrain: TerrainType };

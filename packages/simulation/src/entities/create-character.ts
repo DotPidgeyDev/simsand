@@ -36,6 +36,7 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   cooldowns?: ActionCooldowns;
   outcome?: ActionEnding | null;
   actionTarget?: string;
+  viewerId?: string | null;
 }
 
 // pass in the world and character attr, and get the id of a new char entity added to the world.
@@ -49,6 +50,11 @@ export function createCharacter(
 
   if (world.entityIds.has(definition.id)) {
     throw new Error(`Character ID already exists: ${definition.id}`);
+  }
+
+  if (definition.viewerId != null && world.characterByViewer.has(definition.viewerId)) {
+    const existing = world.characterByViewer.get(definition.viewerId);
+    throw new Error(`Viewer ${definition.viewerId} already has character ${existing}`);
   }
 
   const eid = addEntity(world.ecs);
@@ -92,6 +98,7 @@ export function createCharacter(
   Action.outcomeAction[eid] = definition.outcome ? ACTION_IDS.indexOf(definition.outcome.action) : -1;
   Action.outcomeResult[eid] = definition.outcome ? ACTION_OUTCOMES.indexOf(definition.outcome.result) : 0;
   Action.target[eid] = definition.actionTarget ?? '';
+  claimViewer(world, definition.id, definition.viewerId);
 
   Position.x[eid] = definition.x;
   Position.y[eid] = definition.y;
@@ -103,6 +110,17 @@ export function createCharacter(
   Appearance.sprite[eid] = assertSpriteId(definition.sprite);
 
   return eid;
+}
+
+function claimViewer(
+  world: SimulationWorld,
+  characterId: string,
+  viewerId: string | null | undefined,
+): void {
+  if (viewerId == null) return;
+
+  world.characterByViewer.set(viewerId, characterId);
+  world.viewerByCharacter.set(characterId, viewerId);
 }
 
 // A definition without a name gets a seeded profile. A provided profile is

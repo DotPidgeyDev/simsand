@@ -88,18 +88,27 @@ describe('CommandGateway', () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('rejects commands the issuer is not permitted to send', async () => {
+  it('lets a viewer create a character and refuses removal', async () => {
     const { gateway, sent } = setup();
+    const viewer = { source: 'viewer' as const, id: 'viewer-1' };
 
-    const result = await gateway.submit(createRequest, { source: 'viewer', id: 'twitch:123' });
+    const created = await gateway.submit(createRequest, viewer);
 
-    expect(result).toEqual({
+    expect(created.status).toBe('applied');
+    expect(sent[0]?.issuer).toEqual(viewer);
+
+    const removed = await gateway.submit({
+      protocolVersion: 1,
+      command: { type: 'character.remove', params: { characterId: 'visitor-0001' } },
+    }, viewer);
+
+    expect(removed).toEqual({
       commandId: 'command-1',
       status: 'rejected',
       reason: 'forbidden',
-      message: 'viewer issuers may not character.create',
+      message: 'viewer issuers may not character.remove',
     });
-    expect(sent).toHaveLength(0);
+    expect(sent).toHaveLength(1);
   });
 
   it('passes simulation rejections through without emitting events', async () => {

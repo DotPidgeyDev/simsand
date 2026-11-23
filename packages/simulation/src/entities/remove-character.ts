@@ -17,5 +17,12 @@ export function removeCharacter(
   world.entityIds.delete(id);
   world.inventories.delete(id);
 
+  const viewerId = world.viewerByCharacter.get(id);
+
+  if (viewerId !== undefined) {
+    world.viewerByCharacter.delete(id);
+    world.characterByViewer.delete(viewerId);
+  }
+
   return true;
 }

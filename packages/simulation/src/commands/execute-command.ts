@@ -1,4 +1,4 @@
-import { DOMAIN_EVENT_VERSION } from '@simsand/shared';
+import { DOMAIN_EVENT_VERSION, VIEWER_ID_PATTERN } from '@simsand/shared';
 import type {
   CommandResult,
   DomainEvent,
@@ -32,6 +32,14 @@ function event<TType extends DomainEvent['type']>(
   } as EventFor<TType>;
 }
 
+// Only a viewer create is owned. The id is the one the server put on the
+// issuer. A request cannot supply it. Undefined means the id is unusable.
+function viewerFor(command: SimulationCommand): string | null | undefined {
+  if (command.issuer.source !== 'viewer') return null;
+
+  return VIEWER_ID_PATTERN.test(command.issuer.id) ? command.issuer.id : undefined;
+}
+
 function rejected(
   command: SimulationCommand,
   reason: Extract<CommandResult, { status: 'rejected' }>['reason'],
@@ -50,9 +58,22 @@ export function executeCommand(
   switch (command.type) {
     case 'character.create': {
       const { characterId, x, y, velocityX = 0, velocityY = 0, color = DEFAULT_COLOR } = command.params;
+      const viewerId = viewerFor(command);
+
+      if (typeof viewerId !== 'string' && viewerId !== null) {
+        return rejected(command, 'invalid_issuer', 'Viewer id is not a server-issued id');
+      }
 
       if (world.entityIds.has(characterId)) {
         return rejected(command, 'character_exists', `Character ${characterId} already exists`);
+      }
+
+      if (viewerId !== null && world.characterByViewer.has(viewerId)) {
+        return rejected(
+          command,
+          'viewer_has_character',
+          `Viewer ${viewerId} already has a character`,
+        );
       }
 
       if (x < 0 || x > world.map.width || y < 0 || y > world.map.height) {
@@ -68,6 +89,7 @@ export function executeCommand(
         color,
         sprite: spriteIdFor(world.seed, characterId),
         ...generateCharacterProfile(world.seed, characterId),
+        viewerId,
       });
 
       return {

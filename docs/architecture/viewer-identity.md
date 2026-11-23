@@ -1,7 +1,7 @@
 # Viewer Identity and Character Ownership
 
-**Status:** Foundational draft\
-**Version:** 1.0
+**Status:** In progress — one local viewer, one character\
+**Version:** 1.1
 
 ## 1. Purpose
 
@@ -168,7 +168,10 @@ world APIs or the stream display.
 
 ## 9. Initial implementation policy
 
-For the first simulation milestone, use generated NPC identities only.
-Add viewer and platform identity tables when viewer registration is
-introduced. This avoids prematurely coupling the simulation foundation
-to Twitch authentication.
+NPCs are still generated with no viewer. A viewer is registered by the
+server, which issues the id and stores the display name. The platform
+account is not stored yet. The character records that viewer id, and
+one viewer has one character until a later rule says otherwise. Death
+does not free the slot. Removing the character does. The local command
+API is how that create is submitted today. Twitch authentication is
+still separate from the simulation.

@@ -529,11 +529,23 @@ is not part of this cycle.
 
 ## Milestone 07 — Viewer participation
 
-**Status: Planned**
+**Status: In progress**
 
 Start from `docs/roadmap/notes/07-from-06.md`.
 
 Add viewer identity, platform identity, character creation and Twitch integration.
+
+### Current implementation
+
+The first increment is one viewer and one character.
+
+A viewer is a row in the same SQLite database: a server-issued id, a display name, and `active`. The database schema is version 3. A version 2 database gains the `viewers` table on open. The id is not a platform user id, and a request cannot choose it or its role.
+
+`POST /viewers` and `POST /viewers/:id/commands` listen on `127.0.0.1:8768` (`SIMSAND_COMMAND_PORT`). The command body is the existing gateway request. The server sets the issuer to `{ source: 'viewer', id }` from the route. Viewers may send `character.create` and nothing else.
+
+The character is an ordinary world character. Its stable id is still the world's id, supplied in the command, and is not the viewer id. The save records `viewerId` on that character and null on everyone else. Saves are format version 24. A version 23 save gains a null viewer on every character. A viewer who already owns a character, including a dead one, is rejected with `viewer_has_character`. Removing the character clears the link. `character.created` stays on the command result.
+
+Twitch, platform identity, rate limits, deduplication, and moderation are still ahead.
 
 Initial scope:
 

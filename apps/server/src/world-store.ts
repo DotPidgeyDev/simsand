@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, backup } from 'node:sqlite';
 
-import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION, SIMULATION_LOG_TYPES } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
 import type { PileReturn, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
@@ -10,7 +10,14 @@ import type { UpgradeableWorld } from '@simsand/simulation';
 
 import { log } from './logger.js';
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
+
+export interface ViewerRecord {
+  id: string;
+  displayName: string;
+  createdAt: string;
+  status: 'active';
+}
 
 export const DEFAULT_LOG_RETENTION = 100_000;
 
@@ -131,6 +138,34 @@ export class WorldStore {
     return undefined;
   }
 
+  createViewer(viewer: ViewerRecord): void {
+    this.db
+      .prepare(`
+        INSERT INTO viewers (id, display_name, created_at, status)
+        VALUES (?, ?, ?, ?)
+      `)
+      .run(viewer.id, viewer.displayName, viewer.createdAt, viewer.status);
+  }
+
+  getViewer(id: string): ViewerRecord | undefined {
+    const row = this.db
+      .prepare(`
+        SELECT id, display_name, created_at, status
+        FROM viewers
+        WHERE id = ?
+      `)
+      .get(id) as { id: string; display_name: string; created_at: string; status: string } | undefined;
+
+    if (!row || row.status !== 'active') return undefined;
+
+    return {
+      id: row.id,
+      displayName: row.display_name,
+      createdAt: row.created_at,
+      status: 'active',
+    };
+  }
+
   close(): void {
     this.db.close();
   }
@@ -164,27 +199,43 @@ export class WorldStore {
         `);
       }
 
-      this.db.exec(`
-        CREATE TABLE simulation_events (
-          event_id TEXT PRIMARY KEY,
-          tick INTEGER NOT NULL,
-          sequence INTEGER NOT NULL,
-          payload TEXT NOT NULL
-        );
-        CREATE INDEX simulation_events_order ON simulation_events (tick, sequence);
-        CREATE TABLE simulation_event_participants (
-          participant_id TEXT NOT NULL,
-          event_id TEXT NOT NULL,
-          PRIMARY KEY (participant_id, event_id)
-        );
-        CREATE TABLE simulation_event_pairs (
-          pair_key TEXT NOT NULL,
-          event_id TEXT NOT NULL,
-          PRIMARY KEY (pair_key, event_id)
-        );
-      `);
-      this.prepareEventStatements();
-      this.backfillEvents();
+      if (current < 2) {
+        this.db.exec(`
+          CREATE TABLE simulation_events (
+            event_id TEXT PRIMARY KEY,
+            tick INTEGER NOT NULL,
+            sequence INTEGER NOT NULL,
+            payload TEXT NOT NULL
+          );
+          CREATE INDEX simulation_events_order ON simulation_events (tick, sequence);
+          CREATE TABLE simulation_event_participants (
+            participant_id TEXT NOT NULL,
+            event_id TEXT NOT NULL,
+            PRIMARY KEY (participant_id, event_id)
+          );
+          CREATE TABLE simulation_event_pairs (
+            pair_key TEXT NOT NULL,
+            event_id TEXT NOT NULL,
+            PRIMARY KEY (pair_key, event_id)
+          );
+        `);
+        this.prepareEventStatements();
+        this.backfillEvents();
+      } else {
+        this.prepareEventStatements();
+      }
+
+      if (current < 3) {
+        this.db.exec(`
+          CREATE TABLE viewers (
+            id TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            status TEXT NOT NULL
+          );
+        `);
+      }
+
       this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
       this.db.exec('COMMIT');
     } catch (error) {
@@ -657,6 +708,24 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
       if (!Number.isFinite(entry.renewsAt) || entry.renewsAt < 0) {
         throw new Error('Pile return time must be zero or later');
       }
+    }
+  }
+
+  if (Number(world.version) >= 24) {
+    const viewers = new Set<string>();
+
+    for (const entity of world.entities as { id: string; viewerId?: unknown }[]) {
+      if (entity.viewerId === null) continue;
+
+      if (typeof entity.viewerId !== 'string' || !VIEWER_ID_PATTERN.test(entity.viewerId)) {
+        throw new Error(`Character ${entity.id} has an invalid viewer id`);
+      }
+
+      if (viewers.has(entity.viewerId)) {
+        throw new Error(`Two characters belong to viewer ${entity.viewerId}`);
+      }
+
+      viewers.add(entity.viewerId);
     }
   }
 

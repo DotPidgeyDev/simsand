@@ -452,7 +452,7 @@ Stable character IDs are stored with the world. The character log is retained in
 ## 13. Decisions still open
 
 - Final character death, descendants and inheritance rules.
-- Whether one viewer can own multiple active characters.
+- Whether one viewer can own more than the single character the first viewer-create rule allows. A second create is refused while that character exists, including after death.
 - Population caps and background simulation detail.
 - Exact snapshot cadence. Durable history keeps the newest 100,000 log events.
 - When, if ever, to introduce multiple simulation workers.
