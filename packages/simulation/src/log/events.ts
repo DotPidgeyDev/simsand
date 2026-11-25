@@ -1,4 +1,16 @@
-import type { ActionId, ActionResult, CharacterNeeds, MemoryKind, SimulationLogEvent, SimulationLogType } from '@simsand/shared';
+import type {
+  ActionId,
+  ActionLogEvent,
+  ActionLogType,
+  ActionResult,
+  CharacterNeeds,
+  InterventionLogEvent,
+  InterventionLogPayloads,
+  InterventionLogType,
+  MemoryKind,
+  SimulationLogEvent,
+  SimulationLogType,
+} from '@simsand/shared';
 
 import { Needs } from '../components/needs.js';
 import { HUNGER_RESUME_AT } from '../systems/needs.js';
@@ -77,7 +89,7 @@ function recordSocialCompletion(
   initiatorEid: number,
   initiatorId: string,
   otherId: string,
-  type: SimulationLogType,
+  type: ActionLogType,
   action: 'greet' | 'comfort' | 'keep' | 'confide' | 'bluff',
   memory: MemoryKind,
   reportedNeeds?: CharacterNeeds,
@@ -86,7 +98,7 @@ function recordSocialCompletion(
 
   if (existing) return existing;
 
-  const event: SimulationLogEvent = {
+  const event: ActionLogEvent = {
     eventId: nextEventId(world),
     type,
     tick: world.tick,
@@ -345,6 +357,29 @@ export function recordActionEnding(
     location: { x: Position.x[eid], y: Position.y[eid] },
     payload: { action, result, initiator: actorId },
   });
+}
+
+// One fact per intervention. It names the characters it touched, or
+// nobody when it changed a place.
+export function recordIntervention<TType extends InterventionLogType>(
+  world: SimulationWorld,
+  type: TType,
+  participants: string[],
+  location: { x: number; y: number },
+  payload: InterventionLogPayloads[TType],
+): InterventionLogEvent {
+  const event = {
+    eventId: nextEventId(world),
+    type,
+    tick: world.tick,
+    elapsedSeconds: world.elapsedSeconds,
+    participants,
+    location,
+    payload,
+  } as InterventionLogEvent;
+
+  append(world, event);
+  return event;
 }
 
 export function historyFor(world: SimulationWorld, id: string): SimulationLogEvent[] {

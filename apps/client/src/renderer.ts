@@ -5,6 +5,9 @@ import type { EntitySnapshot, ItemId, ResourceNode, SpriteId, TerrainType, World
 
 const TILE_SIZE = 16;
 const INITIAL_MAP_SIZE = 64;
+const FOCUS_ZOOM = 2.5;
+// Share of the remaining distance the camera covers each frame at 60 fps.
+const CAMERA_EASE = 0.08;
 
 const TERRAIN_COLORS: Record<TerrainType, number> = {
   grass: 0x526b45,
@@ -219,6 +222,48 @@ export async function createRenderer(container: HTMLElement) {
     }
   });
 
+  // The whole map fits the canvas at zoom 1. A focus zooms toward one
+  // place for a while, then the camera eases back out. The latest focus
+  // wins.
+  let focusAt: { x: number; y: number } | undefined;
+  let focusUntil = 0;
+  let zoom = 1;
+  let focalX = app.screen.width / 2;
+  let focalY = app.screen.height / 2;
+
+  function focus(location: { x: number; y: number }, durationMs = 4000): void {
+    focusAt = { x: location.x * TILE_SIZE, y: location.y * TILE_SIZE };
+    focusUntil = performance.now() + durationMs;
+  }
+
+  app.ticker.add((ticker) => {
+    if (focusAt && performance.now() >= focusUntil) focusAt = undefined;
+
+    const width = app.screen.width;
+    const height = app.screen.height;
+    const targetZoom = focusAt ? FOCUS_ZOOM : 1;
+    const targetX = focusAt?.x ?? width / 2;
+    const targetY = focusAt?.y ?? height / 2;
+
+    if (zoom === targetZoom && focalX === targetX && focalY === targetY) return;
+
+    const step = 1 - (1 - CAMERA_EASE) ** ticker.deltaTime;
+    zoom += (targetZoom - zoom) * step;
+    focalX += (targetX - focalX) * step;
+    focalY += (targetY - focalY) * step;
+
+    if (Math.abs(targetZoom - zoom) < 0.001) zoom = targetZoom;
+    if (Math.abs(targetX - focalX) < 0.5) focalX = targetX;
+    if (Math.abs(targetY - focalY) < 0.5) focalY = targetY;
+
+    // Keep the map edge-to-edge: never show background past it.
+    const x = Math.min(0, Math.max(width - width * zoom, width / 2 - focalX * zoom));
+    const y = Math.min(0, Math.max(height - height * zoom, height / 2 - focalY * zoom));
+
+    world.scale.set(zoom);
+    world.position.set(x, y);
+  });
+
   // Piles sit on tile centres. The full list replaces the previous one.
   function replaceNodes(nodes: readonly ResourceNode[]): void {
     piles.clear();
@@ -237,6 +282,7 @@ export async function createRenderer(container: HTMLElement) {
     replaceEntities,
     replaceNodes,
     pulse,
+    focus,
     destroy: () => app.destroy(true),
   };
 }

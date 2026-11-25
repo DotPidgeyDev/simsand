@@ -46,8 +46,11 @@ describe('history indexes', () => {
       { action: 'eat', result: 'completed', initiator: 'left' },
       { action: 'greet', result: 'failed', initiator: 'left' },
     ]);
-    expect(historyFor(world, 'right').map((event) => event.payload.action)).toEqual(['greet', 'rest']);
-    expect(historyForPair(world, 'right', 'left').map((event) => event.payload.action)).toEqual(['greet']);
+    expect(historyFor(world, 'right')).toMatchObject([
+      { payload: { action: 'greet' } },
+      { payload: { action: 'rest' } },
+    ]);
+    expect(historyForPair(world, 'right', 'left')).toMatchObject([{ payload: { action: 'greet' } }]);
     expect(historyFor(world, 'absent')).toEqual([]);
   });
 

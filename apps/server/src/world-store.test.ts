@@ -323,6 +323,61 @@ describe('WorldStore', () => {
     expect(store.eventsForParticipant('left')).toEqual([dropped, kept]);
   });
 
+  it('stores intervention events, including a bounty that names nobody', () => {
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const issuer = { source: 'streamer' as const, id: 'local-streamer' };
+    const blessed: SimulationLogEvent = {
+      eventId: 'log-1',
+      type: 'intervention.blessed',
+      tick: 1,
+      elapsedSeconds: 0.1,
+      participants: ['left'],
+      location: { x: 1, y: 1 },
+      payload: { commandId: 'cmd-1', issuer, target: 'left' },
+    };
+    const bounty: SimulationLogEvent = {
+      eventId: 'log-2',
+      type: 'intervention.bounty',
+      tick: 2,
+      elapsedSeconds: 0.2,
+      participants: [],
+      location: { x: 1, y: 0 },
+      payload: { commandId: 'cmd-2', issuer, item: 'material', quantity: 3 },
+    };
+
+    store.save({ ...world(2), log: [blessed, bounty] });
+
+    expect(store.eventsForParticipant('left')).toEqual([blessed]);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM simulation_events').get()).toEqual({ count: 2 });
+  });
+
+  it('rejects an intervention event whose payload does not fit its type', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+    const issuer = { source: 'streamer' as const, id: 'local-streamer' };
+    const base = { tick: 1, elapsedSeconds: 0.1, participants: ['left'], location: { x: 1, y: 1 } };
+
+    expect(() => store.save({
+      ...world(1),
+      log: [{ ...base, eventId: 'log-1', type: 'intervention.blessed', payload: { commandId: 'cmd-1', issuer, target: 'right' } }],
+    })).toThrow('target is not a participant');
+
+    expect(() => store.save({
+      ...world(1),
+      log: [{
+        ...base,
+        eventId: 'log-2',
+        type: 'intervention.cursed',
+        payload: { commandId: 'cmd-2', issuer, target: 'left', need: 'boredom' as 'hunger', level: 0.8 },
+      }],
+    })).toThrow('unknown need');
+
+    expect(() => store.save({
+      ...world(1),
+      log: [{ ...logEvent('log-3', 1, []) }],
+    })).toThrow('participants are missing');
+  });
+
   it('does not store the same event twice', () => {
     const store = new WorldStore(new DatabaseSync(':memory:'));
     const entry = logEvent('log-4', 4, ['left']);

@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, backup } from 'node:sqlite';
 
-import { ACCOUNT_STATUSES, ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
+import { ACCOUNT_STATUSES, ACTION_IDS, ACTION_OUTCOMES, BASIC_NEEDS, COMMAND_SOURCES, INTERVENTION_LOG_TYPES, ITEM_IDS, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
 import type { AccountStatus, CommandIssuer, CommandResult, PileReturn, PlatformId, PlatformIdentityRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
@@ -803,9 +803,10 @@ function assertLogEvent(value: unknown): asserts value is SimulationLogEvent {
     throw new Error(`Log event ${event.eventId} time is invalid`);
   }
 
+  // Only a fact about a place, such as a bounty pile, may have nobody in it.
   if (
     !Array.isArray(event.participants)
-    || event.participants.length === 0
+    || (event.participants.length === 0 && event.type !== 'intervention.bounty')
     || event.participants.some((id) => typeof id !== 'string' || id.length === 0)
   ) {
     throw new Error(`Log event ${event.eventId} participants are missing`);
@@ -824,12 +825,55 @@ function assertLogEvent(value: unknown): asserts value is SimulationLogEvent {
     throw new Error(`Log event ${event.eventId} payload is missing`);
   }
 
-  if (!(ACTION_IDS as readonly string[]).includes(event.payload.action)) {
-    throw new Error(`Unknown action: ${String(event.payload.action)}`);
+  if ((INTERVENTION_LOG_TYPES as readonly string[]).includes(event.type)) {
+    assertInterventionPayload(event);
+    return;
   }
 
-  if (!(ACTION_OUTCOMES as readonly string[]).includes(event.payload.result)) {
-    throw new Error(`Unknown action result: ${String(event.payload.result)}`);
+  const payload = event.payload as { action?: unknown; result?: unknown };
+
+  if (!(ACTION_IDS as readonly unknown[]).includes(payload.action)) {
+    throw new Error(`Unknown action: ${String(payload.action)}`);
+  }
+
+  if (!(ACTION_OUTCOMES as readonly unknown[]).includes(payload.result)) {
+    throw new Error(`Unknown action result: ${String(payload.result)}`);
+  }
+}
+
+function assertInterventionPayload(event: SimulationLogEvent): void {
+  const payload = event.payload as unknown as Record<string, unknown>;
+  const issuer = payload.issuer as { source?: unknown; id?: unknown } | null | undefined;
+  const fail = (what: string): never => {
+    throw new Error(`Log event ${event.eventId} ${what}`);
+  };
+
+  if (typeof payload.commandId !== 'string' || payload.commandId.length === 0) fail('has no command id');
+
+  if (
+    typeof issuer !== 'object'
+    || issuer === null
+    || !(COMMAND_SOURCES as readonly unknown[]).includes(issuer.source)
+    || typeof issuer.id !== 'string'
+    || issuer.id.length === 0
+  ) {
+    fail('has no issuer');
+  }
+
+  if (event.type !== 'intervention.bounty') {
+    if (typeof payload.target !== 'string' || !event.participants.includes(payload.target)) {
+      fail('target is not a participant');
+    }
+  }
+
+  if (event.type === 'intervention.cursed') {
+    if (!(BASIC_NEEDS as readonly unknown[]).includes(payload.need)) fail('names an unknown need');
+    if (!isFiniteNumber(payload.level) || payload.level < 0 || payload.level > 1) fail('level is out of range');
+  }
+
+  if (event.type === 'intervention.bounty' || event.type === 'intervention.gifted') {
+    if (!(ITEM_IDS as readonly unknown[]).includes(payload.item)) fail('names an unknown item');
+    if (!Number.isInteger(payload.quantity) || (payload.quantity as number) < 1) fail('quantity is not a positive integer');
   }
 }
 

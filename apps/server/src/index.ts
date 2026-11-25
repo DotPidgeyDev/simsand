@@ -2,6 +2,8 @@ import { fileURLToPath } from 'node:url';
 
 import { randomUUID } from 'node:crypto';
 
+import { INTERVENTION_COMMAND_TYPES } from '@simsand/shared';
+
 import { ChronicleFeed } from './chronicle-feed.js';
 import { CommandGateway } from './command-gateway.js';
 import { createCommandServer } from './command-server.js';
@@ -31,12 +33,14 @@ const LOG_RETENTION = Number(process.env.SIMSAND_LOG_RETENTION ?? 100_000);
 const COMMAND_RATE_LIMIT = Number(process.env.SIMSAND_COMMAND_RATE_LIMIT ?? 10);
 const COMMAND_RATE_WINDOW_MS = Number(process.env.SIMSAND_COMMAND_RATE_WINDOW_MS ?? 60_000);
 const COMMAND_RECEIPT_MS = Number(process.env.SIMSAND_COMMAND_RECEIPT_MS ?? 24 * 60 * 60 * 1000);
+const INTERVENTION_COOLDOWN_MS = Number(process.env.SIMSAND_INTERVENTION_COOLDOWN_MS ?? 30_000);
 
 for (const [name, value] of [
   ['SIMSAND_LOG_RETENTION', LOG_RETENTION],
   ['SIMSAND_COMMAND_RATE_LIMIT', COMMAND_RATE_LIMIT],
   ['SIMSAND_COMMAND_RATE_WINDOW_MS', COMMAND_RATE_WINDOW_MS],
   ['SIMSAND_COMMAND_RECEIPT_MS', COMMAND_RECEIPT_MS],
+  ['SIMSAND_INTERVENTION_COOLDOWN_MS', INTERVENTION_COOLDOWN_MS],
 ] as const) {
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`${name} must be a positive integer`);
@@ -153,6 +157,7 @@ const inspectionServer = createInspectionServer({
 const commandGateway = new CommandGateway(simulation, {
   rateLimit: { limit: COMMAND_RATE_LIMIT, windowMs: COMMAND_RATE_WINDOW_MS },
   receipts: store,
+  cooldowns: Object.fromEntries(INTERVENTION_COMMAND_TYPES.map((type) => [type, INTERVENTION_COOLDOWN_MS])),
 });
 const commandServer = createCommandServer({ viewers: store, gateway: commandGateway });
 

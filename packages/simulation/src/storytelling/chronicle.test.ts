@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SimulationLogEvent } from '@simsand/shared';
+import type { ActionLogEvent, InterventionLogEvent } from '@simsand/shared';
 
 import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
@@ -14,9 +14,9 @@ import { inspectCharacterChronicle } from '../inspection/inspect-character.js';
 import { chronicleEntryFromEvent, chronicleFromEvents, chronicleSince } from './chronicle.js';
 
 function event(
-  partial: Pick<SimulationLogEvent, 'eventId' | 'type' | 'payload'> &
-    Partial<Omit<SimulationLogEvent, 'eventId' | 'type' | 'payload'>>,
-): SimulationLogEvent {
+  partial: Pick<ActionLogEvent, 'eventId' | 'type' | 'payload'> &
+    Partial<Omit<ActionLogEvent, 'eventId' | 'type' | 'payload'>>,
+): ActionLogEvent {
   return {
     tick: 4,
     elapsedSeconds: 0.4,
@@ -150,6 +150,32 @@ describe('chronicle', () => {
     }))).toMatchObject({ summary: 'left bluffed right', tier: 'notable' });
   });
 
+  it('makes blessings and curses dramatic and bounties and gifts significant', () => {
+    const cause = { commandId: 'cmd-1', issuer: { source: 'streamer' as const, id: 'local-streamer' } };
+    const base = { tick: 4, elapsedSeconds: 0.4, participants: ['left'], location: { x: 2.5, y: 2.5 } };
+    const events: InterventionLogEvent[] = [
+      { ...base, eventId: 'log-1', type: 'intervention.blessed', payload: { ...cause, target: 'left' } },
+      { ...base, eventId: 'log-2', type: 'intervention.cursed', payload: { ...cause, target: 'left', need: 'thirst', level: 0.8 } },
+      {
+        ...base,
+        eventId: 'log-3',
+        type: 'intervention.bounty',
+        participants: [],
+        location: { x: 6.5, y: 3.5 },
+        payload: { ...cause, item: 'material', quantity: 3 },
+      },
+      { ...base, eventId: 'log-4', type: 'intervention.gifted', payload: { ...cause, target: 'left', item: 'food', quantity: 2 } },
+    ];
+
+    expect(chronicleFromEvents(events).map(({ tier, summary }) => ({ tier, summary }))).toEqual([
+      { tier: 'dramatic', summary: 'left was blessed' },
+      { tier: 'dramatic', summary: 'left was cursed with thirst' },
+      { tier: 'significant', summary: 'A bounty of 3 material appeared at (6, 3)' },
+      { tier: 'significant', summary: 'left received 2 food' },
+    ]);
+    expect(chronicleEntryFromEvent(events[2]!)?.location).toEqual({ x: 6.5, y: 3.5 });
+  });
+
   it('exposes a character chronicle from the live log without changing actions', () => {
     const { world, left, right } = neighbours();
 
@@ -167,6 +193,7 @@ describe('chronicle', () => {
         tick: 0,
         elapsedSeconds: 0,
         participants: ['left', 'right'],
+        location: world.log[0]!.location,
         score: 0.35,
         tier: 'notable',
         summary: 'left met right',

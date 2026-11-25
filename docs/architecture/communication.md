@@ -82,8 +82,8 @@ The current protocol supports:
 - Full world snapshots.
 - Incremental world deltas.
 - Simulation errors.
-- Commands (`character.create`, `character.remove`) with an applied or rejected result.
-- Domain events (`character.created`, `character.removed`) attached to applied results.
+- Commands (`character.create`, `character.remove`, and the interventions `intervention.bless`, `intervention.curse`, `intervention.bounty`, `intervention.gift`) with an applied or rejected result.
+- Domain events (`character.created`, `character.removed`, `intervention.applied`) attached to applied results.
 
 ---
 
@@ -245,17 +245,24 @@ The gateway checks, in order:
 3. A remembered `idempotencyKey` for this issuer returns the stored `CommandResult` without contacting the simulation. The same key with a different command is `idempotency_conflict`. A remembered retry does not count against the rate limit.
 4. The issuer is over the rate limit (`SIMSAND_COMMAND_RATE_LIMIT` commands per `SIMSAND_COMMAND_RATE_WINDOW_MS`, both defaulting to 10 and 60 seconds). Otherwise `rate_limited`. The window is kept in memory and starts again when the process restarts.
 5. The issuer's source is permitted to issue the command type. Otherwise `forbidden`.
+6. The issuer is not cooling down from an applied command of the same type. Each intervention has a cooldown of `SIMSAND_INTERVENTION_COOLDOWN_MS` (default 30 seconds) per issuer. Otherwise `on_cooldown`. Only an applied command starts the cooldown. Cooldowns are kept in memory and reset when the process restarts.
 
-It then adds a `commandId`, the issuer and `submittedAt`, and sends the command to the worker. The worker handles it between ticks and either applies it or rejects it with a gameplay reason (`character_exists`, `character_not_found`, `out_of_bounds`, `viewer_has_character`, `invalid_issuer`). If the worker is unavailable or does not reply within 2 seconds, the result is `simulation_unavailable`.
+It then adds a `commandId`, the issuer and `submittedAt`, and sends the command to the worker. The worker handles it between ticks and either applies it or rejects it with a gameplay reason (`character_exists`, `character_not_found`, `character_dead`, `out_of_bounds`, `tile_unavailable`, `viewer_has_character`, `invalid_issuer`). If the worker is unavailable or does not reply within 2 seconds, the result is `simulation_unavailable`.
 
 When the request carried an idempotency key, the server stores that result in `command_receipts` for `SIMSAND_COMMAND_RECEIPT_MS` (default one day). The stored row is the command result, not a character-log event. A later retry, including after a restart inside that day, receives the same result.
 
-The first command types are:
+The command types are:
 
 | Command | Parameters | Allowed sources |
 |---|---|---|
 | `character.create` | `characterId`, `x`, `y`, optional `velocityX`, `velocityY`, `color` | admin, streamer, system, viewer |
 | `character.remove` | `characterId` | admin, streamer, system |
+| `intervention.bless` | `characterId` | admin, streamer, system |
+| `intervention.curse` | `characterId`, `need` (`hunger`, `thirst` or `fatigue`) | admin, streamer, system |
+| `intervention.bounty` | `x`, `y` (integer tile), optional `quantity` 1–5 (default 3) | admin, streamer, system |
+| `intervention.gift` | `characterId`, `item`, `quantity` 1–5 | admin, streamer, system |
+
+The world director will issue interventions as `system`.
 
 A viewer may create one character. The world rejects a second create with `viewer_has_character`, including when the first character is dead. Viewers cannot remove a character.
 
@@ -265,6 +272,7 @@ A viewer may create one character. The world rejects a second create with `viewe
 |---|---|
 | `POST /viewers` | Stores a viewer with a server-issued id and the display name from the body. Returns that record. |
 | `POST /viewers/:id/commands` | Submits the body to `CommandGateway` as `{ source: 'viewer', id }`. Unknown viewers are 404. The response is the `CommandResult`. |
+| `POST /streamer/commands` | Submits the body to `CommandGateway` as `{ source: 'streamer', id: 'local-streamer' }`. The response is the `CommandResult`. |
 | `POST /platform/chat` | Accepts a `NormalizedChatMessage`. Maps the platform user to a viewer when needed, parses `!join`, and submits through the gateway. Returns the outcome plus a `feedback` string (or null when ignored). |
 | `POST /moderation/bans` | Bans a viewer or platform account. Writes an audit row. Does not remove the character. |
 | `POST /moderation/unbans` | Clears a ban for a viewer or platform account. |
@@ -330,7 +338,7 @@ Only selected events need durable storage. Transient movement updates should not
 
 ### Current implementation
 
-`DomainEvent` in `packages/shared` defines `character.created` and `character.removed`. Each event has an `eventId`, `type`, `version` (`DOMAIN_EVENT_VERSION`, currently 1), `tick`, `elapsedSeconds`, `causedByCommandId` when a command caused it, and a typed `payload`.
+`DomainEvent` in `packages/shared` defines `character.created`, `character.removed` and `intervention.applied`. An intervention is a world fact, so the simulation writes it to the log; `intervention.applied` only carries that log event's id and type. Each event has an `eventId`, `type`, `version` (`DOMAIN_EVENT_VERSION`, currently 1), `tick`, `elapsedSeconds`, `causedByCommandId` when a command caused it, and a typed `payload`.
 
 The simulation emits these events only when a command is applied, and returns them in the applied `CommandResult`. The gateway hands them to an optional `onEvents` callback. Events are not yet persisted, broadcast to browsers or consumed by any feature.
 

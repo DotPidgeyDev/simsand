@@ -39,6 +39,7 @@ export interface ViewerDirectory extends PlatformViewerDirectory {
 const displayNameSchema = z.string().trim().min(1).max(64).regex(/^[\p{L}\p{N} .'_-]+$/u);
 const reasonSchema = z.string().trim().min(1).max(200);
 const LOCAL_ADMIN = 'local-admin';
+const LOCAL_STREAMER = 'local-streamer';
 
 const banBodySchema = z.discriminatedUnion('type', [
   z.strictObject({
@@ -111,6 +112,12 @@ export function createCommandServer(options: {
 
     return options.gateway.submit(request.body, { source: 'viewer', id: viewer.id });
   });
+
+  // The streamer's own controls. Local only, like every route here, until
+  // a platform adapter can authenticate the broadcaster.
+  app.post('/streamer/commands', async (request) => (
+    options.gateway.submit(request.body, { source: 'streamer', id: LOCAL_STREAMER })
+  ));
 
   app.post('/platform/chat', async (request, reply) => {
     let message;

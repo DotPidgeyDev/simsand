@@ -38,6 +38,10 @@ connectToSimulation((message) => {
         if (chronicleTierAtLeast(entry.tier, CHRONICLE_PRESENTATION.notify)) {
           renderer.pulse(entry.participants);
         }
+
+        if (chronicleTierAtLeast(entry.tier, CHRONICLE_PRESENTATION.focus)) {
+          renderer.focus(entry.location);
+        }
       }
       break;
     }

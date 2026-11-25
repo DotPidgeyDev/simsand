@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { z } from 'zod';
 
-import { COMMAND_PROTOCOL_VERSION } from '@simsand/shared';
+import { BASIC_NEEDS, COMMAND_PROTOCOL_VERSION, INTERVENTION_COMMAND_TYPES, ITEM_IDS } from '@simsand/shared';
 import type {
   CommandIssuer,
   CommandRejectionReason,
@@ -16,6 +16,10 @@ import type {
 const characterId = z.string().regex(/^[a-z0-9][a-z0-9-]{0,63}$/, 'Must be 1-64 lowercase letters, digits or hyphens');
 const idempotencyKey = characterId;
 const coordinate = z.number().finite();
+const tile = z.number().int().min(0);
+const item = z.enum(ITEM_IDS);
+// Enough to matter on stream without flooding the economy.
+const interventionQuantity = z.number().int().min(1).max(5);
 
 // Strict objects reject unknown keys, so a request cannot smuggle in its own
 // issuer or other fields the server is meant to set.
@@ -38,15 +42,32 @@ const commandRequestSchema = z.strictObject({
       type: z.literal('character.remove'),
       params: z.strictObject({ characterId }),
     }),
+    z.strictObject({
+      type: z.literal('intervention.bless'),
+      params: z.strictObject({ characterId }),
+    }),
+    z.strictObject({
+      type: z.literal('intervention.curse'),
+      params: z.strictObject({ characterId, need: z.enum(BASIC_NEEDS) }),
+    }),
+    z.strictObject({
+      type: z.literal('intervention.bounty'),
+      params: z.strictObject({ x: tile, y: tile, quantity: interventionQuantity.default(3) }),
+    }),
+    z.strictObject({
+      type: z.literal('intervention.gift'),
+      params: z.strictObject({ characterId, item, quantity: interventionQuantity }),
+    }),
   ]),
 });
 
-// A viewer may create the one character they own. Removal stays with
-// admin, streamer, and system.
+// A viewer may create the one character they own. Removal and
+// interventions stay with admin, streamer, and system; the world director
+// will issue as system.
 const PERMISSIONS: Record<CommandSource, readonly CommandType[]> = {
-  admin: ['character.create', 'character.remove'],
-  streamer: ['character.create', 'character.remove'],
-  system: ['character.create', 'character.remove'],
+  admin: ['character.create', 'character.remove', ...INTERVENTION_COMMAND_TYPES],
+  streamer: ['character.create', 'character.remove', ...INTERVENTION_COMMAND_TYPES],
+  system: ['character.create', 'character.remove', ...INTERVENTION_COMMAND_TYPES],
   viewer: ['character.create'],
 };
 
@@ -83,6 +104,8 @@ export interface CommandGatewayOptions {
   newId?: () => string;
   receipts?: CommandReceiptStore;
   rateLimit?: CommandRateLimit;
+  // Milliseconds one issuer waits between applied commands of a type.
+  cooldowns?: Partial<Record<CommandType, number>>;
 }
 
 export class CommandGateway {
@@ -91,6 +114,9 @@ export class CommandGateway {
   private readonly newId: () => string;
 
   private readonly attempts = new Map<string, number[]>();
+
+  // When each issuer last had a command of each type applied.
+  private readonly lastApplied = new Map<string, number>();
 
   constructor(
     private readonly dispatcher: CommandDispatcher,
@@ -153,6 +179,15 @@ export class CommandGateway {
       return reject('forbidden', `${issuer.source} issuers may not ${request.type}`);
     }
 
+    const cooldownKey = `${issuer.source}\0${issuer.id}\0${request.type}`;
+    const cooldownMs = this.options.cooldowns?.[request.type];
+    const lastApplied = this.lastApplied.get(cooldownKey);
+
+    if (cooldownMs !== undefined && lastApplied !== undefined && submittedAt - lastApplied < cooldownMs) {
+      const seconds = Math.ceil((cooldownMs - (submittedAt - lastApplied)) / 1000);
+      return reject('on_cooldown', `${request.type} is available again in ${seconds}s`);
+    }
+
     const command = {
       ...request,
       commandId,
@@ -174,6 +209,10 @@ export class CommandGateway {
       } catch (error) {
         return reject('simulation_unavailable', error instanceof Error ? error.message : String(error));
       }
+    }
+
+    if (result.status === 'applied' && cooldownMs !== undefined) {
+      this.lastApplied.set(cooldownKey, submittedAt);
     }
 
     if (result.status === 'applied' && result.events.length > 0) {

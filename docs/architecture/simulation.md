@@ -397,6 +397,12 @@ The current gameplay checks are:
 |---|---|---|
 | `character.create` | The ID already exists (`character_exists`), the position is outside the 64 × 64 world (`out_of_bounds`), the issuer is a viewer who already owns a character (`viewer_has_character`), or that viewer id was not issued by the server (`invalid_issuer`) | `character.created` |
 | `character.remove` | No character has the ID (`character_not_found`) | `character.removed` |
+| `intervention.bless` | No such character (`character_not_found`) or it is dead (`character_dead`) | Hunger, thirst and fatigue go to 0. Logs `intervention.blessed` |
+| `intervention.curse` | As for bless | The named need rises to its urgent line (0.8) if it is below it. Logs `intervention.cursed` |
+| `intervention.bounty` | The tile is off the map (`out_of_bounds`) or is not a pile site (`tile_unavailable`) | Adds material to the pile there, or brings a depleted pile back early with that quantity. Logs `intervention.bounty` |
+| `intervention.gift` | As for bless | Adds the items to the character's inventory. Logs `intervention.gifted` |
+
+Interventions live in `packages/simulation/src/interventions`. Each writes one log event whose payload names the command id and issuer; the applied result carries `intervention.applied` pointing at it. A curse does not choose an action. The ordinary interruption rule reacts to the raised need on the next tick. A bounty only works on a pile site because every depleted pile returns as material on its own tile. The bounty event has no participants.
 
 A viewer create records that viewer's id on the character. An admin, streamer, or system create leaves it empty. The character is otherwise the same as any other.
 

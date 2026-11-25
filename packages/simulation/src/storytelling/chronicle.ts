@@ -1,4 +1,12 @@
-import type { ChronicleEntry, ChronicleTier, SimulationLogEvent, SimulationLogType } from '@simsand/shared';
+import { isInterventionLogEvent } from '@simsand/shared';
+import type {
+  ActionLogEvent,
+  ChronicleEntry,
+  ChronicleTier,
+  InterventionLogEvent,
+  SimulationLogEvent,
+  SimulationLogType,
+} from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
 
@@ -12,9 +20,13 @@ const SIGNIFICANCE: Partial<Record<SimulationLogType, { score: number; tier: Chr
   'character.bluffed': { score: 0.5, tier: 'notable' },
   'item.transferred': { score: 0.5, tier: 'notable' },
   'item.traded': { score: 0.55, tier: 'significant' },
+  'intervention.blessed': { score: 0.85, tier: 'dramatic' },
+  'intervention.cursed': { score: 0.85, tier: 'dramatic' },
+  'intervention.bounty': { score: 0.6, tier: 'significant' },
+  'intervention.gifted': { score: 0.6, tier: 'significant' },
 };
 
-function pairIds(event: SimulationLogEvent): { initiator: string; other: string } | undefined {
+function pairIds(event: ActionLogEvent): { initiator: string; other: string } | undefined {
   const initiator = event.payload.initiator ?? event.participants[0];
   const other = event.participants.find((id) => id !== initiator) ?? event.participants[1];
 
@@ -24,6 +36,29 @@ function pairIds(event: SimulationLogEvent): { initiator: string; other: string 
 }
 
 function summaryFor(event: SimulationLogEvent): string | undefined {
+  if (isInterventionLogEvent(event)) return interventionSummary(event);
+
+  return actionSummary(event);
+}
+
+function interventionSummary(event: InterventionLogEvent): string {
+  switch (event.type) {
+    case 'intervention.blessed':
+      return `${event.payload.target} was blessed`;
+    case 'intervention.cursed':
+      return `${event.payload.target} was cursed with ${event.payload.need}`;
+    case 'intervention.bounty': {
+      const x = Math.floor(event.location.x);
+      const y = Math.floor(event.location.y);
+
+      return `A bounty of ${event.payload.quantity} ${event.payload.item} appeared at (${x}, ${y})`;
+    }
+    case 'intervention.gifted':
+      return `${event.payload.target} received ${event.payload.quantity} ${event.payload.item}`;
+  }
+}
+
+function actionSummary(event: ActionLogEvent): string | undefined {
   if (event.payload.result !== 'completed') return undefined;
 
   const pair = pairIds(event);
@@ -78,6 +113,7 @@ export function chronicleEntryFromEvent(event: SimulationLogEvent): ChronicleEnt
     tick: event.tick,
     elapsedSeconds: event.elapsedSeconds,
     participants: [...event.participants],
+    location: { ...event.location },
     score: significance.score,
     tier: significance.tier,
     summary,

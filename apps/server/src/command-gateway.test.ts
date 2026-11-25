@@ -184,6 +184,73 @@ describe('CommandGateway', () => {
     expect(sent).toHaveLength(2);
   });
 
+  it('fills in the bounty quantity and caps intervention quantities', async () => {
+    const { gateway, sent } = setup();
+
+    await gateway.submit({ protocolVersion: 1, command: { type: 'intervention.bounty', params: { x: 4, y: 5 } } }, admin);
+
+    expect(sent[0]).toMatchObject({ type: 'intervention.bounty', params: { x: 4, y: 5, quantity: 3 } });
+    expect(await gateway.submit({
+      protocolVersion: 1,
+      command: { type: 'intervention.gift', params: { characterId: 'ada', item: 'food', quantity: 6 } },
+    }, admin)).toMatchObject({ status: 'rejected', reason: 'invalid_command' });
+    expect(await gateway.submit({
+      protocolVersion: 1,
+      command: { type: 'intervention.curse', params: { characterId: 'ada', need: 'boredom' } },
+    }, admin)).toMatchObject({ status: 'rejected', reason: 'invalid_command' });
+    expect(sent).toHaveLength(1);
+  });
+
+  it('keeps interventions away from viewers', async () => {
+    const { gateway, sent } = setup();
+    const viewer = { source: 'viewer' as const, id: 'viewer-1' };
+
+    const result = await gateway.submit({
+      protocolVersion: 1,
+      command: { type: 'intervention.bless', params: { characterId: 'ada' } },
+    }, viewer);
+
+    expect(result).toMatchObject({ status: 'rejected', reason: 'forbidden' });
+    expect(sent).toHaveLength(0);
+  });
+
+  it('cools each issuer down after an applied intervention, not after a rejected one', async () => {
+    let now = 0;
+    let outcome: CommandResult['status'] = 'rejected';
+    const sent: SimulationCommand[] = [];
+    const gateway = new CommandGateway({
+      executeCommand: async (command) => {
+        sent.push(command);
+        return outcome === 'applied'
+          ? { commandId: command.commandId, status: 'applied', tick: 1, events: [] }
+          : { commandId: command.commandId, status: 'rejected', reason: 'character_dead', message: 'dead' };
+      },
+    }, { now: () => now, newId: () => 'command-1', cooldowns: { 'intervention.bless': 30_000 } });
+    const bless = { protocolVersion: 1, command: { type: 'intervention.bless', params: { characterId: 'ada' } } };
+    const streamer = { source: 'streamer' as const, id: 'local-streamer' };
+
+    expect((await gateway.submit(bless, streamer)).status).toBe('rejected');
+    outcome = 'applied';
+    expect((await gateway.submit(bless, streamer)).status).toBe('applied');
+
+    now = 20_000;
+    expect(await gateway.submit(bless, streamer)).toEqual({
+      commandId: 'command-1',
+      status: 'rejected',
+      reason: 'on_cooldown',
+      message: 'intervention.bless is available again in 10s',
+    });
+    expect((await gateway.submit(bless, admin)).status).toBe('applied');
+    expect((await gateway.submit({
+      protocolVersion: 1,
+      command: { type: 'intervention.curse', params: { characterId: 'ada', need: 'thirst' } },
+    }, streamer)).status).toBe('applied');
+
+    now = 30_000;
+    expect((await gateway.submit(bless, streamer)).status).toBe('applied');
+    expect(sent).toHaveLength(5);
+  });
+
   it('reports the simulation as unavailable when dispatch fails', async () => {
     const { gateway } = setup(new Error('Simulation worker is not running'));
 

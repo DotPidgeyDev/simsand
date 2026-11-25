@@ -126,6 +126,32 @@ describe('command server', () => {
     expect(response.json()).toMatchObject({ status: 'rejected', reason: 'invalid_command' });
   });
 
+  it('submits streamer interventions as the local streamer', async () => {
+    const sent: CommandIssuer[] = [];
+
+    app = createCommandServer({
+      viewers: directory(),
+      gateway: new CommandGateway({
+        executeCommand: async (command) => {
+          sent.push(command.issuer);
+          return { commandId: command.commandId, status: 'applied', tick: 1, events: [] };
+        },
+      }, { now: () => 1_000, newId: () => 'command-1' }),
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/streamer/commands',
+      payload: {
+        protocolVersion: 1,
+        command: { type: 'intervention.bless', params: { characterId: 'ada' } },
+      },
+    });
+
+    expect(response.json()).toMatchObject({ commandId: 'command-1', status: 'applied' });
+    expect(sent).toEqual([{ source: 'streamer', id: 'local-streamer' }]);
+  });
+
   it('does not accept a command for an unknown viewer', async () => {
     app = createCommandServer({
       viewers: directory(),

@@ -10,6 +10,11 @@ import type { SimulationWorld } from '../core/world.js';
 import { generateCharacterProfile, spriteIdFor } from '../characters/profile.js';
 import { createCharacter } from '../entities/create-character.js';
 import { removeCharacter } from '../entities/remove-character.js';
+import { blessCharacter } from '../interventions/bless.js';
+import { placeBounty } from '../interventions/bounty.js';
+import { curseCharacter } from '../interventions/curse.js';
+import { giftCharacter } from '../interventions/gift.js';
+import type { InterventionOutcome } from '../interventions/outcome.js';
 
 const DEFAULT_COLOR = 0xffffff;
 
@@ -46,6 +51,23 @@ function rejected(
   message: string,
 ): CommandResult {
   return { commandId: command.commandId, status: 'rejected', reason, message };
+}
+
+function interventionResult(
+  command: SimulationCommand,
+  clock: SimulationClock,
+  outcome: InterventionOutcome,
+): CommandResult {
+  if (outcome.status === 'rejected') return rejected(command, outcome.reason, outcome.message);
+
+  return {
+    commandId: command.commandId,
+    status: 'applied',
+    tick: clock.tick,
+    events: [
+      event('intervention.applied', { logEventId: outcome.event.eventId, logType: outcome.event.type }, clock, command),
+    ],
+  };
 }
 
 // Gameplay validation happens here; the server has already checked syntax
@@ -113,6 +135,33 @@ export function executeCommand(
         tick: clock.tick,
         events: [event('character.removed', { characterId }, clock, command)],
       };
+    }
+
+    case 'intervention.bless': {
+      const cause = { commandId: command.commandId, issuer: command.issuer };
+
+      return interventionResult(command, clock, blessCharacter(world, command.params.characterId, cause));
+    }
+
+    case 'intervention.curse': {
+      const cause = { commandId: command.commandId, issuer: command.issuer };
+      const { characterId, need } = command.params;
+
+      return interventionResult(command, clock, curseCharacter(world, characterId, need, cause));
+    }
+
+    case 'intervention.bounty': {
+      const cause = { commandId: command.commandId, issuer: command.issuer };
+      const { x, y, quantity } = command.params;
+
+      return interventionResult(command, clock, placeBounty(world, x, y, quantity, cause));
+    }
+
+    case 'intervention.gift': {
+      const cause = { commandId: command.commandId, issuer: command.issuer };
+      const { characterId, item, quantity } = command.params;
+
+      return interventionResult(command, clock, giftCharacter(world, characterId, item, quantity, cause));
     }
   }
 }

@@ -171,12 +171,7 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
           data: {
             requestId: message.data.requestId,
             world: capturePersistedWorld(world, clock, seed),
-            pendingEvents: world.pendingLog.map((event) => ({
-              ...event,
-              participants: [...event.participants],
-              location: { ...event.location },
-              payload: { ...event.payload },
-            })),
+            pendingEvents: world.pendingLog.map((event) => structuredClone(event)),
           },
         });
 

@@ -1,7 +1,7 @@
 # Implementation Roadmap
 
 **Status:** Active — Milestone 08  
-**Version:** 1.13  
+**Version:** 1.14  
 **Last updated:** 2026-11-25
 
 ## Guiding approach
@@ -618,13 +618,21 @@ ring around the characters in a significant entry. Presentation tiers
 are shared: notable feeds, significant notifies, dramatic focuses the
 camera.
 
+Log events are a union keyed by type: action events keep their payload,
+and intervention events carry their own. Streamers bless, curse, place a
+bounty, or gift through `POST /streamer/commands`, each with a 30-second
+cooldown per issuer in the gateway. Each intervention is one log fact
+naming the command and issuer. Blessings and curses are dramatic, so the
+browser zooms toward them for a few seconds; bounties and gifts are
+significant. Save format is unchanged.
+
 ### Remaining scope
 
-- World director.
-- Streamer interventions.
-- Blessings, curses and world events.
+- World director. It will issue interventions as `system`.
+- World events beyond the four interventions.
 - Quests and special encounters.
-- Camera focus. The dramatic tier that triggers it has no event yet.
+- A bounty only refills a natural pile site. New pile sites, or piles
+  that do not deplete, need a saved marker and a save format bump.
 
 Ensure presentation is grounded in recorded simulation events. The director should react to the world rather than dictate ordinary character behaviour.
 
@@ -689,6 +697,68 @@ Initial scope:
 - Production security and configuration.
 
 The goal is to make the simulation reliable to operate over extended periods, including periods with no active viewers.
+
+---
+
+## Milestone 11 — Review Milestone
+
+**Status: Planned**
+
+Review everything built in Milestones 01 to 10 before planning more work. This milestone adds no features. The project owner uses it to confirm they understand how the whole simulation works. It also records what this version of the simulation leaves unresolved and plans the milestones that follow.
+
+Work through the review in this order. Each step builds on the one before it.
+
+### 1. Basic summary
+
+A short plain-language account of what the project is today: what a running world contains, what characters do on their own, what a viewer can do, and what the streamer sees. Note what each milestone added and what each one deliberately deferred.
+
+### 2. Architectural overview
+
+How the pieces fit together, before going into any one of them:
+
+- The workspace: `apps/server`, `apps/client`, `packages/simulation` and `packages/shared`, and what each owns.
+- The simulation worker thread and the main server process, and the typed messages between them.
+- The flow of a tick, from the fixed timestep through the systems to snapshots, deltas and chronicle entries.
+- The flow of a command, from Twitch chat or a local route through the gateway into the world and back as feedback.
+- Where state lives: the ECS world, the in-memory log and its indexes, the SQLite database, and what a save contains.
+- Check this against `docs/architecture/` and note where the documents and the code disagree.
+
+### 3. Deep dive, one part at a time
+
+Walk through each part of the code in turn. For each one, cover what it owns, its inputs and outputs, the data it keeps, how it is tested, and the decisions that shaped it. Confirm the owner's understanding before moving to the next part.
+
+1. Shared contracts (`packages/shared`): messages, commands and events.
+2. Simulation core: the ECS world, components, entities, the fixed-timestep loop and seeding.
+3. Characters: profile, attributes, personality, needs and lifecycle.
+4. Behaviour: utility scoring, action definitions, commitment, interruption, cooldowns, failure and routing.
+5. Social behaviour: greet, comfort, keep, confide and bluff, relationships and memories.
+6. Economy: items, inventories, piles, gathering, crafting, giving, trade and the economy checker.
+7. The log and history: events, participant and pair indexes, and retention.
+8. Storytelling: chronicle scoring, presentation tiers, and the director and interventions added in Milestone 08.
+9. Inspection: the read-only API and what it exposes.
+10. Persistence: the world store, save format versions, database migrations, backup and restart.
+11. Server: the worker host, WebSocket server, snapshot cache, chronicle feed and logging.
+12. Viewer participation: viewers, platform identities, the command server, receipts, rate limits, moderation and Twitch.
+13. Client: the WebSocket connection, the PixiJS renderer and the recent-events feed.
+14. Tests: unit, regression, performance, tuning and end-to-end coverage, and where coverage is thin.
+15. Production work from Milestone 10: monitoring, backups, performance and deployment.
+
+### 4. Outstanding outliers
+
+List anything in this version that does not fit: behaviour that contradicts the docs, stubs nothing reads yet, special cases and one-off bonuses, untested paths, performance risks, and scope that was deferred and never picked up. Decide for each one whether to fix it now, move it to a later milestone, or accept it.
+
+### 5. Plan the next milestones
+
+Using the review and the outliers, draft the milestones that follow this set. Start from the scope already deferred to later work, such as a belonging need, routes to a person or a stack, more than one world, and anything Milestones 09 and 10 left open. Write notes for the first of them under `docs/roadmap/notes/`.
+
+### Definition of done
+
+- [ ] The basic summary is written and agreed.
+- [ ] The architectural overview is walked through and matches the code, or the differences are recorded.
+- [ ] Every part in the deep dive has been reviewed and the owner confirms they understand it.
+- [ ] Outstanding outliers are listed, each with a decision.
+- [ ] The architecture and design docs are corrected where the review found them out of date.
+- [ ] The next milestones are drafted in this file, with notes for the first one.
 
 ---
 

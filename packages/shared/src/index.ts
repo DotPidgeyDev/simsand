@@ -179,32 +179,76 @@ export interface ActionEnding {
   result: ActionResult;
 }
 
-export const SIMULATION_LOG_TYPES = ['action.ended', 'character.greeted', 'character.comforted', 'character.kept', 'character.confided', 'character.bluffed', 'item.transferred', 'item.traded'] as const;
+// Append only. Stored events keep their type name.
+export const SIMULATION_LOG_TYPES = [
+  'action.ended', 'character.greeted', 'character.comforted', 'character.kept', 'character.confided', 'character.bluffed',
+  'item.transferred', 'item.traded',
+  'intervention.blessed', 'intervention.cursed', 'intervention.bounty', 'intervention.gifted',
+] as const;
 
 export type SimulationLogType = (typeof SIMULATION_LOG_TYPES)[number];
 
-// One world fact, many participants. Character history is a query over
-// this list, not a copy stored on each participant.
-export interface SimulationLogEvent {
+export const INTERVENTION_LOG_TYPES = [
+  'intervention.blessed', 'intervention.cursed', 'intervention.bounty', 'intervention.gifted',
+] as const satisfies readonly SimulationLogType[];
+
+export type InterventionLogType = (typeof INTERVENTION_LOG_TYPES)[number];
+
+export type ActionLogType = Exclude<SimulationLogType, InterventionLogType>;
+
+// How an action ended, and what it moved or claimed.
+export interface ActionLogPayload {
+  action: ActionId;
+  result: ActionResult;
+  initiator?: string;
+  // What the speaker claimed about their own needs. Present on confide and
+  // bluff. A bluff reports every need tied for the highest as satisfied.
+  reportedNeeds?: CharacterNeeds;
+  // Present on a transfer. One event records the item and the quantity.
+  item?: ItemId;
+  quantity?: number;
+  // Goods paid for the item. Present on a trade.
+  price?: number;
+}
+
+// Who asked for an intervention. The command receipt holds the rest.
+interface InterventionCause {
+  commandId: string;
+  issuer: CommandIssuer;
+}
+
+export interface InterventionLogPayloads {
+  'intervention.blessed': InterventionCause & { target: string };
+  'intervention.cursed': InterventionCause & { target: string; need: BasicNeed; level: number };
+  'intervention.bounty': InterventionCause & { item: ItemId; quantity: number };
+  'intervention.gifted': InterventionCause & { target: string; item: ItemId; quantity: number };
+}
+
+interface LogEventBase<TType extends SimulationLogType, TPayload> {
   eventId: string;
-  type: SimulationLogType;
+  type: TType;
   tick: number;
   elapsedSeconds: number;
+  // Characters the fact is about. Empty for a fact about a place, such as
+  // a bounty pile.
   participants: string[];
   location: { x: number; y: number };
-  payload: {
-    action: ActionId;
-    result: ActionResult;
-    initiator?: string;
-    // What the speaker claimed about their own needs. Present on confide and
-    // bluff. A bluff reports every need tied for the highest as satisfied.
-    reportedNeeds?: CharacterNeeds;
-    // Present on a transfer. One event records the item and the quantity.
-    item?: ItemId;
-    quantity?: number;
-    // Goods paid for the item. Present on a trade.
-    price?: number;
-  };
+  payload: TPayload;
+}
+
+export type ActionLogEvent = LogEventBase<ActionLogType, ActionLogPayload>;
+
+export type InterventionLogEvent = {
+  [TType in InterventionLogType]: LogEventBase<TType, InterventionLogPayloads[TType]>;
+}[InterventionLogType];
+
+// One world fact, many participants. Character history is a query over
+// this list, not a copy stored on each participant. The payload shape
+// follows the type.
+export type SimulationLogEvent = ActionLogEvent | InterventionLogEvent;
+
+export function isInterventionLogEvent(event: SimulationLogEvent): event is InterventionLogEvent {
+  return (INTERVENTION_LOG_TYPES as readonly string[]).includes(event.type);
 }
 
 // Presentation priority for a chronicle entry. Scoring chooses a tier; it
@@ -234,6 +278,8 @@ export interface ChronicleEntry {
   tick: number;
   elapsedSeconds: number;
   participants: string[];
+  // Where it happened, in tiles. The camera focuses here.
+  location: { x: number; y: number };
   score: number;
   tier: ChronicleTier;
   summary: string;
@@ -337,7 +383,9 @@ export interface PersistedWorld {
 
 export const COMMAND_PROTOCOL_VERSION = 1;
 
-export type CommandSource = 'admin' | 'streamer' | 'viewer' | 'system';
+export const COMMAND_SOURCES = ['admin', 'streamer', 'viewer', 'system'] as const;
+
+export type CommandSource = (typeof COMMAND_SOURCES)[number];
 
 // Derived by the server from an authenticated identity, never taken from
 // the request itself.
@@ -361,9 +409,33 @@ export type CommandRequest =
   | {
       type: 'character.remove';
       params: { characterId: string };
+    }
+  | {
+      type: 'intervention.bless';
+      params: { characterId: string };
+    }
+  | {
+      type: 'intervention.curse';
+      params: { characterId: string; need: BasicNeed };
+    }
+  | {
+      // Adds material to a natural pile site: a tile with a pile, or one
+      // whose pile is waiting to return.
+      type: 'intervention.bounty';
+      params: { x: number; y: number; quantity: number };
+    }
+  | {
+      type: 'intervention.gift';
+      params: { characterId: string; item: ItemId; quantity: number };
     };
 
 export type CommandType = CommandRequest['type'];
+
+export const INTERVENTION_COMMAND_TYPES = [
+  'intervention.bless', 'intervention.curse', 'intervention.bounty', 'intervention.gift',
+] as const satisfies readonly CommandType[];
+
+export type InterventionCommandType = (typeof INTERVENTION_COMMAND_TYPES)[number];
 
 export type SimulationCommand = CommandRequest & {
   commandId: string;
@@ -385,7 +457,9 @@ interface DomainEventBase<TType extends string, TPayload> {
 
 export type DomainEvent =
   | DomainEventBase<'character.created', { characterId: string; x: number; y: number }>
-  | DomainEventBase<'character.removed', { characterId: string }>;
+  | DomainEventBase<'character.removed', { characterId: string }>
+  // The intervention itself is a log fact. This points at it.
+  | DomainEventBase<'intervention.applied', { logEventId: string; logType: InterventionLogType }>;
 
 export type CommandRejectionReason =
   | 'invalid_command'
@@ -399,7 +473,10 @@ export type CommandRejectionReason =
   | 'invalid_issuer'
   | 'rate_limited'
   | 'idempotency_conflict'
-  | 'banned';
+  | 'banned'
+  | 'character_dead'
+  | 'tile_unavailable'
+  | 'on_cooldown';
 
 export type CommandResult =
   | { commandId: string; status: 'applied'; tick: number; events: DomainEvent[] }

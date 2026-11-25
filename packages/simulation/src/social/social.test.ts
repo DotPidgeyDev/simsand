@@ -618,10 +618,8 @@ describe('confide and bluff', () => {
     updateActions(world, 0.1);
 
     expect(readActionOutcome(left)).toEqual({ action: 'bluff', result: 'completed' });
-    expect(world.log.filter((event) => event.type === 'character.bluffed')[0]?.payload.reportedNeeds).toEqual({
-      hunger: 0,
-      thirst: 0,
-      fatigue: 0.05,
+    expect(world.log.filter((event) => event.type === 'character.bluffed')[0]).toMatchObject({
+      payload: { reportedNeeds: { hunger: 0, thirst: 0, fatigue: 0.05 } },
     });
     expect(Needs.hunger[left]).toBe(0.2);
     expect(world.memories.map((memory) => memory.kind)).toEqual(['bluffing']);

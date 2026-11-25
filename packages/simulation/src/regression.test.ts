@@ -451,10 +451,8 @@ describe('milestone 04 behaviour', () => {
     Action.elapsed[truthful.left] = MIN_ACTION_SECONDS;
     updateActions(truthful.world, 0.1);
 
-    expect(truthful.world.log.find((event) => event.type === 'character.confided')?.payload.reportedNeeds).toEqual({
-      hunger: 0.2,
-      thirst: 0.1,
-      fatigue: 0.05,
+    expect(truthful.world.log.find((event) => event.type === 'character.confided')).toMatchObject({
+      payload: { reportedNeeds: { hunger: 0.2, thirst: 0.1, fatigue: 0.05 } },
     });
 
     const dishonest = beside();
@@ -472,10 +470,8 @@ describe('milestone 04 behaviour', () => {
     Action.elapsed[dishonest.left] = MIN_ACTION_SECONDS;
     updateActions(dishonest.world, 0.1);
 
-    expect(dishonest.world.log.find((event) => event.type === 'character.bluffed')?.payload.reportedNeeds).toEqual({
-      hunger: 0,
-      thirst: 0.1,
-      fatigue: 0.05,
+    expect(dishonest.world.log.find((event) => event.type === 'character.bluffed')).toMatchObject({
+      payload: { reportedNeeds: { hunger: 0, thirst: 0.1, fatigue: 0.05 } },
     });
     expect(Needs.hunger[dishonest.left]).toBe(0.2);
   });
@@ -527,7 +523,7 @@ describe('milestone 05 behaviour', () => {
     expect(FOOD_PRICE).toBe(2);
     expect(ACTION_IDS.slice(11)).toEqual(['give', 'gather', 'craft', 'dine', 'buy']);
     expect(MEMORY_KINDS.slice(5)).toEqual(['giving', 'trading']);
-    expect(SIMULATION_LOG_TYPES.slice(6)).toEqual(['item.transferred', 'item.traded']);
+    expect(SIMULATION_LOG_TYPES.slice(6, 8)).toEqual(['item.transferred', 'item.traded']);
     expect(PILE_RETURN_SECONDS).toBeGreaterThan(HUNGER_RESUME_AT / HUNGER_GAIN_PER_SECOND);
   });
 

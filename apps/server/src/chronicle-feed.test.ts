@@ -11,6 +11,7 @@ function entry(eventId: string, tier: ChronicleTier = 'notable'): ChronicleEntry
     tick: 1,
     elapsedSeconds: 0.1,
     participants: ['a', 'b'],
+    location: { x: 1, y: 1 },
     score: 0.35,
     tier,
     summary: 'a met b',
