@@ -600,21 +600,20 @@ Add significant-event detection, streamer interventions, notifications, chronicl
 
 ### Current implementation
 
-A completed greeting is scored into a chronicle entry over the existing
-log. `inspectCharacterChronicle` and `GET /entities/:id/chronicle`
-expose that window. Ordinary action endings stay out. Characters still
-choose actions the same way.
+Completed greetings, comfort, keep, confide, bluff, gifts, and trades
+score into chronicle entries over the existing log.
+`inspectCharacterChronicle` and `GET /entities/:id/chronicle` expose
+that window. Ordinary action endings stay out. Characters still choose
+actions the same way.
 
 ### Remaining scope
 
-- Significant simulation-event detection beyond greetings.
 - World director.
 - Streamer interventions.
 - Blessings, curses and world events.
 - Quests and special encounters.
 - Notifications.
-- Broader chronicle coverage and presentation priorities.
-- Camera focus and event-driven presentation.
+- Presentation priorities, camera focus, and event-driven presentation.
 - Inventories and resource piles on the map snapshot. It currently carries position, terrain, and the resting, eating, drinking, and working flags. Stacks and piles are already on the saved world and on inspection.
 
 Ensure presentation is grounded in recorded simulation events. The director should react to the world rather than dictate ordinary character behaviour.

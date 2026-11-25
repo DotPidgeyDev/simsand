@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { SimulationLogEvent } from '@simsand/shared';
 
 import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
@@ -11,6 +12,19 @@ import { MIN_ACTION_SECONDS, updateActions } from '../systems/actions.js';
 import { inspectCharacterChronicle } from '../inspection/inspect-character.js';
 
 import { chronicleEntryFromEvent, chronicleFromEvents } from './chronicle.js';
+
+function event(
+  partial: Pick<SimulationLogEvent, 'eventId' | 'type' | 'payload'> &
+    Partial<Omit<SimulationLogEvent, 'eventId' | 'type' | 'payload'>>,
+): SimulationLogEvent {
+  return {
+    tick: 4,
+    elapsedSeconds: 0.4,
+    participants: ['left', 'right'],
+    location: { x: 2.5, y: 2.5 },
+    ...partial,
+  };
+}
 
 function neighbours() {
   const world = createSimulationWorld(createWorldMap(8, 8, 'grass'));
@@ -51,38 +65,89 @@ function neighbours() {
 }
 
 describe('chronicle', () => {
-  it('scores a completed greeting and skips ordinary action endings', () => {
-    const greet = {
-      eventId: 'log-1',
-      type: 'character.greeted' as const,
-      tick: 4,
-      elapsedSeconds: 0.4,
-      participants: ['left', 'right'],
-      location: { x: 2.5, y: 2.5 },
-      payload: { action: 'greet' as const, result: 'completed' as const, initiator: 'left' },
-    };
-    const ended = {
-      eventId: 'log-2',
-      type: 'action.ended' as const,
-      tick: 5,
-      elapsedSeconds: 0.5,
-      participants: ['left'],
-      location: { x: 2.5, y: 2.5 },
-      payload: { action: 'idle' as const, result: 'completed' as const, initiator: 'left' },
-    };
-
-    expect(chronicleEntryFromEvent(greet)).toEqual({
+  it('scores consequential meetings and skips ordinary action endings', () => {
+    const greet = event({
       eventId: 'log-1',
       type: 'character.greeted',
-      tick: 4,
-      elapsedSeconds: 0.4,
-      participants: ['left', 'right'],
-      score: 0.35,
+      payload: { action: 'greet', result: 'completed', initiator: 'left' },
+    });
+    const comfort = event({
+      eventId: 'log-2',
+      type: 'character.comforted',
+      payload: { action: 'comfort', result: 'completed', initiator: 'left' },
+    });
+    const trade = event({
+      eventId: 'log-3',
+      type: 'item.traded',
+      payload: {
+        action: 'buy',
+        result: 'completed',
+        initiator: 'left',
+        item: 'food',
+        quantity: 1,
+        price: 2,
+      },
+    });
+    const gift = event({
+      eventId: 'log-4',
+      type: 'item.transferred',
+      payload: {
+        action: 'give',
+        result: 'completed',
+        initiator: 'left',
+        item: 'goods',
+        quantity: 1,
+      },
+    });
+    const ended = event({
+      eventId: 'log-5',
+      type: 'action.ended',
+      participants: ['left'],
+      payload: { action: 'idle', result: 'completed', initiator: 'left' },
+    });
+
+    expect(chronicleEntryFromEvent(greet)).toMatchObject({
       tier: 'notable',
+      score: 0.35,
       summary: 'left met right',
     });
+    expect(chronicleEntryFromEvent(comfort)).toMatchObject({
+      tier: 'notable',
+      score: 0.45,
+      summary: 'left comforted right',
+    });
+    expect(chronicleEntryFromEvent(trade)).toMatchObject({
+      tier: 'significant',
+      score: 0.55,
+      summary: 'left bought 1 food from right for 2 goods',
+    });
+    expect(chronicleEntryFromEvent(gift)).toMatchObject({
+      tier: 'notable',
+      score: 0.5,
+      summary: 'left gave 1 goods to right',
+    });
     expect(chronicleEntryFromEvent(ended)).toBeUndefined();
-    expect(chronicleFromEvents([greet, ended])).toHaveLength(1);
+    expect(chronicleFromEvents([greet, comfort, trade, gift, ended])).toHaveLength(4);
+  });
+
+  it('scores keep, confide, and bluff with the same pair shape', () => {
+    expect(chronicleEntryFromEvent(event({
+      eventId: 'log-keep',
+      type: 'character.kept',
+      payload: { action: 'keep', result: 'completed', initiator: 'left' },
+    }))).toMatchObject({ summary: 'left stayed with right', tier: 'notable' });
+
+    expect(chronicleEntryFromEvent(event({
+      eventId: 'log-confide',
+      type: 'character.confided',
+      payload: { action: 'confide', result: 'completed', initiator: 'left' },
+    }))).toMatchObject({ summary: 'left confided in right', tier: 'significant' });
+
+    expect(chronicleEntryFromEvent(event({
+      eventId: 'log-bluff',
+      type: 'character.bluffed',
+      payload: { action: 'bluff', result: 'completed', initiator: 'left' },
+    }))).toMatchObject({ summary: 'left bluffed right', tier: 'notable' });
   });
 
   it('exposes a character chronicle from the live log without changing actions', () => {

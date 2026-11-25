@@ -147,11 +147,11 @@ important summaries. Generated narration is presentation, not evidence.
 ## 10. Initial implementation boundary
 
 Typed domain events and the character log are in place. Milestone 08
-starts with a scored chronicle over that log: a completed
-`character.greeted` becomes a notable entry with a short summary. The
-entry points at the source `eventId`. Mundane `action.ended` rows stay
-out. The world director, camera focus, and streamer interventions are
-still ahead in the same milestone.
+scores completed greetings, comfort, keep, confide, bluff, gifts, and
+trades into chronicle entries with short summaries. Each entry points
+at the source `eventId`. Mundane `action.ended` rows stay out. The
+world director, camera focus, and streamer interventions are still
+ahead in the same milestone.
 
 Do not invent a second event model for stream stories. Do not drive
 ordinary AI from Twitch chat text.

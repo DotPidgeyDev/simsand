@@ -422,10 +422,11 @@ Three responsibilities must remain distinct:
 
 The storytelling layer may summarize and interpret recorded events. It must not invent events or alter simulation outcomes.
 
-The world director is still planned. Storytelling has begun: a completed
-greeting yields a scored chronicle entry over the existing log
-(`inspectCharacterChronicle`, `GET /entities/:id/chronicle`). Scoring
-does not change how characters choose actions.
+The world director is still planned. Storytelling scores completed
+greetings, comfort, keep, confide, bluff, gifts, and trades into
+chronicle entries over the existing log (`inspectCharacterChronicle`,
+`GET /entities/:id/chronicle`). Scoring does not change how characters
+choose actions.
 
 ---
 
@@ -460,7 +461,7 @@ Stable character IDs are stored with the world. The character log is retained in
 - Population caps and background simulation detail.
 - Exact snapshot cadence. Durable history keeps the newest 100,000 log events.
 - When, if ever, to introduce multiple simulation workers.
-- Which further log types join the chronicle, and how large the stream-facing window should be. Completed greetings are scored today; debugging history still returns the full retained log.
+- How large the stream-facing chronicle window should be, and whether new log types (death, director interventions) need higher tiers. Existing social and economy facts are scored today; debugging history still returns the full retained log.
 - Time scaling and fast-forward behaviour.
 - How far is too far to start a walk. The route is a shared field; a cutoff is not chosen.
 - Long-term ECS abstraction and data migration strategy.
