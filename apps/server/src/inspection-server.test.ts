@@ -168,6 +168,49 @@ describe('inspection server', () => {
     expect(response.json().events[0].participants).toEqual(['character-0001', 'character-0002']);
   });
 
+  it('scores a greeting into the character chronicle', async () => {
+    app = createInspectionServer(source({
+      inspectHistory: async () => [
+        {
+          eventId: 'log-1',
+          type: 'character.greeted',
+          tick: 4,
+          elapsedSeconds: 0.4,
+          participants: ['character-0001', 'character-0002'],
+          location: { x: 1.5, y: 2.5 },
+          payload: { action: 'greet', result: 'completed', initiator: 'character-0001' },
+        },
+        {
+          eventId: 'log-2',
+          type: 'action.ended',
+          tick: 5,
+          elapsedSeconds: 0.5,
+          participants: ['character-0001'],
+          location: { x: 1.5, y: 2.5 },
+          payload: { action: 'idle', result: 'completed', initiator: 'character-0001' },
+        },
+      ],
+    }));
+
+    const response = await app.inject({ method: 'GET', url: '/entities/character-0001/chronicle' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({
+      id: 'character-0001',
+      count: 1,
+      entries: [{
+        eventId: 'log-1',
+        type: 'character.greeted',
+        tick: 4,
+        elapsedSeconds: 0.4,
+        participants: ['character-0001', 'character-0002'],
+        score: 0.35,
+        tier: 'notable',
+        summary: 'character-0001 met character-0002',
+      }],
+    });
+  });
+
   it('returns 404 for an unknown entity', async () => {
     app = createInspectionServer(source());
 

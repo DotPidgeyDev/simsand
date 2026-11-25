@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 
 import type { EntityInspection, SimulationLogEvent, SimulationStatus, WorldSnapshot } from '@simsand/shared';
+import { chronicleFromEvents } from '@simsand/simulation';
 
 export interface ServerInfo {
   startedAt: Date;
@@ -78,6 +79,26 @@ export function createInspectionServer(source: InspectionSource): FastifyInstanc
     }
 
     return { id: request.params.id, count: events.length, events };
+  });
+
+  // Presentation over the same retained+live history. Scoring stays here;
+  // the simulation does not store chronicle rows.
+  app.get<{ Params: { id: string } }>('/entities/:id/chronicle', async (request, reply) => {
+    let events: SimulationLogEvent[] | undefined;
+
+    try {
+      events = await source.inspectHistory(request.params.id);
+    } catch (error) {
+      return reply.code(503).send(unavailable(error));
+    }
+
+    if (!events) {
+      return reply.code(404).send({ error: 'not_found', message: `No entity with ID ${request.params.id}` });
+    }
+
+    const entries = chronicleFromEvents(events);
+
+    return { id: request.params.id, count: entries.length, entries };
   });
 
   app.get<{ Params: { id: string } }>('/entities/:id', async (request, reply) => {

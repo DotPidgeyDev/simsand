@@ -1,5 +1,5 @@
 import { ACTION_IDS, LIFECYCLE_STATES } from '@simsand/shared';
-import type { EntityInspection, SimulationLogEvent } from '@simsand/shared';
+import type { ChronicleEntry, EntityInspection, SimulationLogEvent } from '@simsand/shared';
 
 import { readCharacterProfile } from '../characters/profile.js';
 import { Action } from '../components/action.js';
@@ -17,6 +17,7 @@ import { historyFor } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
 import { memoriesFor } from '../social/memories.js';
 import { knownNeighborId, relationshipsFor } from '../social/relationships.js';
+import { chronicleFromEvents } from '../storytelling/chronicle.js';
 import type { SimulationWorld } from '../core/world.js';
 
 import { Appearance } from '../components/appearance.js';
@@ -147,4 +148,17 @@ export function inspectCharacterHistory(
   if (!world.entityIds.has(id)) return undefined;
 
   return historyFor(world, id);
+}
+
+// Scored presentation window over the same participant log. Does not
+// invent events or change how characters choose actions.
+export function inspectCharacterChronicle(
+  world: SimulationWorld,
+  id: string,
+): ChronicleEntry[] | undefined {
+  const history = inspectCharacterHistory(world, id);
+
+  if (!history) return undefined;
+
+  return chronicleFromEvents(history);
 }

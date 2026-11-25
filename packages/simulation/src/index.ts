@@ -43,7 +43,8 @@ export type {
   SimulationLoopTiming,
 } from './core/loop.js';
 
-export { inspectCharacter, inspectCharacterHistory } from './inspection/inspect-character.js';
+export { inspectCharacter, inspectCharacterHistory, inspectCharacterChronicle } from './inspection/inspect-character.js';
+export { chronicleEntryFromEvent, chronicleFromEvents } from './storytelling/chronicle.js';
 export { acknowledgePendingLog } from './history/records.js';
 
 export {

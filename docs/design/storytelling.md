@@ -1,6 +1,6 @@
 # World Director and Storytelling Design
 
-**Status:** Conceptual design; implementation follows core simulation
+**Status:** In progress — chronicle over the character log (Milestone 08)
 
 ## 1. Purpose
 
@@ -146,6 +146,12 @@ important summaries. Generated narration is presentation, not evidence.
 
 ## 10. Initial implementation boundary
 
-Do not build the world director or narrative engine in Milestone 01.
-Establish typed domain events and basic logs early so future
-storytelling has reliable inputs.
+Typed domain events and the character log are in place. Milestone 08
+starts with a scored chronicle over that log: a completed
+`character.greeted` becomes a notable entry with a short summary. The
+entry points at the source `eventId`. Mundane `action.ended` rows stay
+out. The world director, camera focus, and streamer interventions are
+still ahead in the same milestone.
+
+Do not invent a second event model for stream stories. Do not drive
+ordinary AI from Twitch chat text.

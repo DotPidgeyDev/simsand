@@ -1,7 +1,7 @@
 # Implementation Roadmap
 
 **Status:** Active — Milestone 08  
-**Version:** 1.12  
+**Version:** 1.13  
 **Last updated:** 2026-11-25
 
 ## Guiding approach
@@ -592,22 +592,28 @@ authenticated command API, and YouTube or Kick adapters are Milestone
 
 ## Milestone 08 — World director and storytelling
 
-**Status: Planned**
+**Status: Active**
 
 Start from `docs/roadmap/notes/08-from-07.md`.
 
 Add significant-event detection, streamer interventions, notifications, chronicle entries and camera focus.
 
-Initial scope:
+### Current implementation
 
-- Significant simulation-event detection.
+A completed greeting is scored into a chronicle entry over the existing
+log. `inspectCharacterChronicle` and `GET /entities/:id/chronicle`
+expose that window. Ordinary action endings stay out. Characters still
+choose actions the same way.
+
+### Remaining scope
+
+- Significant simulation-event detection beyond greetings.
 - World director.
 - Streamer interventions.
 - Blessings, curses and world events.
 - Quests and special encounters.
 - Notifications.
-- Chronicle entries.
-- Presentation priorities.
+- Broader chronicle coverage and presentation priorities.
 - Camera focus and event-driven presentation.
 - Inventories and resource piles on the map snapshot. It currently carries position, terrain, and the resting, eating, drinking, and working flags. Stacks and piles are already on the saved world and on inspection.
 

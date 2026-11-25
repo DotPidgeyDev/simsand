@@ -201,6 +201,25 @@ export interface SimulationLogEvent {
   };
 }
 
+// Presentation priority for a chronicle entry. Scoring chooses a tier; it
+// does not change simulation outcomes. Append only.
+export const CHRONICLE_TIERS = ['minor', 'notable', 'significant', 'dramatic', 'major'] as const;
+
+export type ChronicleTier = (typeof CHRONICLE_TIERS)[number];
+
+// A scored, abbreviated view of one SimulationLogEvent. Derived on read;
+// not a second event store.
+export interface ChronicleEntry {
+  eventId: string;
+  type: SimulationLogType;
+  tick: number;
+  elapsedSeconds: number;
+  participants: string[];
+  score: number;
+  tier: ChronicleTier;
+  summary: string;
+}
+
 export interface RelationshipRecord {
   a: string;
   b: string;
