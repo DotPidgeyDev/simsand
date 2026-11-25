@@ -2,15 +2,15 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, backup } from 'node:sqlite';
 
-import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
-import type { PileReturn, ResourceNode, SimulationLogEvent } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
+import type { CommandIssuer, CommandResult, PileReturn, PlatformId, PlatformIdentityRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
 
 import { log } from './logger.js';
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 5;
 
 export interface ViewerRecord {
   id: string;
@@ -20,6 +20,8 @@ export interface ViewerRecord {
 }
 
 export const DEFAULT_LOG_RETENTION = 100_000;
+
+export const DEFAULT_RECEIPT_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 // A failed or corrupt write must never leave the store without a valid
 // snapshot, so older snapshots are kept until newer ones are committed.
@@ -35,18 +37,27 @@ export class WorldStore {
   constructor(
     private readonly db: DatabaseSync,
     private readonly eventRetention = DEFAULT_LOG_RETENTION,
+    private readonly receiptRetentionMs = DEFAULT_RECEIPT_RETENTION_MS,
   ) {
     if (!Number.isInteger(eventRetention) || eventRetention < 1) {
       throw new Error('Event retention must be a positive integer');
+    }
+
+    if (!Number.isInteger(receiptRetentionMs) || receiptRetentionMs < 1) {
+      throw new Error('Command receipt retention must be a positive integer');
     }
 
     this.db.exec('PRAGMA journal_mode = WAL');
     this.migrate();
   }
 
-  static open(path: string, eventRetention = DEFAULT_LOG_RETENTION): WorldStore {
+  static open(
+    path: string,
+    eventRetention = DEFAULT_LOG_RETENTION,
+    receiptRetentionMs = DEFAULT_RECEIPT_RETENTION_MS,
+  ): WorldStore {
     mkdirSync(dirname(path), { recursive: true });
-    return new WorldStore(new DatabaseSync(path), eventRetention);
+    return new WorldStore(new DatabaseSync(path), eventRetention, receiptRetentionMs);
   }
 
   save(world: PersistedWorld, pendingEvents: readonly SimulationLogEvent[] = []): void {
@@ -147,6 +158,103 @@ export class WorldStore {
       .run(viewer.id, viewer.displayName, viewer.createdAt, viewer.status);
   }
 
+  getViewerByPlatform(platform: PlatformId, platformUserId: string): ViewerRecord | undefined {
+    const identity = this.getPlatformIdentity(platform, platformUserId);
+
+    return identity ? this.getViewer(identity.viewerId) : undefined;
+  }
+
+  getPlatformIdentity(platform: PlatformId, platformUserId: string): PlatformIdentityRecord | undefined {
+    assertPlatform(platform, platformUserId);
+
+    const row = this.db
+      .prepare(`
+        SELECT platform, platform_user_id, viewer_id, platform_username, linked_at, status
+        FROM platform_identities
+        WHERE platform = ? AND platform_user_id = ?
+      `)
+      .get(platform, platformUserId) as {
+        platform: string;
+        platform_user_id: string;
+        viewer_id: string;
+        platform_username: string;
+        linked_at: string;
+        status: string;
+      } | undefined;
+
+    if (!row || row.status !== 'active') return undefined;
+
+    return {
+      platform: row.platform as PlatformId,
+      platformUserId: row.platform_user_id,
+      viewerId: row.viewer_id,
+      platformUsername: row.platform_username,
+      linkedAt: row.linked_at,
+      status: 'active',
+    };
+  }
+
+  // One Twitch account maps to one viewer. A new account creates a new viewer.
+  ensureViewerForPlatform(
+    platform: PlatformId,
+    platformUserId: string,
+    platformUsername: string,
+    displayName: string,
+    now: () => string,
+    newViewerId: () => string,
+  ): ViewerRecord {
+    assertPlatform(platform, platformUserId);
+
+    const existing = this.getPlatformIdentity(platform, platformUserId);
+
+    if (existing) {
+      if (platformUsername !== existing.platformUsername) {
+        this.db
+          .prepare(`
+            UPDATE platform_identities
+            SET platform_username = ?
+            WHERE platform = ? AND platform_user_id = ?
+          `)
+          .run(platformUsername, platform, platformUserId);
+      }
+
+      const viewer = this.getViewer(existing.viewerId);
+
+      if (!viewer) {
+        throw new Error(`Platform identity ${platform}:${platformUserId} points at missing viewer ${existing.viewerId}`);
+      }
+
+      return viewer;
+    }
+
+    const viewer: ViewerRecord = {
+      id: newViewerId(),
+      displayName,
+      createdAt: now(),
+      status: 'active',
+    };
+
+    this.db.exec('BEGIN');
+
+    try {
+      this.createViewer(viewer);
+      this.db
+        .prepare(`
+          INSERT INTO platform_identities (
+            platform, platform_user_id, viewer_id, platform_username, linked_at, status
+          )
+          VALUES (?, ?, ?, ?, ?, ?)
+        `)
+        .run(platform, platformUserId, viewer.id, platformUsername, viewer.createdAt, 'active');
+      this.db.exec('COMMIT');
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+
+    return viewer;
+  }
+
   getViewer(id: string): ViewerRecord | undefined {
     const row = this.db
       .prepare(`
@@ -164,6 +272,51 @@ export class WorldStore {
       createdAt: row.created_at,
       status: 'active',
     };
+  }
+
+  getReceipt(issuer: CommandIssuer, key: string, now: number): { fingerprint: string; result: CommandResult } | undefined {
+    const row = this.db
+      .prepare(`
+        SELECT fingerprint, result, submitted_at
+        FROM command_receipts
+        WHERE issuer_source = ? AND issuer_id = ? AND idempotency_key = ?
+      `)
+      .get(issuer.source, issuer.id, key) as { fingerprint: string; result: string; submitted_at: number } | undefined;
+
+    if (!row) return undefined;
+
+    if (now - row.submitted_at >= this.receiptRetentionMs) {
+      this.db
+        .prepare(`
+          DELETE FROM command_receipts
+          WHERE issuer_source = ? AND issuer_id = ? AND idempotency_key = ?
+        `)
+        .run(issuer.source, issuer.id, key);
+      return undefined;
+    }
+
+    return { fingerprint: row.fingerprint, result: parseCommandResult(row.result) };
+  }
+
+  putReceipt(
+    issuer: CommandIssuer,
+    key: string,
+    fingerprint: string,
+    result: CommandResult,
+    now: number,
+  ): void {
+    this.db
+      .prepare(`
+        INSERT INTO command_receipts (
+          issuer_source, issuer_id, idempotency_key, fingerprint, result, submitted_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      .run(issuer.source, issuer.id, key, fingerprint, JSON.stringify(result), now);
+
+    this.db
+      .prepare('DELETE FROM command_receipts WHERE submitted_at <= ?')
+      .run(now - this.receiptRetentionMs);
   }
 
   close(): void {
@@ -233,6 +386,36 @@ export class WorldStore {
             created_at TEXT NOT NULL,
             status TEXT NOT NULL
           );
+        `);
+      }
+
+      if (current < 4) {
+        this.db.exec(`
+          CREATE TABLE command_receipts (
+            issuer_source TEXT NOT NULL,
+            issuer_id TEXT NOT NULL,
+            idempotency_key TEXT NOT NULL,
+            fingerprint TEXT NOT NULL,
+            result TEXT NOT NULL,
+            submitted_at INTEGER NOT NULL,
+            PRIMARY KEY (issuer_source, issuer_id, idempotency_key)
+          );
+        `);
+      }
+
+      if (current < 5) {
+        this.db.exec(`
+          CREATE TABLE platform_identities (
+            platform TEXT NOT NULL,
+            platform_user_id TEXT NOT NULL,
+            viewer_id TEXT NOT NULL,
+            platform_username TEXT NOT NULL,
+            linked_at TEXT NOT NULL,
+            status TEXT NOT NULL,
+            PRIMARY KEY (platform, platform_user_id),
+            FOREIGN KEY (viewer_id) REFERENCES viewers (id)
+          );
+          CREATE INDEX platform_identities_viewer ON platform_identities (viewer_id);
         `);
       }
 
@@ -352,6 +535,16 @@ function eventSequence(eventId: string): number {
   return match ? Number(match[1]) : 0;
 }
 
+function assertPlatform(platform: PlatformId, platformUserId: string): void {
+  if (!(PLATFORM_IDS as readonly string[]).includes(platform)) {
+    throw new Error(`Unknown platform: ${platform}`);
+  }
+
+  if (typeof platformUserId !== 'string' || platformUserId.length === 0 || platformUserId.length > 64) {
+    throw new Error('Platform user id is missing or invalid');
+  }
+}
+
 function pairKey(a: string, b: string): string {
   return a < b ? `${a}\t${b}` : `${b}\t${a}`;
 }
@@ -407,6 +600,22 @@ function assertLogEvent(value: unknown): asserts value is SimulationLogEvent {
   if (!(ACTION_OUTCOMES as readonly string[]).includes(event.payload.result)) {
     throw new Error(`Unknown action result: ${String(event.payload.result)}`);
   }
+}
+
+function parseCommandResult(payload: string): CommandResult {
+  const value: unknown = JSON.parse(payload);
+
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('Command receipt is not an object');
+  }
+
+  const result = value as { commandId?: unknown; status?: unknown };
+
+  if (typeof result.commandId !== 'string' || (result.status !== 'applied' && result.status !== 'rejected')) {
+    throw new Error('Command receipt is missing a result');
+  }
+
+  return value as CommandResult;
 }
 
 function parseStoredEvent(payload: string): SimulationLogEvent {

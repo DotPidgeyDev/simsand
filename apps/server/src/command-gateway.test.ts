@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { CommandIssuer, CommandResult, DomainEvent, SimulationCommand } from '@simsand/shared';
 
 import { CommandGateway } from './command-gateway.js';
-import type { CommandDispatcher } from './command-gateway.js';
+import type { CommandDispatcher, CommandReceiptStore } from './command-gateway.js';
 
 const admin: CommandIssuer = { source: 'admin', id: 'local-admin' };
 
@@ -25,7 +25,20 @@ const createdEvent: DomainEvent = {
   payload: { characterId: 'visitor-0001', x: 32, y: 32 },
 };
 
-function setup(result?: CommandResult | Error) {
+function memoryReceipts(): CommandReceiptStore {
+  const rows = new Map<string, { fingerprint: string; result: CommandResult }>();
+
+  return {
+    getReceipt(issuer, key) {
+      return rows.get(`${issuer.source}:${issuer.id}:${key}`);
+    },
+    putReceipt(issuer, key, fingerprint, result) {
+      rows.set(`${issuer.source}:${issuer.id}:${key}`, { fingerprint, result });
+    },
+  };
+}
+
+function setup(result?: CommandResult | Error, options: { receipts?: boolean; limit?: number } = {}) {
   const sent: SimulationCommand[] = [];
   const dispatcher: CommandDispatcher = {
     executeCommand: async (command) => {
@@ -39,6 +52,8 @@ function setup(result?: CommandResult | Error) {
     onEvents,
     now: () => 1_000,
     newId: () => 'command-1',
+    receipts: options.receipts ? memoryReceipts() : undefined,
+    rateLimit: options.limit === undefined ? undefined : { limit: options.limit, windowMs: 60_000 },
   });
 
   return { gateway, sent, onEvents };
@@ -122,6 +137,51 @@ describe('CommandGateway', () => {
 
     expect(await gateway.submit(createRequest, admin)).toEqual(rejection);
     expect(onEvents).not.toHaveBeenCalled();
+  });
+
+  it('returns the first result when the same idempotency key is submitted again', async () => {
+    const { gateway, sent, onEvents } = setup(undefined, { receipts: true });
+    const keyed = { ...createRequest, idempotencyKey: 'create-ada' };
+
+    const first = await gateway.submit(keyed, admin);
+    const second = await gateway.submit(keyed, admin);
+
+    expect(second).toEqual(first);
+    expect(sent).toHaveLength(1);
+    expect(onEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses to reuse an idempotency key for a different command', async () => {
+    const { gateway, sent } = setup(undefined, { receipts: true });
+
+    await gateway.submit({ ...createRequest, idempotencyKey: 'create-ada' }, admin);
+    const conflict = await gateway.submit({
+      ...createRequest,
+      idempotencyKey: 'create-ada',
+      command: { type: 'character.create', params: { characterId: 'visitor-0002', x: 1, y: 1 } },
+    }, admin);
+
+    expect(conflict).toMatchObject({ status: 'rejected', reason: 'idempotency_conflict' });
+    expect(sent).toHaveLength(1);
+  });
+
+  it('limits how many new commands one issuer can submit', async () => {
+    const { gateway, sent } = setup(undefined, { receipts: true, limit: 2 });
+    const keyed = { ...createRequest, idempotencyKey: 'create-ada' };
+
+    await gateway.submit(keyed, admin);
+    await gateway.submit({ ...createRequest, idempotencyKey: 'create-bea' }, admin);
+
+    const limited = await gateway.submit({ ...createRequest, idempotencyKey: 'create-cy' }, admin);
+
+    expect(limited).toMatchObject({
+      status: 'rejected',
+      reason: 'rate_limited',
+      message: 'Too many commands from admin local-admin',
+    });
+    expect(sent).toHaveLength(2);
+    expect((await gateway.submit(keyed, admin)).status).toBe('applied');
+    expect(sent).toHaveLength(2);
   });
 
   it('reports the simulation as unavailable when dispatch fails', async () => {

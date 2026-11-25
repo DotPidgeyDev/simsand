@@ -7,9 +7,11 @@ import { z } from 'zod';
 import { VIEWER_ID_PATTERN } from '@simsand/shared';
 
 import type { CommandGateway } from './command-gateway.js';
+import { parseNormalizedChatMessage } from './platform/normalize.js';
+import { processChatMessage, type PlatformViewerDirectory } from './platform/process-chat.js';
 import type { ViewerRecord } from './world-store.js';
 
-export interface ViewerDirectory {
+export interface ViewerDirectory extends PlatformViewerDirectory {
   createViewer(viewer: ViewerRecord): void;
   getViewer(id: string): ViewerRecord | undefined;
 }
@@ -62,6 +64,26 @@ export function createCommandServer(options: {
     }
 
     return options.gateway.submit(request.body, { source: 'viewer', id: viewer.id });
+  });
+
+  app.post('/platform/chat', async (request, reply) => {
+    let message;
+
+    try {
+      message = parseNormalizedChatMessage(request.body);
+    } catch (error) {
+      return reply.code(400).send({
+        error: 'invalid_message',
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    const outcome = await processChatMessage(message, options.viewers, options.gateway, {
+      now: () => now().toISOString(),
+      newViewerId,
+    });
+
+    return outcome;
   });
 
   return app;

@@ -1,7 +1,7 @@
 # Viewer Identity and Character Ownership
 
-**Status:** In progress — one local viewer, one character\
-**Version:** 1.1
+**Status:** In progress — platform-linked viewer, one character\
+**Version:** 1.2
 
 ## 1. Purpose
 
@@ -169,9 +169,10 @@ world APIs or the stream display.
 ## 9. Initial implementation policy
 
 NPCs are still generated with no viewer. A viewer is registered by the
-server, which issues the id and stores the display name. The platform
-account is not stored yet. The character records that viewer id, and
-one viewer has one character until a later rule says otherwise. Death
-does not free the slot. Removing the character does. The local command
-API is how that create is submitted today. Twitch authentication is
-still separate from the simulation.
+server, which issues the id and stores the display name. A Twitch
+account is stored in `platform_identities`, keyed by stable platform
+user id, and linked to that viewer row. The character records the
+viewer id, not the platform id. One viewer still has one character.
+Death does not free the slot. Removing the character does. Creates may
+arrive from the local command API or from normalized Twitch chat. Chat
+feedback and moderation are not implemented yet.

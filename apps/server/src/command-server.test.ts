@@ -1,3 +1,5 @@
+import { DatabaseSync } from 'node:sqlite';
+
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { CommandIssuer, CommandResult } from '@simsand/shared';
@@ -5,6 +7,7 @@ import type { CommandIssuer, CommandResult } from '@simsand/shared';
 import { CommandGateway } from './command-gateway.js';
 import { createCommandServer } from './command-server.js';
 import type { ViewerDirectory } from './command-server.js';
+import { WorldStore } from './world-store.js';
 import type { ViewerRecord } from './world-store.js';
 
 function directory(): ViewerDirectory & { viewers: Map<string, ViewerRecord> } {
@@ -17,6 +20,16 @@ function directory(): ViewerDirectory & { viewers: Map<string, ViewerRecord> } {
     },
     getViewer(id) {
       return viewers.get(id);
+    },
+    ensureViewerForPlatform(_platform, _platformUserId, _platformUsername, displayName, now, newViewerId) {
+      const viewer: ViewerRecord = {
+        id: newViewerId(),
+        displayName,
+        createdAt: now(),
+        status: 'active',
+      };
+      viewers.set(viewer.id, viewer);
+      return viewer;
     },
   };
 }
@@ -125,6 +138,44 @@ describe('command server', () => {
     });
 
     expect(response.statusCode).toBe(404);
+  });
+
+  it('accepts a normalized chat join through the platform route', async () => {
+    const viewers = new WorldStore(new DatabaseSync(':memory:'));
+    const gateway = new CommandGateway({
+      executeCommand: async (command) => ({
+        commandId: command.commandId,
+        status: 'applied',
+        tick: 2,
+        events: [],
+      }),
+    }, { now: () => 1_000, newId: () => 'command-9' });
+
+    app = createCommandServer({
+      viewers,
+      gateway,
+      newViewerId: () => 'viewer-platform-1',
+    });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/platform/chat',
+      payload: {
+        platform: 'twitch',
+        platformUserId: '9001',
+        platformUsername: 'ada',
+        displayName: 'Ada',
+        messageId: 'chat-9001',
+        text: '!join streamer 12 13',
+        receivedAt: 1_000,
+      },
+    });
+
+    expect(response.json()).toMatchObject({
+      status: 'applied',
+      viewerId: 'viewer-platform-1',
+      result: { status: 'applied', tick: 2 },
+    });
   });
 
   it('rejects a display name the server will not store', async () => {

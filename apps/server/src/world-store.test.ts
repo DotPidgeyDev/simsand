@@ -293,7 +293,7 @@ describe('WorldStore', () => {
 
   it('refuses a database created by a newer schema', () => {
     const db = new DatabaseSync(':memory:');
-    db.exec('PRAGMA user_version = 4');
+    db.exec('PRAGMA user_version = 6');
 
     expect(() => new WorldStore(db)).toThrow('newer than supported');
   });
@@ -367,7 +367,7 @@ describe('WorldStore', () => {
     const store = new WorldStore(db);
     const { user_version: version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
 
-    expect(version).toBe(3);
+    expect(version).toBe(5);
     expect(store.eventsForParticipant('right')).toEqual([entry]);
     expect(store.loadLatest()?.log).toEqual([entry]);
   });
@@ -433,7 +433,7 @@ describe('WorldStore', () => {
 
     const { user_version: version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
 
-    expect(version).toBe(3);
+    expect(version).toBe(5);
     expect(store.getViewer('viewer-1')).toEqual(viewer);
     expect(store.getViewer('viewer-2')).toBeUndefined();
   });
@@ -450,5 +450,57 @@ describe('WorldStore', () => {
 
     expect(() => store.loadLatest()).toThrow('No valid world snapshot');
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Two characters belong to viewer viewer-1'));
+  });
+
+  it('maps a platform account to one viewer', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+    const first = store.ensureViewerForPlatform(
+      'twitch',
+      '9001',
+      'ada',
+      'Ada',
+      () => '2026-11-23T00:00:00.000Z',
+      () => 'viewer-1',
+    );
+    const again = store.ensureViewerForPlatform(
+      'twitch',
+      '9001',
+      'adanew',
+      'Ada',
+      () => '2026-11-23T01:00:00.000Z',
+      () => 'viewer-2',
+    );
+
+    expect(again).toEqual(first);
+    expect(store.getPlatformIdentity('twitch', '9001')?.platformUsername).toBe('adanew');
+    expect(store.getViewerByPlatform('twitch', '9001')?.id).toBe('viewer-1');
+
+    const other = store.ensureViewerForPlatform(
+      'twitch',
+      '9002',
+      'bob',
+      'Bob',
+      () => '2026-11-23T02:00:00.000Z',
+      () => 'viewer-3',
+    );
+
+    expect(other.id).toBe('viewer-3');
+  });
+
+  it('returns a command receipt until the retention window passes', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'), 100, 1_000);
+    const issuer = { source: 'viewer' as const, id: 'viewer-1' };
+    const result = {
+      commandId: 'command-1',
+      status: 'applied' as const,
+      tick: 4,
+      events: [],
+    };
+
+    store.putReceipt(issuer, 'create-ada', '{"type":"character.create"}', result, 5_000);
+
+    expect(store.getReceipt(issuer, 'create-ada', 5_500)?.result).toEqual(result);
+    expect(store.getReceipt(issuer, 'create-ada', 6_000)).toBeUndefined();
+    expect(store.getReceipt({ source: 'viewer', id: 'viewer-2' }, 'create-ada', 5_500)).toBeUndefined();
   });
 });

@@ -117,16 +117,26 @@ describe('headless server', () => {
     expect(registered.status).toBe(201);
     const viewer = await registered.json() as { id: string };
 
+    const createBody = {
+      protocolVersion: 1,
+      idempotencyKey: 'create-visitor-e2e',
+      command: { type: 'character.create', params: { characterId: 'visitor-e2e', x: 32, y: 32 } },
+    };
     const create = await fetch(`${commandUrl}/viewers/${viewer.id}/commands`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        protocolVersion: 1,
-        command: { type: 'character.create', params: { characterId: 'visitor-e2e', x: 32, y: 32 } },
-      }),
+      body: JSON.stringify(createBody),
     });
     expect(create.status).toBe(200);
-    expect(await create.json()).toMatchObject({ status: 'applied' });
+    const created = await create.json() as { commandId: string; status: string };
+    expect(created).toMatchObject({ status: 'applied' });
+
+    const replay = await fetch(`${commandUrl}/viewers/${viewer.id}/commands`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(createBody),
+    });
+    expect(await replay.json()).toMatchObject({ commandId: created.commandId, status: 'applied' });
 
     const character = await fetch(`${inspectUrl}/entities/visitor-e2e`);
     expect(character.status).toBe(200);

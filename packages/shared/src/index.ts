@@ -50,6 +50,31 @@ export const PERSISTED_WORLD_VERSION = 24;
 // Server-issued viewer ids. A platform user id is not one of these.
 export const VIEWER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
+// Append only. Platform adapters map external accounts into these ids.
+export const PLATFORM_IDS = ['twitch'] as const;
+
+export type PlatformId = (typeof PLATFORM_IDS)[number];
+
+export interface PlatformIdentityRecord {
+  platform: PlatformId;
+  platformUserId: string;
+  viewerId: string;
+  platformUsername: string;
+  linkedAt: string;
+  status: 'active';
+}
+
+// What every platform adapter must produce before the command processor runs.
+export interface NormalizedChatMessage {
+  platform: PlatformId;
+  platformUserId: string;
+  platformUsername: string;
+  displayName: string;
+  messageId: string;
+  text: string;
+  receivedAt: number;
+}
+
 // Append only. Saved inventories store the name.
 export const ITEM_IDS = ['goods', 'material', 'food'] as const;
 
@@ -328,7 +353,9 @@ export type CommandRejectionReason =
   | 'character_not_found'
   | 'out_of_bounds'
   | 'viewer_has_character'
-  | 'invalid_issuer';
+  | 'invalid_issuer'
+  | 'rate_limited'
+  | 'idempotency_conflict';
 
 export type CommandResult =
   | { commandId: string; status: 'applied'; tick: number; events: DomainEvent[] }

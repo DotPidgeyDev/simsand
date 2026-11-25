@@ -237,10 +237,14 @@ The simulation performs gameplay validation and determines the actual outcome.
 The gateway checks, in order:
 
 1. `protocolVersion` equals `COMMAND_PROTOCOL_VERSION` (currently 1). Otherwise `unsupported_version`.
-2. The command matches a strict Zod schema. Unknown fields, unknown types, malformed IDs and out-of-range values are rejected as `invalid_command`.
-3. The issuer's source is permitted to issue the command type. Otherwise `forbidden`.
+2. The command matches a strict Zod schema. Unknown fields, unknown types, malformed IDs and out-of-range values are rejected as `invalid_command`. An optional `idempotencyKey` uses the same id shape as a character id.
+3. A remembered `idempotencyKey` for this issuer returns the stored `CommandResult` without contacting the simulation. The same key with a different command is `idempotency_conflict`. A remembered retry does not count against the rate limit.
+4. The issuer is over the rate limit (`SIMSAND_COMMAND_RATE_LIMIT` commands per `SIMSAND_COMMAND_RATE_WINDOW_MS`, both defaulting to 10 and 60 seconds). Otherwise `rate_limited`. The window is kept in memory and starts again when the process restarts.
+5. The issuer's source is permitted to issue the command type. Otherwise `forbidden`.
 
 It then adds a `commandId`, the issuer and `submittedAt`, and sends the command to the worker. The worker handles it between ticks and either applies it or rejects it with a gameplay reason (`character_exists`, `character_not_found`, `out_of_bounds`, `viewer_has_character`, `invalid_issuer`). If the worker is unavailable or does not reply within 2 seconds, the result is `simulation_unavailable`.
+
+When the request carried an idempotency key, the server stores that result in `command_receipts` for `SIMSAND_COMMAND_RECEIPT_MS` (default one day). The stored row is the command result, not a character-log event. A later retry, including after a restart inside that day, receives the same result.
 
 The first command types are:
 
@@ -257,8 +261,9 @@ A viewer may create one character. The world rejects a second create with `viewe
 |---|---|
 | `POST /viewers` | Stores a viewer with a server-issued id and the display name from the body. Returns that record. |
 | `POST /viewers/:id/commands` | Submits the body to `CommandGateway` as `{ source: 'viewer', id }`. Unknown viewers are 404. The response is the `CommandResult`. |
+| `POST /platform/chat` | Accepts a `NormalizedChatMessage`. Maps the platform user to a viewer when needed, parses `!join`, and submits through the gateway. |
 
-The command body cannot set the issuer. Rate limits and deduplication are not implemented. Platform adapters are not connected.
+The command body cannot set the issuer. It may set `idempotencyKey`. Normalized chat uses `POST /platform/chat` or the optional Twitch IRC adapter.
 
 ---
 
@@ -266,7 +271,7 @@ The command body cannot set the issuer. Rate limits and deduplication are not im
 
 **Status: Partially implemented**
 
-`SimulationCommand` currently carries the command ID, issuer source and ID, target stable entity ID, typed parameters and submission timestamp. Expiry, voting windows and deduplication keys are not yet implemented.
+`SimulationCommand` currently carries the command ID, issuer source and ID, target stable entity ID, typed parameters and submission timestamp. The request may also carry an idempotency key, which the server stores with the result and does not pass into the simulation. Expiry and voting windows are not yet implemented.
 
 Commands should eventually support:
 
@@ -394,7 +399,7 @@ The client currently assumes that received messages follow the expected protocol
 
 ## 10. Platform adapters
 
-**Status: Planned**
+**Status: Partially implemented — Twitch IRC and normalized chat ingest**
 
 Each streaming platform adapter should convert platform-specific payloads into platform-independent messages.
 
@@ -418,7 +423,7 @@ Adding a platform should primarily mean implementing an adapter and mapping its 
 
 Twitch is the intended initial integration, with YouTube and Kick potentially supported later.
 
-No streaming-platform adapters are currently implemented.
+`NormalizedChatMessage` is defined in `packages/shared`. `POST /platform/chat` on the command API validates that shape and runs the shared chat-command parser. `TwitchIrcAdapter` (`apps/server/src/twitch/adapter.ts`) connects to Twitch IRC when `SIMSAND_TWITCH_CHANNEL`, `SIMSAND_TWITCH_NICK`, and `SIMSAND_TWITCH_TOKEN` are all set. IRC PRIVMSG lines are parsed in `apps/server/src/twitch/parse-irc.ts`. The adapter does not call the simulation; it only emits normalized messages. The first supported chat command is `!join <characterId> <x> <y>`.
 
 ---
 

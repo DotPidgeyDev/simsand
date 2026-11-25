@@ -1,7 +1,11 @@
 import { fileURLToPath } from 'node:url';
 
+import { randomUUID } from 'node:crypto';
+
 import { CommandGateway } from './command-gateway.js';
 import { createCommandServer } from './command-server.js';
+import { processChatMessage } from './platform/process-chat.js';
+import { TwitchIrcAdapter } from './twitch/adapter.js';
 import { mergeHistory } from './log-history.js';
 import { createInspectionServer } from './inspection-server.js';
 import type { ServerInfo } from './inspection-server.js';
@@ -22,12 +26,22 @@ const LOCAL_HOST = '127.0.0.1';
 const startedAt = new Date();
 
 const LOG_RETENTION = Number(process.env.SIMSAND_LOG_RETENTION ?? 100_000);
+const COMMAND_RATE_LIMIT = Number(process.env.SIMSAND_COMMAND_RATE_LIMIT ?? 10);
+const COMMAND_RATE_WINDOW_MS = Number(process.env.SIMSAND_COMMAND_RATE_WINDOW_MS ?? 60_000);
+const COMMAND_RECEIPT_MS = Number(process.env.SIMSAND_COMMAND_RECEIPT_MS ?? 24 * 60 * 60 * 1000);
 
-if (!Number.isInteger(LOG_RETENTION) || LOG_RETENTION < 1) {
-  throw new Error('SIMSAND_LOG_RETENTION must be a positive integer');
+for (const [name, value] of [
+  ['SIMSAND_LOG_RETENTION', LOG_RETENTION],
+  ['SIMSAND_COMMAND_RATE_LIMIT', COMMAND_RATE_LIMIT],
+  ['SIMSAND_COMMAND_RATE_WINDOW_MS', COMMAND_RATE_WINDOW_MS],
+  ['SIMSAND_COMMAND_RECEIPT_MS', COMMAND_RECEIPT_MS],
+] as const) {
+  if (!Number.isInteger(value) || value < 1) {
+    throw new Error(`${name} must be a positive integer`);
+  }
 }
 
-const store = WorldStore.open(DB_PATH, LOG_RETENTION);
+const store = WorldStore.open(DB_PATH, LOG_RETENTION, COMMAND_RECEIPT_MS);
 const savedWorld = store.loadLatest();
 
 const browserServer = new BrowserWebSocketServer(WS_PORT);
@@ -123,7 +137,10 @@ const inspectionServer = createInspectionServer({
   getServerInfo: () => ({ startedAt, browserClients: browserServer.clientCount, lastSave }),
 });
 
-const commandGateway = new CommandGateway(simulation);
+const commandGateway = new CommandGateway(simulation, {
+  rateLimit: { limit: COMMAND_RATE_LIMIT, windowMs: COMMAND_RATE_WINDOW_MS },
+  receipts: store,
+});
 const commandServer = createCommandServer({ viewers: store, gateway: commandGateway });
 
 inspectionServer
@@ -135,6 +152,29 @@ commandServer
   .listen({ host: LOCAL_HOST, port: COMMAND_PORT })
   .then((address) => log.info(`Command API listening on ${address}`))
   .catch((error) => log.error('Failed to start the command API:', error));
+
+const twitchChannel = process.env.SIMSAND_TWITCH_CHANNEL;
+const twitchNick = process.env.SIMSAND_TWITCH_NICK;
+const twitchToken = process.env.SIMSAND_TWITCH_TOKEN;
+
+let twitchAdapter: TwitchIrcAdapter | undefined;
+
+if (twitchChannel && twitchNick && twitchToken) {
+  twitchAdapter = new TwitchIrcAdapter({
+    channel: twitchChannel,
+    nick: twitchNick,
+    token: twitchToken,
+    onMessage: (message) => {
+      void processChatMessage(message, store, commandGateway, {
+        now: () => new Date().toISOString(),
+        newViewerId: () => `viewer-${randomUUID().replace(/-/g, '')}`,
+      });
+    },
+  });
+  twitchAdapter.start();
+} else if (twitchChannel || twitchNick || twitchToken) {
+  log.warn('Twitch IRC ignored because SIMSAND_TWITCH_CHANNEL, SIMSAND_TWITCH_NICK and SIMSAND_TWITCH_TOKEN must all be set');
+}
 
 if (savedWorld) {
   log.info(`Restoring world from ${DB_PATH} at tick ${savedWorld.tick}`);
@@ -154,6 +194,7 @@ async function shutdown(signal: string): Promise<void> {
   clearInterval(saveTimer);
   clearInterval(statusTimer);
   await saveWorld('shutdown');
+  twitchAdapter?.stop();
   await simulation.stop();
   await commandServer.close();
   await inspectionServer.close();

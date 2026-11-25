@@ -158,15 +158,14 @@ The Node.js server currently:
 - Sends the cached snapshot to newly connected clients.
 - Continues running independently of browser connections.
 - Saves and restores world snapshots in SQLite.
-- Validates external commands (schema, protocol version and source permissions) and routes accepted commands to the simulation through `CommandGateway`.
+- Validates external commands (schema, protocol version, source permissions, rate limit and idempotency key) and routes accepted commands to the simulation through `CommandGateway`.
 - Logs a status line every minute and warns when the simulation drops ticks.
 - Serves a read-only Fastify inspection API on `127.0.0.1` (status, entity list, single entity).
 
 Planned responsibilities:
 
-- Public Fastify HTTP endpoints, including a command entry point.
-- Livestream platform integrations.
-- Identity-based permissions, rate limiting and deduplication.
+- Public Fastify HTTP endpoints. The local command API already accepts a registered viewer's create.
+- Livestream platform integrations, including authentication in front of that command API.
 
 ### Simulation worker
 

@@ -539,13 +539,15 @@ Add viewer identity, platform identity, character creation and Twitch integratio
 
 The first increment is one viewer and one character.
 
-A viewer is a row in the same SQLite database: a server-issued id, a display name, and `active`. The database schema is version 3. A version 2 database gains the `viewers` table on open. The id is not a platform user id, and a request cannot choose it or its role.
+A viewer is a row in the same SQLite database: a server-issued id, a display name, and `active`. The database schema is version 5. A version 2 database gains `viewers`, version 3 gains `command_receipts`, and version 5 gains `platform_identities`. The id is not a platform user id, and a request cannot choose it or its role.
 
 `POST /viewers` and `POST /viewers/:id/commands` listen on `127.0.0.1:8768` (`SIMSAND_COMMAND_PORT`). The command body is the existing gateway request. The server sets the issuer to `{ source: 'viewer', id }` from the route. Viewers may send `character.create` and nothing else.
 
 The character is an ordinary world character. Its stable id is still the world's id, supplied in the command, and is not the viewer id. The save records `viewerId` on that character and null on everyone else. Saves are format version 24. A version 23 save gains a null viewer on every character. A viewer who already owns a character, including a dead one, is rejected with `viewer_has_character`. Removing the character clears the link. `character.created` stays on the command result.
 
-Twitch, platform identity, rate limits, deduplication, and moderation are still ahead.
+A command may include an idempotency key. The server stores the result for that issuer and key for one day and returns it on a retry, including after a restart. The same key with a different command is rejected. Each issuer may submit 10 new commands per minute (`SIMSAND_COMMAND_RATE_LIMIT` and `SIMSAND_COMMAND_RATE_WINDOW_MS`). A remembered retry does not count. The limit resets when the process restarts. The stored result is not written into the character log.
+
+Twitch chat can enter through IRC when `SIMSAND_TWITCH_CHANNEL`, `SIMSAND_TWITCH_NICK`, and `SIMSAND_TWITCH_TOKEN` are set, or through `POST /platform/chat` with a normalized message. A platform user id maps to one viewer. Chat `!join <characterId> <x> <y>` becomes `character.create` through the gateway, with the chat message id as the idempotency key. Viewer feedback in chat and moderation are still ahead.
 
 Initial scope:
 
