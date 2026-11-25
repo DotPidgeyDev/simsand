@@ -236,7 +236,7 @@ The browser client currently:
 - Receives an initial world snapshot.
 - Receives subsequent incremental updates.
 - Renders the world using PixiJS.
-- Displays the terrain from the snapshot's tile map and coloured entity placeholders.
+- Displays the terrain from the snapshot's tile map, resource piles, and coloured entity placeholders.
 - Updates entity positions as simulation data changes.
 
 The browser never directly mutates authoritative simulation state.
@@ -381,7 +381,7 @@ These are initial engineering targets, not guaranteed capacity limits.
 | Movement | Implemented |
 | World dimensions | 64 × 64 tile map |
 | Browser renderer | PixiJS |
-| Entity representation | Named sprite shapes (square, diamond, triangle; circle while resting; ring while eating or drinking; gold square while working; X when dead) |
+| Entity representation | Named sprite shapes (square, diamond, triangle; circle while resting; ring while eating or drinking; gold square while working; X when dead); piles as small tile markers; inventory stacks on the entity snapshot |
 | Snapshot and delta communication | Implemented |
 | Multiple browser clients | Supported by WebSocket server |
 | 1,000-entity tick (after Milestone 07) | About 4–5 ms average, still under the 10 ms guardrail; `updateActions` dominates |

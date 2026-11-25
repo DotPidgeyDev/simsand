@@ -1,7 +1,7 @@
 import { Application, Container, Graphics } from 'pixi.js';
 
 import { TERRAIN_TYPES } from '@simsand/shared';
-import type { EntitySnapshot, SpriteId, TerrainType, WorldMapData } from '@simsand/shared';
+import type { EntitySnapshot, ItemId, ResourceNode, SpriteId, TerrainType, WorldMapData } from '@simsand/shared';
 
 const TILE_SIZE = 16;
 const INITIAL_MAP_SIZE = 64;
@@ -12,6 +12,12 @@ const TERRAIN_COLORS: Record<TerrainType, number> = {
   water: 0x3d6e8f,
   rock: 0x6e6a62,
   camp: 0xc6a15a,
+};
+
+const PILE_COLORS: Record<ItemId, number> = {
+  material: 0xb08968,
+  goods: 0xd4b483,
+  food: 0xc45c48,
 };
 
 export async function createRenderer(container: HTMLElement) {
@@ -40,6 +46,9 @@ export async function createRenderer(container: HTMLElement) {
 
   const terrain = new Graphics();
   world.addChild(terrain);
+
+  const piles = new Graphics();
+  world.addChild(piles);
 
   // Store graphics objects so we can update existing entities.
   const entities = new Map<string, Graphics>();
@@ -173,11 +182,23 @@ export async function createRenderer(container: HTMLElement) {
     updateEntities(snapshots);
   }
 
+  // Piles sit on tile centres. The full list replaces the previous one.
+  function replaceNodes(nodes: readonly ResourceNode[]): void {
+    piles.clear();
+
+    for (const node of nodes) {
+      piles
+        .circle((node.x + 0.5) * TILE_SIZE, (node.y + 0.5) * TILE_SIZE, 3)
+        .fill(PILE_COLORS[node.item] ?? 0xb08968);
+    }
+  }
+
   return {
     setMap,
     updateEntities,
     removeEntities,
     replaceEntities,
+    replaceNodes,
     destroy: () => app.destroy(true),
   };
 }

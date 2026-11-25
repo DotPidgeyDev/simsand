@@ -17,6 +17,8 @@ export interface EntitySnapshot {
   drinking: boolean;
   working: boolean;
   lifecycle: LifecycleState;
+  // Sparse stacks this character holds. Empty when they hold nothing.
+  inventory: InventoryStack[];
 }
 
 // A tile's terrain is stored as its index in this list, so entries may be
@@ -37,12 +39,16 @@ export interface WorldSnapshot {
   elapsedSeconds: number;
   map: WorldMapData;
   entities: EntitySnapshot[];
+  // Live piles on the map. A tile with nothing is absent from this list.
+  nodes: ResourceNode[];
 }
 
 export interface WorldDelta {
   tick: number;
   entities: EntitySnapshot[];
   removed: string[];
+  // Present when any pile changed. Replaces the full cached list.
+  nodes?: ResourceNode[];
 }
 
 export const PERSISTED_WORLD_VERSION = 24;

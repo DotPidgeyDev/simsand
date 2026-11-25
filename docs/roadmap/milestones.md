@@ -603,8 +603,12 @@ Add significant-event detection, streamer interventions, notifications, chronicl
 Completed greetings, comfort, keep, confide, bluff, gifts, and trades
 score into chronicle entries over the existing log.
 `inspectCharacterChronicle` and `GET /entities/:id/chronicle` expose
-that window. Ordinary action endings stay out. Characters still choose
-actions the same way.
+that window. Ordinary action endings stay out.
+
+The render snapshot carries each character's inventory stacks and the
+live resource piles. Deltas include inventory changes and replace the
+pile list when it changes. The browser draws piles on the map. Save
+format is unchanged.
 
 ### Remaining scope
 
@@ -614,7 +618,6 @@ actions the same way.
 - Quests and special encounters.
 - Notifications.
 - Presentation priorities, camera focus, and event-driven presentation.
-- Inventories and resource piles on the map snapshot. It currently carries position, terrain, and the resting, eating, drinking, and working flags. Stacks and piles are already on the saved world and on inspection.
 
 Ensure presentation is grounded in recorded simulation events. The director should react to the world rather than dictate ordinary character behaviour.
 

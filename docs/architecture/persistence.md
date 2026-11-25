@@ -198,9 +198,10 @@ model incrementally as simulation systems become real.
     the previous action ended (`completed`, `interrupted` or `failed`),
     and whether the character is resting,
     eating or drinking, and the viewer id when a viewer owns them. It is separate from the render-oriented
-    `WorldSnapshot`, which carries position, appearance, those three
-    flags and the lifecycle state, but not the action, age, velocity or
-    the rest of the profile. Older snapshots are still accepted and
+    `WorldSnapshot`, which carries position, appearance, inventory stacks,
+    live resource piles, the resting / eating / drinking / working flags,
+    and the lifecycle state, but not the action, age, velocity or the
+    rest of the profile. Older snapshots are still accepted and
     upgraded on load. Version 1 gains the map generated from its seed.
     Version 2 gains each character's profile, also generated from the
     seed and the character's ID. Version 3 gains the resting flag, set

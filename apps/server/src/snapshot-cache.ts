@@ -23,5 +23,6 @@ export function applyDeltaToSnapshot(
     ...snapshot,
     tick: delta.tick,
     entities,
+    nodes: delta.nodes ?? snapshot.nodes,
   };
 }

@@ -60,8 +60,21 @@ describe('executeCommand', () => {
       },
     ]);
     expect(createWorldSnapshot(world, 0, 0).entities).toEqual([
-      { id: 'visitor-0001', x: 10, y: 20, color: 0xffffff, sprite: spriteIdFor(0, 'visitor-0001'), resting: false, eating: false, drinking: false, working: false, lifecycle: 'alive' },
+      {
+        id: 'visitor-0001',
+        x: 10,
+        y: 20,
+        color: 0xffffff,
+        sprite: spriteIdFor(0, 'visitor-0001'),
+        resting: false,
+        eating: false,
+        drinking: false,
+        working: false,
+        lifecycle: 'alive',
+        inventory: [],
+      },
     ]);
+    expect(createWorldSnapshot(world, 0, 0).nodes).toEqual([]);
   });
 
   it('removes a character and emits character.removed', () => {

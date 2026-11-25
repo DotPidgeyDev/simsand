@@ -58,9 +58,10 @@ const snapshot: WorldSnapshot = {
   elapsedSeconds: 11.8,
   map: { width: 1, height: 1, tiles: [0] },
   entities: [
-    { id: 'character-0001', x: 1.5, y: 2.5, color: 0xff0000, sprite: 'wanderer', resting: false, eating: false, drinking: false, working: false, lifecycle: 'alive' },
-    { id: 'character-0002', x: 3, y: 4, color: 0x00ff00, sprite: 'wanderer', resting: false, eating: false, drinking: false, working: false, lifecycle: 'alive' },
+    { id: 'character-0001', x: 1.5, y: 2.5, color: 0xff0000, sprite: 'wanderer', resting: false, eating: false, drinking: false, working: false, lifecycle: 'alive', inventory: [] },
+    { id: 'character-0002', x: 3, y: 4, color: 0x00ff00, sprite: 'wanderer', resting: false, eating: false, drinking: false, working: false, lifecycle: 'alive', inventory: [{ item: 'food', quantity: 1 }] },
   ],
+  nodes: [{ x: 0, y: 0, item: 'material', quantity: 2 }],
 };
 
 function source(overrides: Partial<InspectionSource> = {}): InspectionSource {

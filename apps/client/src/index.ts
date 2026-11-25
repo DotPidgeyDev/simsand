@@ -14,12 +14,16 @@ connectToSimulation((message) => {
     case 'world.snapshot':
       console.log('World snapshot received at tick', message.data.tick);
       renderer.setMap(message.data.map);
+      renderer.replaceNodes(message.data.nodes);
       renderer.replaceEntities(message.data.entities);
       break;
 
     case 'world.delta':
         renderer.removeEntities(message.data.removed);
         renderer.updateEntities(message.data.entities);
+        if (message.data.nodes) {
+          renderer.replaceNodes(message.data.nodes);
+        }
         break;
     }
 });
