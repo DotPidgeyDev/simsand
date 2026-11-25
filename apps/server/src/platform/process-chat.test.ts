@@ -44,6 +44,23 @@ describe('processChatMessage', () => {
     expect(viewers.get('9001')?.displayName).toBe('Ada');
   });
 
+  it('refuses join from a banned viewer without contacting the gateway', async () => {
+    const gateway = new CommandGateway({
+      executeCommand: async (): Promise<CommandResult> => {
+        throw new Error('should not run');
+      },
+    });
+
+    expect(await processChatMessage(message('!join villager 5 6'), {
+      ensureViewerForPlatform(_platform, _platformUserId, _username, displayName, now, newViewerId) {
+        return { id: newViewerId(), displayName, createdAt: now(), status: 'banned' };
+      },
+    }, gateway, {
+      now: () => '2026-11-25T00:00:00.000Z',
+      newViewerId: () => 'viewer-banned',
+    })).toEqual({ status: 'banned', viewerId: 'viewer-banned' });
+  });
+
   it('ignores chat that is not join', async () => {
     const gateway = new CommandGateway({
       executeCommand: async (): Promise<CommandResult> => {

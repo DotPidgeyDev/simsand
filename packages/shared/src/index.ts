@@ -55,13 +55,18 @@ export const PLATFORM_IDS = ['twitch'] as const;
 
 export type PlatformId = (typeof PLATFORM_IDS)[number];
 
+// Viewer and platform-identity accounts share these statuses.
+export const ACCOUNT_STATUSES = ['active', 'banned'] as const;
+
+export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
+
 export interface PlatformIdentityRecord {
   platform: PlatformId;
   platformUserId: string;
   viewerId: string;
   platformUsername: string;
   linkedAt: string;
-  status: 'active';
+  status: AccountStatus;
 }
 
 // What every platform adapter must produce before the command processor runs.
@@ -355,7 +360,8 @@ export type CommandRejectionReason =
   | 'viewer_has_character'
   | 'invalid_issuer'
   | 'rate_limited'
-  | 'idempotency_conflict';
+  | 'idempotency_conflict'
+  | 'banned';
 
 export type CommandResult =
   | { commandId: string; status: 'applied'; tick: number; events: DomainEvent[] }

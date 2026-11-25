@@ -183,11 +183,11 @@ model incrementally as simulation systems become real.
 -   **Schema:** `world_snapshots` holds the format version, tick,
     creation time and a JSON payload. `simulation_events` holds one JSON
     log event per id, and the participant and pair tables index that id.
-    The schema version is stored in `PRAGMA user_version` and is 5. A
+    The schema version is stored in `PRAGMA user_version` and is 6. A
     database from a newer schema is refused. A version 1 database gains
     the event tables on open. A version 2 database gains `viewers`,
-    version 3 gains `command_receipts`, and version 5 gains
-    `platform_identities`.
+    version 3 gains `command_receipts`, version 5 gains
+    `platform_identities`, and version 6 gains `moderation_actions`.
 -   **Snapshot format:** `PersistedWorld` in `packages/shared`, version
     24: seed, tick, elapsed time, fixed timestep, the tile map, sparse
     inventories, resource piles, piles waiting to return, and every
@@ -259,14 +259,15 @@ the previous save was confirmed. Inserts are ignored when the event id
 is already stored. The table then keeps the newest 100,000 events
 (`SIMSAND_LOG_RETENTION`). Character history reads that table and the
 live log together, preferring the live copy of an id that is in both.
-The database schema is version 5. Opening a version 1 database creates
+The database schema is version 6. Opening a version 1 database creates
 the event tables and copies the log out of the snapshots already saved.
 Version 2 creates `viewers`. Version 3 creates `command_receipts`, one
 `CommandResult` per issuer and idempotency key for one day
 (`SIMSAND_COMMAND_RECEIPT_MS`), not a character-log event. Version 5
 creates `platform_identities`, mapping a platform user id to a viewer
-row. The character's `viewerId` in the snapshot is the world-side
-ownership link.
+row. Version 6 creates `moderation_actions`, an append-only audit of
+ban and unban actions. The character's `viewerId` in the snapshot is the
+world-side ownership link.
 `WorldStore.backupTo` writes a consistent copy through SQLite's backup
 API. To restore it, stop the server, replace the database file with the
 copy, delete any `-wal` and `-shm` files beside that path, and start

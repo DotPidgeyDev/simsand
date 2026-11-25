@@ -18,6 +18,7 @@ export interface PlatformViewerDirectory {
 export type ChatCommandOutcome =
   | { status: 'ignored' }
   | { status: 'invalid_chat_command' }
+  | { status: 'banned'; viewerId: string }
   | { status: 'applied' | 'rejected'; viewerId: string; result: CommandResult };
 
 export async function processChatMessage(
@@ -49,6 +50,10 @@ export async function processChatMessage(
     deps.now,
     deps.newViewerId,
   );
+
+  if (viewer.status === 'banned') {
+    return { status: 'banned', viewerId: viewer.id };
+  }
 
   const result = await gateway.submit(commandRequestBody(parsed), {
     source: 'viewer',

@@ -2,21 +2,37 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, backup } from 'node:sqlite';
 
-import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
-import type { CommandIssuer, CommandResult, PileReturn, PlatformId, PlatformIdentityRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
+import { ACCOUNT_STATUSES, ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
+import type { AccountStatus, CommandIssuer, CommandResult, PileReturn, PlatformId, PlatformIdentityRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
 
 import { log } from './logger.js';
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 export interface ViewerRecord {
   id: string;
   displayName: string;
   createdAt: string;
-  status: 'active';
+  status: AccountStatus;
+}
+
+export type ModerationActionType =
+  | 'ban_viewer'
+  | 'unban_viewer'
+  | 'ban_platform'
+  | 'unban_platform';
+
+export interface ModerationAction {
+  id: number;
+  action: ModerationActionType;
+  targetType: 'viewer' | 'platform';
+  targetId: string;
+  reason: string;
+  actor: string;
+  createdAt: string;
 }
 
 export const DEFAULT_LOG_RETENTION = 100_000;
@@ -182,7 +198,7 @@ export class WorldStore {
         status: string;
       } | undefined;
 
-    if (!row || row.status !== 'active') return undefined;
+    if (!row || !isAccountStatus(row.status)) return undefined;
 
     return {
       platform: row.platform as PlatformId,
@@ -190,11 +206,12 @@ export class WorldStore {
       viewerId: row.viewer_id,
       platformUsername: row.platform_username,
       linkedAt: row.linked_at,
-      status: 'active',
+      status: row.status,
     };
   }
 
   // One Twitch account maps to one viewer. A new account creates a new viewer.
+  // A banned platform or viewer is returned as-is so callers can refuse them.
   ensureViewerForPlatform(
     platform: PlatformId,
     platformUserId: string,
@@ -208,7 +225,7 @@ export class WorldStore {
     const existing = this.getPlatformIdentity(platform, platformUserId);
 
     if (existing) {
-      if (platformUsername !== existing.platformUsername) {
+      if (existing.status === 'active' && platformUsername !== existing.platformUsername) {
         this.db
           .prepare(`
             UPDATE platform_identities
@@ -264,13 +281,205 @@ export class WorldStore {
       `)
       .get(id) as { id: string; display_name: string; created_at: string; status: string } | undefined;
 
-    if (!row || row.status !== 'active') return undefined;
+    if (!row || !isAccountStatus(row.status)) return undefined;
 
     return {
       id: row.id,
       displayName: row.display_name,
       createdAt: row.created_at,
-      status: 'active',
+      status: row.status,
+    };
+  }
+
+  // Bans the viewer and every linked platform account. The in-world character
+  // is left alone. History stays. Commands from this viewer are refused.
+  banViewer(viewerId: string, reason: string, actor: string, at: string): ModerationAction {
+    const viewer = this.getViewer(viewerId);
+
+    if (!viewer) {
+      throw new Error(`No viewer with id ${viewerId}`);
+    }
+
+    this.db.exec('BEGIN');
+
+    try {
+      this.db.prepare(`UPDATE viewers SET status = 'banned' WHERE id = ?`).run(viewerId);
+      this.db
+        .prepare(`UPDATE platform_identities SET status = 'banned' WHERE viewer_id = ?`)
+        .run(viewerId);
+      const action = this.insertModerationAction('ban_viewer', 'viewer', viewerId, reason, actor, at);
+      this.db.exec('COMMIT');
+      return action;
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  unbanViewer(viewerId: string, reason: string, actor: string, at: string): ModerationAction {
+    const viewer = this.getViewer(viewerId);
+
+    if (!viewer) {
+      throw new Error(`No viewer with id ${viewerId}`);
+    }
+
+    this.db.exec('BEGIN');
+
+    try {
+      this.db.prepare(`UPDATE viewers SET status = 'active' WHERE id = ?`).run(viewerId);
+      this.db
+        .prepare(`UPDATE platform_identities SET status = 'active' WHERE viewer_id = ?`)
+        .run(viewerId);
+      const action = this.insertModerationAction('unban_viewer', 'viewer', viewerId, reason, actor, at);
+      this.db.exec('COMMIT');
+      return action;
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  // Bans the platform account and its linked viewer. An unknown platform
+  // account gets a stub banned viewer so a later chat cannot create a new one.
+  banPlatform(
+    platform: PlatformId,
+    platformUserId: string,
+    reason: string,
+    actor: string,
+    at: string,
+    platformUsername = platformUserId,
+    newViewerId: () => string = () => {
+      throw new Error('newViewerId is required when banning an unknown platform account');
+    },
+  ): ModerationAction {
+    assertPlatform(platform, platformUserId);
+    const targetId = platformTargetId(platform, platformUserId);
+    const existing = this.getPlatformIdentity(platform, platformUserId);
+
+    this.db.exec('BEGIN');
+
+    try {
+      if (existing) {
+        this.db
+          .prepare(`UPDATE platform_identities SET status = 'banned' WHERE platform = ? AND platform_user_id = ?`)
+          .run(platform, platformUserId);
+        this.db.prepare(`UPDATE viewers SET status = 'banned' WHERE id = ?`).run(existing.viewerId);
+      } else {
+        const viewer: ViewerRecord = {
+          id: newViewerId(),
+          displayName: platformUsername,
+          createdAt: at,
+          status: 'banned',
+        };
+        this.createViewer(viewer);
+        this.db
+          .prepare(`
+            INSERT INTO platform_identities (
+              platform, platform_user_id, viewer_id, platform_username, linked_at, status
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+          `)
+          .run(platform, platformUserId, viewer.id, platformUsername, at, 'banned');
+      }
+
+      const action = this.insertModerationAction('ban_platform', 'platform', targetId, reason, actor, at);
+      this.db.exec('COMMIT');
+      return action;
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  unbanPlatform(
+    platform: PlatformId,
+    platformUserId: string,
+    reason: string,
+    actor: string,
+    at: string,
+  ): ModerationAction {
+    assertPlatform(platform, platformUserId);
+    const identity = this.getPlatformIdentity(platform, platformUserId);
+
+    if (!identity) {
+      throw new Error(`No platform identity ${platform}:${platformUserId}`);
+    }
+
+    this.db.exec('BEGIN');
+
+    try {
+      this.db
+        .prepare(`UPDATE platform_identities SET status = 'active' WHERE platform = ? AND platform_user_id = ?`)
+        .run(platform, platformUserId);
+      this.db.prepare(`UPDATE viewers SET status = 'active' WHERE id = ?`).run(identity.viewerId);
+      const action = this.insertModerationAction(
+        'unban_platform',
+        'platform',
+        platformTargetId(platform, platformUserId),
+        reason,
+        actor,
+        at,
+      );
+      this.db.exec('COMMIT');
+      return action;
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  listModerationActions(limit = 100): ModerationAction[] {
+    const rows = this.db
+      .prepare(`
+        SELECT id, action, target_type, target_id, reason, actor, created_at
+        FROM moderation_actions
+        ORDER BY id DESC
+        LIMIT ?
+      `)
+      .all(limit) as Array<{
+        id: number;
+        action: string;
+        target_type: string;
+        target_id: string;
+        reason: string;
+        actor: string;
+        created_at: string;
+      }>;
+
+    return rows.map((row) => ({
+      id: row.id,
+      action: row.action as ModerationActionType,
+      targetType: row.target_type as 'viewer' | 'platform',
+      targetId: row.target_id,
+      reason: row.reason,
+      actor: row.actor,
+      createdAt: row.created_at,
+    }));
+  }
+
+  private insertModerationAction(
+    action: ModerationActionType,
+    targetType: 'viewer' | 'platform',
+    targetId: string,
+    reason: string,
+    actor: string,
+    createdAt: string,
+  ): ModerationAction {
+    const result = this.db
+      .prepare(`
+        INSERT INTO moderation_actions (action, target_type, target_id, reason, actor, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+      .run(action, targetType, targetId, reason, actor, createdAt);
+
+    return {
+      id: Number(result.lastInsertRowid),
+      action,
+      targetType,
+      targetId,
+      reason,
+      actor,
+      createdAt,
     };
   }
 
@@ -419,6 +628,20 @@ export class WorldStore {
         `);
       }
 
+      if (current < 6) {
+        this.db.exec(`
+          CREATE TABLE moderation_actions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT NOT NULL,
+            target_type TEXT NOT NULL,
+            target_id TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            actor TEXT NOT NULL,
+            created_at TEXT NOT NULL
+          );
+        `);
+      }
+
       this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
       this.db.exec('COMMIT');
     } catch (error) {
@@ -543,6 +766,14 @@ function assertPlatform(platform: PlatformId, platformUserId: string): void {
   if (typeof platformUserId !== 'string' || platformUserId.length === 0 || platformUserId.length > 64) {
     throw new Error('Platform user id is missing or invalid');
   }
+}
+
+function isAccountStatus(value: string): value is AccountStatus {
+  return (ACCOUNT_STATUSES as readonly string[]).includes(value);
+}
+
+function platformTargetId(platform: PlatformId, platformUserId: string): string {
+  return `${platform}:${platformUserId}`;
 }
 
 function pairKey(a: string, b: string): string {

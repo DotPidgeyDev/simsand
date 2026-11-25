@@ -175,4 +175,6 @@ user id, and linked to that viewer row. The character records the
 viewer id, not the platform id. One viewer still has one character.
 Death does not free the slot. Removing the character does. Creates may
 arrive from the local command API or from normalized Twitch chat. Chat
-feedback and moderation are not implemented yet.
+feedback is not implemented yet. Ban and unban of viewers and platform
+identities are implemented on the local command API; a ban refuses
+commands and does not remove the character.

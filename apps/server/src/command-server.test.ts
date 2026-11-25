@@ -12,6 +12,9 @@ import type { ViewerRecord } from './world-store.js';
 
 function directory(): ViewerDirectory & { viewers: Map<string, ViewerRecord> } {
   const viewers = new Map<string, ViewerRecord>();
+  const unsupported = () => {
+    throw new Error('moderation is not available on the in-memory test directory');
+  };
 
   return {
     viewers,
@@ -31,6 +34,11 @@ function directory(): ViewerDirectory & { viewers: Map<string, ViewerRecord> } {
       viewers.set(viewer.id, viewer);
       return viewer;
     },
+    banViewer: unsupported,
+    unbanViewer: unsupported,
+    banPlatform: unsupported,
+    unbanPlatform: unsupported,
+    listModerationActions: () => [],
   };
 }
 
@@ -176,6 +184,87 @@ describe('command server', () => {
       viewerId: 'viewer-platform-1',
       result: { status: 'applied', tick: 2 },
     });
+  });
+
+  it('refuses commands from a banned viewer and leaves them banned until unban', async () => {
+    const viewers = new WorldStore(new DatabaseSync(':memory:'));
+    let nextId = 0;
+    const gateway = new CommandGateway({
+      executeCommand: async () => {
+        throw new Error('simulation should not be called for a banned viewer');
+      },
+    });
+
+    app = createCommandServer({
+      viewers,
+      gateway,
+      now: () => new Date('2026-11-25T08:00:00.000Z'),
+      newViewerId: () => `viewer-${++nextId}`,
+    });
+
+    const registered = await app.inject({ method: 'POST', url: '/viewers', payload: { displayName: 'Ada' } });
+    const viewerId = registered.json().id as string;
+
+    const banned = await app.inject({
+      method: 'POST',
+      url: '/moderation/bans',
+      payload: { type: 'viewer', viewerId, reason: 'spam' },
+    });
+
+    expect(banned.statusCode).toBe(201);
+    expect(banned.json()).toMatchObject({
+      action: 'ban_viewer',
+      targetType: 'viewer',
+      targetId: viewerId,
+      reason: 'spam',
+      actor: 'local-admin',
+    });
+
+    const refused = await app.inject({
+      method: 'POST',
+      url: `/viewers/${viewerId}/commands`,
+      payload: {
+        protocolVersion: 1,
+        command: { type: 'character.create', params: { characterId: 'ada', x: 1, y: 1 } },
+      },
+    });
+
+    expect(refused.json()).toMatchObject({ status: 'rejected', reason: 'banned' });
+
+    await app.inject({
+      method: 'POST',
+      url: '/moderation/bans',
+      payload: { type: 'platform', platform: 'twitch', platformUserId: '9001', reason: 'abuse' },
+    });
+
+    const bannedChat = await app.inject({
+      method: 'POST',
+      url: '/platform/chat',
+      payload: {
+        platform: 'twitch',
+        platformUserId: '9001',
+        platformUsername: 'ada',
+        displayName: 'Ada',
+        messageId: 'chat-ban-1',
+        text: '!join streamer 12 13',
+        receivedAt: 1_000,
+      },
+    });
+
+    expect(bannedChat.json()).toMatchObject({ status: 'banned' });
+
+    await app.inject({
+      method: 'POST',
+      url: '/moderation/unbans',
+      payload: { type: 'viewer', viewerId, reason: 'appeal' },
+    });
+
+    const actions = await app.inject({ method: 'GET', url: '/moderation/actions' });
+    expect(actions.json().actions.map((entry: { action: string }) => entry.action)).toEqual([
+      'unban_viewer',
+      'ban_platform',
+      'ban_viewer',
+    ]);
   });
 
   it('rejects a display name the server will not store', async () => {

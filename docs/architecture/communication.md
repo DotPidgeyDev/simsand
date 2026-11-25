@@ -261,7 +261,10 @@ A viewer may create one character. The world rejects a second create with `viewe
 |---|---|
 | `POST /viewers` | Stores a viewer with a server-issued id and the display name from the body. Returns that record. |
 | `POST /viewers/:id/commands` | Submits the body to `CommandGateway` as `{ source: 'viewer', id }`. Unknown viewers are 404. The response is the `CommandResult`. |
-| `POST /platform/chat` | Accepts a `NormalizedChatMessage`. Maps the platform user to a viewer when needed, parses `!join`, and submits through the gateway. |
+| `POST /platform/chat` | Accepts a `NormalizedChatMessage`. Maps the platform user to a viewer when needed, parses `!join`, and submits through the gateway. Banned viewers get `{ status: 'banned' }`. |
+| `POST /moderation/bans` | Bans a viewer or platform account. Writes an audit row. Does not remove the character. |
+| `POST /moderation/unbans` | Clears a ban for a viewer or platform account. |
+| `GET /moderation/actions` | Lists recent moderation audit rows. |
 
 The command body cannot set the issuer. It may set `idempotencyKey`. Normalized chat uses `POST /platform/chat` or the optional Twitch IRC adapter.
 

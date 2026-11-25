@@ -293,7 +293,7 @@ describe('WorldStore', () => {
 
   it('refuses a database created by a newer schema', () => {
     const db = new DatabaseSync(':memory:');
-    db.exec('PRAGMA user_version = 6');
+    db.exec('PRAGMA user_version = 7');
 
     expect(() => new WorldStore(db)).toThrow('newer than supported');
   });
@@ -367,7 +367,7 @@ describe('WorldStore', () => {
     const store = new WorldStore(db);
     const { user_version: version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
 
-    expect(version).toBe(5);
+    expect(version).toBe(6);
     expect(store.eventsForParticipant('right')).toEqual([entry]);
     expect(store.loadLatest()?.log).toEqual([entry]);
   });
@@ -433,7 +433,7 @@ describe('WorldStore', () => {
 
     const { user_version: version } = db.prepare('PRAGMA user_version').get() as { user_version: number };
 
-    expect(version).toBe(5);
+    expect(version).toBe(6);
     expect(store.getViewer('viewer-1')).toEqual(viewer);
     expect(store.getViewer('viewer-2')).toBeUndefined();
   });
@@ -450,6 +450,60 @@ describe('WorldStore', () => {
 
     expect(() => store.loadLatest()).toThrow('No valid world snapshot');
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Two characters belong to viewer viewer-1'));
+  });
+
+  it('bans a viewer and every linked platform without removing them', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+    store.ensureViewerForPlatform(
+      'twitch',
+      '9001',
+      'ada',
+      'Ada',
+      () => '2026-11-25T00:00:00.000Z',
+      () => 'viewer-1',
+    );
+
+    const action = store.banViewer('viewer-1', 'spam', 'local-admin', '2026-11-25T01:00:00.000Z');
+
+    expect(action.action).toBe('ban_viewer');
+    expect(store.getViewer('viewer-1')?.status).toBe('banned');
+    expect(store.getPlatformIdentity('twitch', '9001')?.status).toBe('banned');
+    expect(store.listModerationActions()).toEqual([action]);
+
+    store.unbanViewer('viewer-1', 'appeal', 'local-admin', '2026-11-25T02:00:00.000Z');
+
+    expect(store.getViewer('viewer-1')?.status).toBe('active');
+    expect(store.getPlatformIdentity('twitch', '9001')?.status).toBe('active');
+  });
+
+  it('bans an unknown platform account so a later chat cannot create a new viewer', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+
+    store.banPlatform(
+      'twitch',
+      '9001',
+      'preemptive',
+      'local-admin',
+      '2026-11-25T00:00:00.000Z',
+      'ada',
+      () => 'viewer-stub',
+    );
+
+    const viewer = store.ensureViewerForPlatform(
+      'twitch',
+      '9001',
+      'ada',
+      'Ada',
+      () => '2026-11-25T01:00:00.000Z',
+      () => 'viewer-new',
+    );
+
+    expect(viewer).toEqual({
+      id: 'viewer-stub',
+      displayName: 'ada',
+      createdAt: '2026-11-25T00:00:00.000Z',
+      status: 'banned',
+    });
   });
 
   it('maps a platform account to one viewer', () => {
