@@ -264,6 +264,43 @@ export async function createRenderer(container: HTMLElement) {
     world.position.set(x, y);
   });
 
+  // A square around the character the streamer has selected, redrawn each
+  // frame so it follows them.
+  const selection = new Graphics();
+  let selectedId: string | undefined;
+
+  function select(id: string | undefined): void {
+    selectedId = id;
+  }
+
+  app.ticker.add(() => {
+    selection.clear();
+
+    const graphic = selectedId ? entities.get(selectedId) : undefined;
+
+    if (!graphic) return;
+
+    world.addChild(selection);
+    selection
+      .rect(graphic.position.x - 9, graphic.position.y - 9, 18, 18)
+      .stroke({ color: 0xffffff, alpha: 0.9, width: 1 });
+  });
+
+  // Reports clicks in tile coordinates, accounting for the CSS size of the
+  // canvas and the camera's zoom.
+  function onMapClick(handler: (point: { x: number; y: number }) => void): void {
+    app.canvas.addEventListener('pointerdown', (event) => {
+      const bounds = app.canvas.getBoundingClientRect();
+      const screenX = (event.clientX - bounds.left) * (app.screen.width / bounds.width);
+      const screenY = (event.clientY - bounds.top) * (app.screen.height / bounds.height);
+
+      handler({
+        x: (screenX - world.position.x) / world.scale.x / TILE_SIZE,
+        y: (screenY - world.position.y) / world.scale.y / TILE_SIZE,
+      });
+    });
+  }
+
   // Piles sit on tile centres. The full list replaces the previous one.
   function replaceNodes(nodes: readonly ResourceNode[]): void {
     piles.clear();
@@ -283,6 +320,8 @@ export async function createRenderer(container: HTMLElement) {
     replaceNodes,
     pulse,
     focus,
+    select,
+    onMapClick,
     destroy: () => app.destroy(true),
   };
 }

@@ -626,6 +626,12 @@ naming the command and issuer. Blessings and curses are dramatic, so the
 browser zooms toward them for a few seconds; bounties and gifts are
 significant. Save format is unchanged.
 
+The browser has a first streamer panel beside the feed: pick a character
+from the list or by clicking near them, then bless, curse, or gift; arm
+a bounty and click a pile. The Vite dev server proxies
+`/streamer/commands` to the command server, which stays on localhost
+with no CORS.
+
 ### Remaining scope
 
 - World director. It will issue interventions as `system`.
@@ -691,6 +697,11 @@ Initial scope:
 - Backup automation.
 - Moderation tools (appeals, trusted roles, name and appearance abuse tooling, moderator UI — deeper than Milestone 07's ban/unban basics).
 - Stream presentation improvements.
+- Streamer panel refinements, following the first panel from Milestone 08:
+  - Keep the controls off the captured stream view, behind a query flag such as `?streamer` or on a separate page.
+  - Mark the tiles where a bounty will work: piles that are there or waiting to return. This needs the waiting piles on the snapshot or a read-only route.
+  - Show the cooldown remaining on each intervention.
+  - Reach the command server outside the Vite dev proxy, with authentication, so the panel works in a production build.
 - Viewer-facing UI improvements.
 - YouTube and Kick adapters.
 - Deployment and operational documentation.

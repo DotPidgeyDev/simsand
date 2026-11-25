@@ -30,8 +30,60 @@
         image-rendering: pixelated;
       }
 
-      #chronicle {
+      aside {
         width: 260px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      #streamer {
+        display: grid;
+        gap: 8px;
+        padding: 10px;
+        background: #232b24;
+        font-size: 14px;
+      }
+
+      #streamer h2 {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      #streamer .row {
+        display: flex;
+        gap: 6px;
+      }
+
+      #streamer select,
+      #streamer input {
+        flex: 1;
+        min-width: 0;
+      }
+
+      #streamer input[type='number'] {
+        flex: 0 0 48px;
+      }
+
+      #streamer button {
+        flex: 0 0 72px;
+      }
+
+      #streamer button[aria-pressed='true'] {
+        outline: 2px solid #ffe08a;
+      }
+
+      #streamer-status {
+        margin: 0;
+        min-height: 1.2em;
+        color: #c9d3c6;
+      }
+
+      #streamer-status.rejected {
+        color: #f0a08c;
+      }
+
+      #chronicle {
         margin: 0;
         padding: 0;
         list-style: none;
@@ -56,7 +108,40 @@
     <h1>Simsand</h1>
     <main>
       <div id="world"></div>
-      <ul id="chronicle" aria-label="Recent events"></ul>
+      <aside>
+        <form id="streamer" aria-label="Streamer interventions">
+          <h2>Streamer</h2>
+          <select name="target" aria-label="Character"></select>
+          <div class="row">
+            <span style="flex: 1"></span>
+            <button type="button" data-intervention="bless">Bless</button>
+          </div>
+          <div class="row">
+            <select name="need" aria-label="Need to curse">
+              <option value="hunger">hunger</option>
+              <option value="thirst">thirst</option>
+              <option value="fatigue">fatigue</option>
+            </select>
+            <button type="button" data-intervention="curse">Curse</button>
+          </div>
+          <div class="row">
+            <select name="item" aria-label="Item to gift">
+              <option value="food">food</option>
+              <option value="goods">goods</option>
+              <option value="material">material</option>
+            </select>
+            <input name="giftQuantity" type="number" min="1" max="5" value="1" aria-label="Gift quantity" />
+            <button type="button" data-intervention="gift">Gift</button>
+          </div>
+          <div class="row">
+            <span style="flex: 1">Bounty on a pile</span>
+            <input name="bountyQuantity" type="number" min="1" max="5" value="3" aria-label="Bounty quantity" />
+            <button type="button" data-intervention="bounty" aria-pressed="false">Place</button>
+          </div>
+          <p id="streamer-status" role="status"></p>
+        </form>
+        <ul id="chronicle" aria-label="Recent events"></ul>
+      </aside>
     </main>
     <script type="module" src="/src/index.ts"></script>
   </body>
