@@ -14,7 +14,7 @@ The simulation worker owns authoritative gameplay state. The application server 
 
 The current implementation supports worker lifecycle messages, world snapshots, incremental deltas, browser WebSocket connections, and a validated command contract that produces domain events.
 
-A local command API accepts a registered viewer's character create. Streaming-platform integrations remain future work.
+A local command API accepts a registered viewer's character create. Twitch IRC can ingest chat when configured. YouTube and Kick adapters remain future work.
 
 ---
 
@@ -27,7 +27,7 @@ A local command API accepts a registered viewer's character create. Streaming-pl
 | Local tools ↔ server | HTTP (Fastify), `127.0.0.1:8767` | Read-only inspection of status and entities | Implemented |
 | Local tools ↔ server | HTTP (Fastify), `127.0.0.1:8768` | Register a viewer and submit that viewer's commands | Implemented |
 | Browser ↔ server APIs | HTTP | Configuration and non-streaming operations | Planned |
-| Platform ↔ server | Platform-specific SDK/API or connection | Receive chat and platform events | Planned |
+| Platform ↔ server | Twitch IRC (optional); HTTP normalized chat | Receive chat and map platform identities | Partially implemented |
 | Server ↔ persistence | `node:sqlite` in the server process | Save and restore the world, and retain the character log | Implemented |
 
 The browser never communicates directly with the worker.
@@ -186,7 +186,7 @@ TypeScript types alone do not validate runtime data. External command input is v
 
 ## 6. External command lifecycle
 
-**Status: Partially implemented — local viewer create, no platform adapter yet**
+**Status: Implemented — local viewer create, Twitch IRC, moderation basics**
 
 External callers will submit commands through the application server.
 

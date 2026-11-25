@@ -12,10 +12,12 @@ import { Position } from './components/position.js';
 import { Velocity } from './components/velocity.js';
 import { createSimulationClock } from './core/clock.js';
 import { RESOURCE_NODE_STOCK, createWorldMap } from './core/map.js';
-import { capturePersistedWorld, restorePersistedWorld } from './core/persistence.js';
+import { capturePersistedWorld, restorePersistedWorld, upgradePersistedWorld } from './core/persistence.js';
 import { createSimulationRunner, tickSimulation } from './core/runner.js';
 import { createSimulationWorld } from './core/world.js';
+import { executeCommand } from './commands/execute-command.js';
 import { createCharacter } from './entities/create-character.js';
+import { removeCharacter } from './entities/remove-character.js';
 import { FOOD_PRICE } from './economy/inventory.js';
 import { PILE_RETURN_SECONDS, nodeAt, nodeKey, renewPiles, takeResource } from './economy/nodes.js';
 import { acknowledgePendingLog } from './history/records.js';
@@ -654,5 +656,80 @@ describe('milestone 06 behaviour', () => {
     acknowledgePendingLog(world, [oldest]);
 
     expect(world.pendingLog).toEqual([]);
+  });
+});
+
+// Milestone 07 close-out. A viewer owns at most one character. Ownership
+// survives death and save/restore. The platform user id is not the
+// character id. Admin creates stay unowned.
+describe('milestone 07 behaviour', () => {
+  it('lets one viewer own one character and keeps that ownership across a save', () => {
+    const world = createSimulationWorld(createWorldMap(8, 8, 'grass'));
+    const clock = createSimulationClock();
+    const viewer = { source: 'viewer' as const, id: 'viewer-1' };
+
+    expect(executeCommand(world, clock, {
+      commandId: 'cmd-create',
+      issuer: viewer,
+      submittedAt: 0,
+      type: 'character.create',
+      params: { characterId: 'ada', x: 2, y: 3 },
+    }).status).toBe('applied');
+
+    Lifecycle.state[world.entityIds.get('ada')!] = LIFECYCLE_STATES.indexOf('dead');
+
+    expect(executeCommand(world, clock, {
+      commandId: 'cmd-again',
+      issuer: viewer,
+      submittedAt: 1,
+      type: 'character.create',
+      params: { characterId: 'bea', x: 4, y: 5 },
+    })).toMatchObject({ status: 'rejected', reason: 'viewer_has_character' });
+
+    const saved = capturePersistedWorld(world, clock, world.seed);
+    expect(saved.version).toBe(24);
+    expect(saved.entities[0]?.viewerId).toBe('viewer-1');
+
+    const { world: restored } = restorePersistedWorld(structuredClone(saved));
+
+    expect(restored.characterByViewer.get('viewer-1')).toBe('ada');
+    expect(inspectCharacter(restored, 'ada')?.viewerId).toBe('viewer-1');
+    expect(upgradePersistedWorld({
+      ...saved,
+      version: 23 as const,
+      entities: saved.entities.map(({ viewerId: _viewerId, ...entity }) => entity),
+    }).entities[0]?.viewerId).toBeNull();
+
+    removeCharacter(restored, 'ada');
+
+    expect(executeCommand(restored, clock, {
+      commandId: 'cmd-after-remove',
+      issuer: viewer,
+      submittedAt: 2,
+      type: 'character.create',
+      params: { characterId: 'bea', x: 4, y: 5 },
+    }).status).toBe('applied');
+  });
+
+  it('leaves an admin create unowned and refuses a platform-shaped viewer id', () => {
+    const world = createSimulationWorld(createWorldMap(8, 8, 'grass'));
+    const clock = createSimulationClock();
+
+    expect(executeCommand(world, clock, {
+      commandId: 'cmd-admin',
+      issuer: { source: 'admin', id: 'local-admin' },
+      submittedAt: 0,
+      type: 'character.create',
+      params: { characterId: 'npc', x: 1, y: 1 },
+    }).status).toBe('applied');
+    expect(capturePersistedWorld(world, clock, world.seed).entities[0]?.viewerId).toBeNull();
+
+    expect(executeCommand(world, clock, {
+      commandId: 'cmd-bad',
+      issuer: { source: 'viewer', id: 'twitch:9001' },
+      submittedAt: 1,
+      type: 'character.create',
+      params: { characterId: 'spoof', x: 2, y: 2 },
+    })).toMatchObject({ status: 'rejected', reason: 'invalid_issuer' });
   });
 });

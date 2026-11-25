@@ -362,6 +362,7 @@ These are initial engineering targets, not guaranteed capacity limits.
 | Metric | Initial target |
 |---|---:|
 | Individually simulated characters/entities | 1,000 |
+| Average authoritative tick headroom at that population | under 10 ms (10% of the 100 ms timestep) |
 | Initial demo entities | 20 |
 | Simulation tick rate | 5–10 ticks/sec |
 | Fixed timestep | 100 ms |
@@ -383,10 +384,11 @@ These are initial engineering targets, not guaranteed capacity limits.
 | Entity representation | Named sprite shapes (square, diamond, triangle; circle while resting; ring while eating or drinking; gold square while working; X when dead) |
 | Snapshot and delta communication | Implemented |
 | Multiple browser clients | Supported by WebSocket server |
+| 1,000-entity tick (after Milestone 07) | About 4–5 ms average, still under the 10 ms guardrail; `updateActions` dominates |
 
 The simulation owns a 64 × 64 tile map of grass, dirt, water, rock and camp, generated from the world seed. The map's dimensions define the movement bounds. Rock blocks movement. A route shared by the map walks around it toward water, land or a camp.
 
-Use profiling and representative workloads before increasing complexity.
+Standing performance goals (commitment-aware action updates, cheap cache invalidation, static map in snapshots, fidelity LOD before more workers) live in `docs/architecture/simulation.md` §14. Concrete wins are Milestone 10. Use profiling and representative workloads before increasing complexity.
 
 ---
 
@@ -451,7 +453,7 @@ Stable character IDs are stored with the world. The character log is retained in
 ## 13. Decisions still open
 
 - Final character death, descendants and inheritance rules.
-- Whether one viewer can own more than the single character the first viewer-create rule allows. A second create is refused while that character exists, including after death.
+- Whether one viewer can own more than the single character Milestone 07 allows. A second create is refused while that character exists, including after death.
 - Population caps and background simulation detail.
 - Exact snapshot cadence. Durable history keeps the newest 100,000 log events.
 - When, if ever, to introduce multiple simulation workers.

@@ -1,8 +1,8 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 07  
-**Version:** 1.11  
-**Last updated:** 2026-11-22
+**Status:** Active — Milestone 08  
+**Version:** 1.12  
+**Last updated:** 2026-11-25
 
 ## Guiding approach
 
@@ -521,15 +521,14 @@ The persistence strategy should reflect the actual simulation requirements. Avoi
 ### Later, outside this milestone
 
 Scheduled backups are Milestone 10. A viewer-facing chronicle over this
-log is Milestone 08. Command receipts stay on the command result until
-Milestone 07 needs one to outlive the response. More than one world id
-is not part of this cycle.
+log is Milestone 08. Command receipts for idempotency arrived in
+Milestone 07. More than one world id is not part of this cycle.
 
 ---
 
 ## Milestone 07 — Viewer participation
 
-**Status: In progress**
+**Status: Complete**
 
 Start from `docs/roadmap/notes/07-from-06.md`.
 
@@ -537,43 +536,65 @@ Add viewer identity, platform identity, character creation and Twitch integratio
 
 ### Current implementation
 
-The first increment is one viewer and one character.
+A viewer is a row in the same SQLite database: a server-issued id, a
+display name, and `active` or `banned`. The database schema is version
+6. A version 2 database gains `viewers`, version 3 gains
+`command_receipts`, version 5 gains `platform_identities`, and version
+6 gains `moderation_actions`. The id is not a platform user id, and a
+request cannot choose it or its role.
 
-A viewer is a row in the same SQLite database: a server-issued id, a display name, and `active` or `banned`. The database schema is version 6. A version 2 database gains `viewers`, version 3 gains `command_receipts`, version 5 gains `platform_identities`, and version 6 gains `moderation_actions`. The id is not a platform user id, and a request cannot choose it or its role.
+`POST /viewers` and `POST /viewers/:id/commands` listen on
+`127.0.0.1:8768` (`SIMSAND_COMMAND_PORT`). The command body is the
+existing gateway request. The server sets the issuer. Viewers may send
+`character.create` and nothing else. An optional `idempotencyKey`
+remembers the result for one day. Each issuer may submit 10 new
+commands per minute. A remembered retry does not count.
 
-`POST /viewers` and `POST /viewers/:id/commands` listen on `127.0.0.1:8768` (`SIMSAND_COMMAND_PORT`). The command body is the existing gateway request. The server sets the issuer to `{ source: 'viewer', id }` from the route. Viewers may send `character.create` and nothing else.
+The character is an ordinary world character. Its stable id is the
+world's id, not the viewer id. Saves are format version 24 and store
+`viewerId`. A second create is `viewer_has_character`, including after
+death. `character.created` stays on the command result.
 
-The character is an ordinary world character. Its stable id is still the world's id, supplied in the command, and is not the viewer id. The save records `viewerId` on that character and null on everyone else. Saves are format version 24. A version 23 save gains a null viewer on every character. A viewer who already owns a character, including a dead one, is rejected with `viewer_has_character`. Removing the character clears the link. `character.created` stays on the command result.
+Twitch chat enters through IRC when the three `SIMSAND_TWITCH_*`
+variables are set, or through `POST /platform/chat`. A platform user id
+maps to one viewer. `!join <characterId> <x> <y>` becomes
+`character.create`. Outcomes get a short `@user` reply in chat and as
+`feedback` on the local route.
 
-A command may include an idempotency key. The server stores the result for that issuer and key for one day and returns it on a retry, including after a restart. The same key with a different command is rejected. Each issuer may submit 10 new commands per minute (`SIMSAND_COMMAND_RATE_LIMIT` and `SIMSAND_COMMAND_RATE_WINDOW_MS`). A remembered retry does not count. The limit resets when the process restarts. The stored result is not written into the character log.
+Local moderation bans a viewer or platform account without removing the
+character or erasing history. An unknown platform ban creates a stub
+banned viewer so later chat cannot mint a new one.
 
-Twitch chat can enter through IRC when `SIMSAND_TWITCH_CHANNEL`, `SIMSAND_TWITCH_NICK`, and `SIMSAND_TWITCH_TOKEN` are set, or through `POST /platform/chat` with a normalized message. A platform user id maps to one viewer. Chat `!join <characterId> <x> <y>` becomes `character.create` through the gateway, with the chat message id as the idempotency key.
+Regression for this cycle is in
+`packages/simulation/src/regression.test.ts`. Command routes, receipts,
+bans, Twitch parse, and feedback are covered under `apps/server/src/`.
+Notes for Milestone 08 are in `docs/roadmap/notes/08-from-07.md`. How
+to close a milestone is in `docs/roadmap/closeout.md`.
 
-Local moderation bans a viewer or a platform account (`POST /moderation/bans`, `/moderation/unbans`, `GET /moderation/actions`). A ban marks the viewer and every linked platform identity as `banned`, writes an audit row, and refuses later commands and `!join`. It does not remove the in-world character or erase history. Banning an unknown platform account creates a stub banned viewer so a later chat cannot mint a new one.
+### Definition of done
 
-Chat command outcomes produce a short viewer-facing reply. Twitch IRC posts that reply in the channel. `POST /platform/chat` returns the same text as `feedback`. Replies name the platform username, never internal stack traces or ban audit detail.
+- [x] Viewers have server-issued ids separate from platform user ids and character ids.
+- [x] One viewer owns at most one character; death does not free the slot.
+- [x] Viewer create goes through the existing command gateway; the request cannot name its issuer.
+- [x] Twitch accounts map to viewers; normalized chat can submit `!join`.
+- [x] Commands can be deduplicated and rate-limited without writing into the character log.
+- [x] Ban and unban refuse later commands and leave the character in the world.
+- [x] Chat outcomes produce safe viewer-facing feedback.
+- [x] Ownership survives save and restore (format version 24).
 
-Initial scope:
+### Later, outside this milestone
 
-- Viewer identity model.
-- Platform identity mapping.
-- Twitch adapter.
-- Normalized platform messages.
-- Viewer character creation.
-- Command processing.
-- Permissions and authorization.
-- Command deduplication.
-- Rate limits and abuse prevention.
-- Moderation.
-- Viewer feedback.
-
-The simulation must remain independent of the streaming platform. Platform adapters translate external activity into normalized requests, while the server handles authentication and authorization.
+Deeper moderation tools, appeals, trusted-viewer roles, a public
+authenticated command API, and YouTube or Kick adapters are Milestone
+10. A viewer-facing chronicle over the character log is Milestone 08.
 
 ---
 
 ## Milestone 08 — World director and storytelling
 
 **Status: Planned**
+
+Start from `docs/roadmap/notes/08-from-07.md`.
 
 Add significant-event detection, streamer interventions, notifications, chronicle entries and camera focus.
 
@@ -642,10 +663,10 @@ Initial scope:
 
 - Admin and inspection tools (including browsing the character-indexed event log).
 - Operational monitoring.
-- Simulation performance profiling.
+- Simulation performance profiling and the cheap tick-path wins recorded after Milestone 07 (commitment-aware `updateActions`, pile-route generation counters instead of per-call key stamps, avoid copying the static map on every snapshot). Broader capacity levers (LOD / background tick rates, spatial partitioning, deep-AI caps) belong here only after those are measured.
 - Error reporting and recovery.
 - Backup automation.
-- Moderation tools.
+- Moderation tools (appeals, trusted roles, name and appearance abuse tooling, moderator UI — deeper than Milestone 07's ban/unban basics).
 - Stream presentation improvements.
 - Viewer-facing UI improvements.
 - YouTube and Kick adapters.

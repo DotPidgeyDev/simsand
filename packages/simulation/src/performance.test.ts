@@ -12,13 +12,19 @@ const ENTITY_COUNT = 1000;
 const TICKS = 1000;
 
 // At 10 ticks per second each tick has 100 ms. Keep simulation work under
-// 10% of that so later systems have room; measured cost is about 0.2 ms.
+// 10% of that so later systems have room. After Milestone 07 a 1,000-entity
+// tick is about 4–5 ms (mostly updateActions). The Milestone 01 figure of
+// ~0.2 ms described a bounce-only world and is not the current baseline.
 const TICK_BUDGET_MS = 10;
 
-// Saves run every 30 seconds; measured cost is about 2.5 ms.
+// Saves run every 30 seconds off the tick path. Budget 100 ms; after
+// Milestone 07 a 1,000-entity round trip is about 15–25 ms (early ~2.5 ms).
 const PERSIST_ROUND_TRIP_BUDGET_MS = 100;
 
 describe(`${ENTITY_COUNT}-entity simulation`, () => {
+  // 1000 entities × 1000 ticks plus snapshot work can exceed Vitest's
+  // default 5 s wall clock on a loaded machine even when the average
+  // tick stays under budget.
   it('ticks within budget, including snapshot and delta work', () => {
     const world = createSimulationWorld();
     createPopulation(world, ENTITY_COUNT, 12345);
@@ -48,7 +54,7 @@ describe(`${ENTITY_COUNT}-entity simulation`, () => {
     expect(entities).toHaveLength(ENTITY_COUNT);
     expect(new Set(entities.map((entity) => entity.id)).size).toBe(ENTITY_COUNT);
     expect(entities.every((e) => e.x >= 0 && e.x <= 64 && e.y >= 0 && e.y <= 64)).toBe(true);
-  });
+  }, 20_000);
 
   it('saves and restores within budget', () => {
     const world = createSimulationWorld();

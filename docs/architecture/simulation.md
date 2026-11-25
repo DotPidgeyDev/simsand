@@ -1,8 +1,8 @@
 # Simulation Architecture
 
 **Status:** Active implementation — foundational simulation  
-**Version:** 1.1  
-**Last updated:** 2026-11-12
+**Version:** 1.2  
+**Last updated:** 2026-11-25
 
 ## 1. Purpose
 
@@ -533,14 +533,17 @@ Future testing should include:
 
 `packages/simulation/src/performance.test.ts` runs 1,000 entities for 1,000 ticks, building a snapshot and delta every second tick as the worker does. It also checks positions stay in bounds and IDs stay unique.
 
-| Measurement (1,000 entities) | Budget | Measured (Apple Silicon) |
-|---|---:|---:|
-| Average tick, including amortised snapshot and delta | 10 ms | about 0.2 ms |
-| Persisted-world capture, JSON round trip and restore | 100 ms | about 2.5 ms |
+| Measurement (1,000 entities) | Budget | Early baseline (Milestone 01) | Measured after Milestone 07 |
+|---|---:|---:|---:|
+| Average tick, including amortised snapshot and delta | 10 ms | about 0.2 ms | about 4–5 ms |
+| Pure `tickSimulation` (no presentation) | (guardrail) | — | about 4.8 ms, of which `updateActions` is ~80% |
+| Persisted-world capture, JSON round trip and restore | 100 ms | about 2.5 ms | about 15–25 ms |
 
-The tick budget is 10% of the 100 ms tick, leaving room for future systems. At 5,000 entities a tick measured about 0.26 ms and a snapshot plus delta about 1.4 ms.
+The **10 ms tick budget** is the real guardrail: 10% of the 100 ms fixed timestep, so catch-up and future systems still fit at 10 Hz. The early 0.2 ms and 2.5 ms figures were measured costs on a bounce-only world and a small save, not separate product SLAs. Persist is off the tick path (periodic / shutdown) and remains fine under the 100 ms budget.
 
-Measure representative workloads again as systems are added, rather than assuming from these numbers.
+Measure again as systems are added. Concrete tick-path wins and capacity levers are deferred to Milestone 10; the standing goals are in section 14.
+
+---
 
 ---
 
@@ -605,5 +608,23 @@ The following principles should guide future simulation development:
 8. Publish snapshots and incremental deltas rather than entire world state every tick.
 9. Keep network and database operations outside the simulation hot path.
 10. Build complexity only when actual gameplay requirements justify it.
+11. Keep the average authoritative tick comfortably under the 10 ms headroom budget at the target population before adding another worker.
 
 The simulation should remain understandable, testable and observable as its complexity grows.
+
+---
+
+## 14. Performance and scaling goals
+
+**Status: Standing goals — cheap wins deferred to Milestone 10**
+
+These are architectural intent, not a commitment to implement every lever immediately.
+
+1. **One hot path.** The tick loop is the only place continuous simulation cost may accumulate. Commands, saves, chat, and HTTP stay between ticks or off-worker.
+2. **Commitment before scoring.** While a character holds an action that is not ending or interruptible this tick, do not rebuild full utility, availability, and route context for them. Today `updateActions` pays that cost for every living body every tick and dominates the profile.
+3. **Cache stamps are O(1).** Route and occupancy caches must invalidate with a generation counter or equivalent, not by rebuilding a sorted key string on every lookup.
+4. **Static presentation data is not recopied every tick.** The tile map is static until terrain changes; snapshots should not `Array.from` it on every publish.
+5. **Scale fidelity before workers.** Prefer commitment-aware AI, LOD / background tick rates, spatial partitioning, and caps on deep social/economy work before splitting the authoritative process. Multiple workers wait until profiling shows one worker cannot hold the 10 ms guardrail at the desired population.
+6. **Re-measure, do not inherit baselines.** Milestone 01 numbers described a bounce-only world. Re-run the 1,000-entity test (and larger samples) after material systems land.
+
+Milestone 10 owns the first concrete pass: commitment-aware actions, pile-route stamp fix, static-map snapshot handling, then capacity levers if still needed.

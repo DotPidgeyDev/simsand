@@ -1,7 +1,7 @@
 # Viewer Identity and Character Ownership
 
-**Status:** In progress — platform-linked viewer, one character\
-**Version:** 1.2
+**Status:** Implemented — platform-linked viewer, one character\
+**Version:** 1.3
 
 ## 1. Purpose
 
@@ -174,8 +174,9 @@ account is stored in `platform_identities`, keyed by stable platform
 user id, and linked to that viewer row. The character records the
 viewer id, not the platform id. One viewer still has one character.
 Death does not free the slot. Removing the character does. Creates may
-arrive from the local command API or from normalized Twitch chat. Chat
-Ban and unban of viewers and platform identities are implemented on the
+arrive from the local command API or from normalized Twitch chat. Ban
+and unban of viewers and platform identities are implemented on the
 local command API; a ban refuses commands and does not remove the
 character. Chat joins get a short viewer-facing reply after the command
-result, including a soft refusal when banned.
+result, including a soft refusal when banned. Deeper moderation tools
+wait for Milestone 10.
