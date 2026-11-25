@@ -2,14 +2,15 @@ import type { AddressInfo } from 'node:net';
 
 import { WebSocket, WebSocketServer } from 'ws';
 
-import type { WorldSnapshot, WorldDelta } from '@simsand/shared';
+import type { ChronicleEntry, WorldSnapshot, WorldDelta } from '@simsand/shared';
 
 import { log } from './logger.js';
 import { applyDeltaToSnapshot } from './snapshot-cache.js';
 
 export type ClientMessage =
   | { type: 'world.snapshot'; data: WorldSnapshot }
-  | { type: 'world.delta'; data: WorldDelta };
+  | { type: 'world.delta'; data: WorldDelta }
+  | { type: 'world.chronicle'; data: { entries: ChronicleEntry[] } };
 
 export class BrowserWebSocketServer {
   private server: WebSocketServer;
@@ -18,7 +19,10 @@ export class BrowserWebSocketServer {
 
   readonly listening: Promise<number>;
 
-  constructor(port = 8766) {
+  constructor(
+    port = 8766,
+    private readonly recentChronicle: () => ChronicleEntry[] = () => [],
+  ) {
     this.server = new WebSocketServer({ port });
 
     this.listening = new Promise((resolve, reject) => {
@@ -38,6 +42,12 @@ export class BrowserWebSocketServer {
           type: 'world.snapshot',
           data: this.latestSnapshot,
         }));
+
+        const entries = this.recentChronicle();
+
+        if (entries.length > 0) {
+          socket.send(JSON.stringify({ type: 'world.chronicle', data: { entries } }));
+        }
       } else {
         log.warn('No world snapshot cached yet; client will wait for the next one');
       }

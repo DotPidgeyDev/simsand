@@ -1,13 +1,18 @@
+import { CHRONICLE_PRESENTATION, chronicleTierAtLeast } from '@simsand/shared';
+
+import { createChronicleFeed } from './feed.js';
 import { connectToSimulation } from './websocket.js';
 import { createRenderer } from './renderer.js';
 
 const container = document.querySelector<HTMLElement>('#world');
+const feedList = document.querySelector<HTMLElement>('#chronicle');
 
-if (!container) {
-  throw new Error('World container not found');
+if (!container || !feedList) {
+  throw new Error('World or chronicle container not found');
 }
 
 const renderer = await createRenderer(container);
+const feed = createChronicleFeed(feedList);
 
 connectToSimulation((message) => {
   switch (message.type) {
@@ -25,5 +30,15 @@ connectToSimulation((message) => {
           renderer.replaceNodes(message.data.nodes);
         }
         break;
+
+    case 'world.chronicle':
+      feed.add(message.data.entries);
+
+      for (const entry of message.data.entries) {
+        if (chronicleTierAtLeast(entry.tier, CHRONICLE_PRESENTATION.notify)) {
+          renderer.pulse(entry.participants);
+        }
+      }
+      break;
     }
 });

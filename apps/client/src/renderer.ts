@@ -53,6 +53,11 @@ export async function createRenderer(container: HTMLElement) {
   // Store graphics objects so we can update existing entities.
   const entities = new Map<string, Graphics>();
 
+  // Re-added on each frame with a ring, so it stays above characters
+  // created after it.
+  const pulses = new Graphics();
+  const pulseUntil = new Map<string, number>();
+
   let currentMap: WorldMapData | undefined;
 
   // Terrain is static, so it is only redrawn when a snapshot brings a
@@ -182,6 +187,38 @@ export async function createRenderer(container: HTMLElement) {
     updateEntities(snapshots);
   }
 
+  // A fading ring around each character named in a notification.
+  function pulse(ids: readonly string[], durationMs = 3000): void {
+    const until = performance.now() + durationMs;
+
+    for (const id of ids) pulseUntil.set(id, until);
+  }
+
+  app.ticker.add(() => {
+    pulses.clear();
+
+    if (pulseUntil.size === 0) return;
+
+    world.addChild(pulses);
+
+    const now = performance.now();
+
+    for (const [id, until] of pulseUntil) {
+      const graphic = entities.get(id);
+
+      if (!graphic || now >= until) {
+        pulseUntil.delete(id);
+        continue;
+      }
+
+      const remaining = (until - now) / 3000;
+
+      pulses
+        .circle(graphic.position.x, graphic.position.y, 10 + (1 - remaining) * 6)
+        .stroke({ color: 0xffe08a, alpha: Math.max(0.2, remaining), width: 2 });
+    }
+  });
+
   // Piles sit on tile centres. The full list replaces the previous one.
   function replaceNodes(nodes: readonly ResourceNode[]): void {
     piles.clear();
@@ -199,6 +236,7 @@ export async function createRenderer(container: HTMLElement) {
     removeEntities,
     replaceEntities,
     replaceNodes,
+    pulse,
     destroy: () => app.destroy(true),
   };
 }

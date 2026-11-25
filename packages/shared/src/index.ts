@@ -213,6 +213,19 @@ export const CHRONICLE_TIERS = ['minor', 'notable', 'significant', 'dramatic', '
 
 export type ChronicleTier = (typeof CHRONICLE_TIERS)[number];
 
+// The lowest tier each presentation channel shows. A feed lists recent
+// entries, a notification draws attention to the characters involved, and
+// camera focus is kept for dramatic events.
+export const CHRONICLE_PRESENTATION = {
+  feed: 'notable',
+  notify: 'significant',
+  focus: 'dramatic',
+} as const satisfies Record<string, ChronicleTier>;
+
+export function chronicleTierAtLeast(tier: ChronicleTier, minimum: ChronicleTier): boolean {
+  return CHRONICLE_TIERS.indexOf(tier) >= CHRONICLE_TIERS.indexOf(minimum);
+}
+
 // A scored, abbreviated view of one SimulationLogEvent. Derived on read;
 // not a second event store.
 export interface ChronicleEntry {
@@ -477,6 +490,11 @@ export type WorkerToServerMessage =
   | {
       type: 'world.delta';
       data: WorldDelta;
+    }
+  | {
+      // Entries scored from log events written since the previous batch.
+      type: 'world.chronicle';
+      data: { entries: ChronicleEntry[] };
     }
   | {
       type: 'world.persisted';

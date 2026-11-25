@@ -47,6 +47,9 @@ The server distributes simulation updates but does not own or modify authoritati
 | `GET /entities/:id` | Worker `world.inspect.request` | `EntityInspection` (movement, appearance, profile, action, relationships, viewer id), or 404 |
 | `GET /entities/:id/history` | The retained log, merged with the worker's live window | Events whose participants include that character, or 404 |
 | `GET /entities/:id/chronicle` | Same history, scored for stream presentation | Chronicle entries that point at those events, or 404 |
+| `GET /chronicle` | The server's in-memory feed | The newest 50 feed-tier entries since the server started, oldest first |
+
+The worker sends `world.chronicle` with entries scored from log events written since its previous batch. The server forwards feed-tier entries to every browser and sends the current feed to a browser right after its first snapshot.
 
 If the worker doesn't answer within 2 seconds, the routes that query it return 503 with `simulation_unavailable`.
 

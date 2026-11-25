@@ -70,6 +70,7 @@ function source(overrides: Partial<InspectionSource> = {}): InspectionSource {
     inspectEntity: async (id) => (id === entity.id ? entity : undefined),
     inspectHistory: async (id) => (id === entity.id ? [] : undefined),
     getSnapshot: () => snapshot,
+    getRecentChronicle: () => [],
     getServerInfo: () => ({
       startedAt: new Date(Date.now() - 90_000),
       browserClients: 3,
@@ -210,6 +211,25 @@ describe('inspection server', () => {
         summary: 'character-0001 met character-0002',
       }],
     });
+  });
+
+  it('lists the recent world-wide chronicle feed', async () => {
+    const entries = [{
+      eventId: 'log-7',
+      type: 'item.traded' as const,
+      tick: 9,
+      elapsedSeconds: 0.9,
+      participants: ['character-0001', 'character-0002'],
+      score: 0.55,
+      tier: 'significant' as const,
+      summary: 'character-0001 bought 1 food from character-0002 for 2 goods',
+    }];
+    app = createInspectionServer(source({ getRecentChronicle: () => entries }));
+
+    const response = await app.inject({ method: 'GET', url: '/chronicle' });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ count: 1, entries });
   });
 
   it('returns 404 for an unknown entity', async () => {

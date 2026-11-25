@@ -1,5 +1,7 @@
 import type { ChronicleEntry, ChronicleTier, SimulationLogEvent, SimulationLogType } from '@simsand/shared';
 
+import type { SimulationWorld } from '../core/world.js';
+
 // Consequential log types for stream presentation. Ordinary action.ended
 // noise stays out. Scores choose a tier; they do not change simulation.
 const SIGNIFICANCE: Partial<Record<SimulationLogType, { score: number; tier: ChronicleTier }>> = {
@@ -93,4 +95,25 @@ export function chronicleFromEvents(events: readonly SimulationLogEvent[]): Chro
   }
 
   return entries;
+}
+
+function logSequence(event: SimulationLogEvent): number {
+  return Number(event.eventId.slice('log-'.length));
+}
+
+// Scores the live-log events written since `cursor`, a previous
+// `world.nextLogId`. Pass the returned cursor to the next call. Reads the
+// tail of the log only, so the cost follows what is new, not the log size.
+export function chronicleSince(
+  world: SimulationWorld,
+  cursor: number,
+): { entries: ChronicleEntry[]; cursor: number } {
+  let start = world.log.length;
+
+  while (start > 0 && logSequence(world.log[start - 1]!) >= cursor) start--;
+
+  return {
+    entries: chronicleFromEvents(world.log.slice(start)),
+    cursor: world.nextLogId,
+  };
 }

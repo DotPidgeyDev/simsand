@@ -20,6 +20,7 @@ import {
   inspectCharacter,
   inspectCharacterHistory,
   applyTuning,
+  chronicleSince,
 } from '@simsand/simulation';
 
 import type {
@@ -40,6 +41,8 @@ let seed = 12345;
 
 let previousSnapshot: WorldSnapshot | undefined;
 let deltaTimer: ReturnType<typeof setInterval> | undefined;
+// The next log sequence the chronicle has not scored yet.
+let chronicleCursor = 1;
 
 function send(message: WorkerToServerMessage): void {
   parentPort?.postMessage(message);
@@ -87,6 +90,9 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
         startSimulationLoop(loop);
 
         previousSnapshot = createSnapshot();
+        // A restored world's history is already retained; only new events
+        // become chronicle entries.
+        chronicleCursor = world.nextLogId;
 
         deltaTimer = setInterval(() => {
           const currentSnapshot = createSnapshot();
@@ -98,7 +104,7 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
 
           const delta = createWorldDelta(previousSnapshot, currentSnapshot);
 
-          if (delta.entities.length > 0 || delta.removed.length > 0) {
+          if (delta.entities.length > 0 || delta.removed.length > 0 || delta.nodes) {
             send({
               type: 'world.delta',
               data: delta,
@@ -106,6 +112,16 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
           }
 
           previousSnapshot = currentSnapshot;
+
+          const chronicle = chronicleSince(world, chronicleCursor);
+          chronicleCursor = chronicle.cursor;
+
+          if (chronicle.entries.length > 0) {
+            send({
+              type: 'world.chronicle',
+              data: { entries: chronicle.entries },
+            });
+          }
         }, 200);
 
         send({

@@ -149,9 +149,13 @@ important summaries. Generated narration is presentation, not evidence.
 Typed domain events and the character log are in place. Milestone 08
 scores completed greetings, comfort, keep, confide, bluff, gifts, and
 trades into chronicle entries with short summaries. Each entry points
-at the source `eventId`. Mundane `action.ended` rows stay out. The
-world director, camera focus, and streamer interventions are still
-ahead in the same milestone.
+at the source `eventId`. Mundane `action.ended` rows stay out.
+
+The tiers in section 5 are a shared rule. Notable entries reach the
+browser's recent-events feed. Significant entries also pulse a ring
+around the characters involved. Dramatic entries will take camera
+focus. No event scores that high yet. The world director and streamer
+interventions are still ahead in the same milestone.
 
 Do not invent a second event model for stream stories. Do not drive
 ordinary AI from Twitch chat text.

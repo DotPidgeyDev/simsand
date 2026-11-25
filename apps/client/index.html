@@ -13,21 +13,51 @@
         font-family: sans-serif;
       }
 
-      #world {
-        width: 100%;
-        max-width: 1024px;
+      main {
+        display: flex;
+        gap: 20px;
+        align-items: flex-start;
         margin-top: 20px;
+      }
+
+      #world {
+        flex: 1;
+        max-width: 1024px;
       }
 
       canvas {
         display: block;
         image-rendering: pixelated;
       }
+
+      #chronicle {
+        width: 260px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        font-size: 14px;
+      }
+
+      #chronicle li {
+        padding: 6px 8px;
+        margin-bottom: 4px;
+        border-left: 3px solid #6b7d68;
+        background: #232b24;
+      }
+
+      #chronicle li.tier-significant,
+      #chronicle li.tier-dramatic,
+      #chronicle li.tier-major {
+        border-left-color: #ffe08a;
+      }
     </style>
   </head>
   <body>
     <h1>Simsand</h1>
-    <div id="world"></div>
+    <main>
+      <div id="world"></div>
+      <ul id="chronicle" aria-label="Recent events"></ul>
+    </main>
     <script type="module" src="/src/index.ts"></script>
   </body>
 </html>

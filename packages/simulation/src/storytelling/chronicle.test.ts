@@ -11,7 +11,7 @@ import { createCharacter } from '../entities/create-character.js';
 import { MIN_ACTION_SECONDS, updateActions } from '../systems/actions.js';
 import { inspectCharacterChronicle } from '../inspection/inspect-character.js';
 
-import { chronicleEntryFromEvent, chronicleFromEvents } from './chronicle.js';
+import { chronicleEntryFromEvent, chronicleFromEvents, chronicleSince } from './chronicle.js';
 
 function event(
   partial: Pick<SimulationLogEvent, 'eventId' | 'type' | 'payload'> &
@@ -174,5 +174,21 @@ describe('chronicle', () => {
     ]);
     expect(inspectCharacterChronicle(world, 'right')).toEqual(chronicle);
     expect(inspectCharacterChronicle(world, 'nobody')).toBeUndefined();
+  });
+
+  it('scores only the events written since the previous cursor', () => {
+    const { world, left, right } = neighbours();
+    const start = world.nextLogId;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    Action.elapsed[right] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    const first = chronicleSince(world, start);
+
+    expect(first.entries.map((entry) => entry.summary)).toEqual(['left met right']);
+    expect(first.cursor).toBe(world.nextLogId);
+    expect(chronicleSince(world, first.cursor).entries).toEqual([]);
   });
 });

@@ -1,8 +1,9 @@
-import type { WorldSnapshot, WorldDelta } from '@simsand/shared';
+import type { ChronicleEntry, WorldSnapshot, WorldDelta } from '@simsand/shared';
 
 export type ServerMessage =
   | { type: 'world.snapshot'; data: WorldSnapshot }
-  | { type: 'world.delta'; data: WorldDelta };
+  | { type: 'world.delta'; data: WorldDelta }
+  | { type: 'world.chronicle'; data: { entries: ChronicleEntry[] } };
 
 const SERVER_URL = 'ws://localhost:8766';
 const INITIAL_RECONNECT_DELAY_MS = 500;

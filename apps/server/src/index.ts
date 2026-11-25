@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 
 import { randomUUID } from 'node:crypto';
 
+import { ChronicleFeed } from './chronicle-feed.js';
 import { CommandGateway } from './command-gateway.js';
 import { createCommandServer } from './command-server.js';
 import { viewerFeedback } from './platform/feedback.js';
@@ -45,7 +46,8 @@ for (const [name, value] of [
 const store = WorldStore.open(DB_PATH, LOG_RETENTION, COMMAND_RECEIPT_MS);
 const savedWorld = store.loadLatest();
 
-const browserServer = new BrowserWebSocketServer(WS_PORT);
+const chronicleFeed = new ChronicleFeed();
+const browserServer = new BrowserWebSocketServer(WS_PORT, () => chronicleFeed.recent());
 
 let saveTimer: ReturnType<typeof setInterval> | undefined;
 let statusTimer: ReturnType<typeof setInterval> | undefined;
@@ -118,6 +120,15 @@ const simulation = new SimulationWorker((message) => {
       });
       break;
 
+    case 'world.chronicle': {
+      const entries = chronicleFeed.push(message.data.entries);
+
+      if (entries.length > 0) {
+        browserServer.broadcast({ type: 'world.chronicle', data: { entries } });
+      }
+      break;
+    }
+
     case 'world.error':
       log.error(`Simulation error: ${message.data.message}`);
       break;
@@ -135,6 +146,7 @@ const inspectionServer = createInspectionServer({
     return mergeHistory(store.eventsForParticipant(id), live);
   },
   getSnapshot: () => browserServer.getLatestSnapshot(),
+  getRecentChronicle: () => chronicleFeed.recent(),
   getServerInfo: () => ({ startedAt, browserClients: browserServer.clientCount, lastSave }),
 });
 

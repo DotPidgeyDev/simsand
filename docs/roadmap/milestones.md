@@ -610,14 +610,21 @@ live resource piles. Deltas include inventory changes and replace the
 pile list when it changes. The browser draws piles on the map. Save
 format is unchanged.
 
+The worker scores new log events every 200 ms and sends them as
+`world.chronicle`. The server keeps the newest 50 feed-tier entries,
+sends them to a browser that connects, and lists them at
+`GET /chronicle`. The browser shows a recent-events feed and pulses a
+ring around the characters in a significant entry. Presentation tiers
+are shared: notable feeds, significant notifies, dramatic focuses the
+camera.
+
 ### Remaining scope
 
 - World director.
 - Streamer interventions.
 - Blessings, curses and world events.
 - Quests and special encounters.
-- Notifications.
-- Presentation priorities, camera focus, and event-driven presentation.
+- Camera focus. The dramatic tier that triggers it has no event yet.
 
 Ensure presentation is grounded in recorded simulation events. The director should react to the world rather than dictate ordinary character behaviour.
 

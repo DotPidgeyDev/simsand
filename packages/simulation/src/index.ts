@@ -44,7 +44,7 @@ export type {
 } from './core/loop.js';
 
 export { inspectCharacter, inspectCharacterHistory, inspectCharacterChronicle } from './inspection/inspect-character.js';
-export { chronicleEntryFromEvent, chronicleFromEvents } from './storytelling/chronicle.js';
+export { chronicleEntryFromEvent, chronicleFromEvents, chronicleSince } from './storytelling/chronicle.js';
 export { acknowledgePendingLog } from './history/records.js';
 
 export {

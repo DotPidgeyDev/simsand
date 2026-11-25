@@ -1,7 +1,7 @@
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 
-import type { EntityInspection, SimulationLogEvent, SimulationStatus, WorldSnapshot } from '@simsand/shared';
+import type { ChronicleEntry, EntityInspection, SimulationLogEvent, SimulationStatus, WorldSnapshot } from '@simsand/shared';
 import { chronicleFromEvents } from '@simsand/simulation';
 
 export interface ServerInfo {
@@ -15,6 +15,8 @@ export interface InspectionSource {
   inspectEntity(id: string): Promise<EntityInspection | undefined>;
   inspectHistory(id: string): Promise<SimulationLogEvent[] | undefined>;
   getSnapshot(): WorldSnapshot | undefined;
+  // The world-wide feed since the server started, oldest first.
+  getRecentChronicle(): ChronicleEntry[];
   getServerInfo(): ServerInfo;
 }
 
@@ -63,6 +65,12 @@ export function createInspectionServer(source: InspectionSource): FastifyInstanc
       count: snapshot.entities.length,
       entities: snapshot.entities.map(({ id, x, y }) => ({ id, x, y })),
     };
+  });
+
+  app.get('/chronicle', async () => {
+    const entries = source.getRecentChronicle();
+
+    return { count: entries.length, entries };
   });
 
   app.get<{ Params: { id: string } }>('/entities/:id/history', async (request, reply) => {
