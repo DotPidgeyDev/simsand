@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 
 import { CommandGateway } from './command-gateway.js';
 import { createCommandServer } from './command-server.js';
+import { viewerFeedback } from './platform/feedback.js';
 import { processChatMessage } from './platform/process-chat.js';
 import { TwitchIrcAdapter } from './twitch/adapter.js';
 import { mergeHistory } from './log-history.js';
@@ -164,11 +165,14 @@ if (twitchChannel && twitchNick && twitchToken) {
     channel: twitchChannel,
     nick: twitchNick,
     token: twitchToken,
-    onMessage: (message) => {
-      void processChatMessage(message, store, commandGateway, {
+    onMessage: async (message) => {
+      const outcome = await processChatMessage(message, store, commandGateway, {
         now: () => new Date().toISOString(),
         newViewerId: () => `viewer-${randomUUID().replace(/-/g, '')}`,
       });
+      const feedback = viewerFeedback(outcome, message);
+
+      if (feedback) twitchAdapter?.say(feedback);
     },
   });
   twitchAdapter.start();

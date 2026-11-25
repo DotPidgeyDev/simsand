@@ -549,7 +549,9 @@ A command may include an idempotency key. The server stores the result for that 
 
 Twitch chat can enter through IRC when `SIMSAND_TWITCH_CHANNEL`, `SIMSAND_TWITCH_NICK`, and `SIMSAND_TWITCH_TOKEN` are set, or through `POST /platform/chat` with a normalized message. A platform user id maps to one viewer. Chat `!join <characterId> <x> <y>` becomes `character.create` through the gateway, with the chat message id as the idempotency key.
 
-Local moderation bans a viewer or a platform account (`POST /moderation/bans`, `/moderation/unbans`, `GET /moderation/actions`). A ban marks the viewer and every linked platform identity as `banned`, writes an audit row, and refuses later commands and `!join`. It does not remove the in-world character or erase history. Banning an unknown platform account creates a stub banned viewer so a later chat cannot mint a new one. Viewer feedback in chat is still ahead.
+Local moderation bans a viewer or a platform account (`POST /moderation/bans`, `/moderation/unbans`, `GET /moderation/actions`). A ban marks the viewer and every linked platform identity as `banned`, writes an audit row, and refuses later commands and `!join`. It does not remove the in-world character or erase history. Banning an unknown platform account creates a stub banned viewer so a later chat cannot mint a new one.
+
+Chat command outcomes produce a short viewer-facing reply. Twitch IRC posts that reply in the channel. `POST /platform/chat` returns the same text as `feedback`. Replies name the platform username, never internal stack traces or ban audit detail.
 
 Initial scope:
 

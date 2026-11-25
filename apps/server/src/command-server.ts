@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { PLATFORM_IDS, VIEWER_ID_PATTERN } from '@simsand/shared';
 
 import type { CommandGateway } from './command-gateway.js';
+import { viewerFeedback } from './platform/feedback.js';
 import { parseNormalizedChatMessage } from './platform/normalize.js';
 import { processChatMessage, type PlatformViewerDirectory } from './platform/process-chat.js';
 import type { ModerationAction, ViewerRecord } from './world-store.js';
@@ -128,7 +129,10 @@ export function createCommandServer(options: {
       newViewerId,
     });
 
-    return outcome;
+    return {
+      ...outcome,
+      feedback: viewerFeedback(outcome, message) ?? null,
+    };
   });
 
   app.post('/moderation/bans', async (request, reply) => {

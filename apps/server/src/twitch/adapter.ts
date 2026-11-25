@@ -15,13 +15,17 @@ export interface TwitchIrcAdapterOptions {
 }
 
 // Reads chat and turns PRIVMSG lines into normalized messages. It does not
-// parse commands or touch the simulation.
+// parse commands or touch the simulation. Replies are plain channel chat.
 export class TwitchIrcAdapter {
   private socket: WebSocket | undefined;
 
   private stopped = false;
 
-  constructor(private readonly options: TwitchIrcAdapterOptions) {}
+  private readonly channel: string;
+
+  constructor(private readonly options: TwitchIrcAdapterOptions) {
+    this.channel = options.channel.replace(/^#/, '').toLowerCase();
+  }
 
   start(): void {
     this.stopped = false;
@@ -34,8 +38,16 @@ export class TwitchIrcAdapter {
     this.socket = undefined;
   }
 
+  // Viewer feedback. Keep messages short; Twitch rejects very long PRIVMSG.
+  say(text: string): void {
+    const line = text.replaceAll('\r', ' ').replaceAll('\n', ' ').trim().slice(0, 400);
+
+    if (!line || this.socket?.readyState !== WebSocket.OPEN) return;
+
+    this.socket.send(`PRIVMSG #${this.channel} :${line}`);
+  }
+
   private connect(): void {
-    const channel = this.options.channel.replace(/^#/, '').toLowerCase();
     const token = this.options.token.replace(/^oauth:/i, '');
     const socket = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
 
@@ -45,8 +57,8 @@ export class TwitchIrcAdapter {
       socket.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
       socket.send(`PASS oauth:${token}`);
       socket.send(`NICK ${this.options.nick}`);
-      socket.send(`JOIN #${channel}`);
-      log.info(`Twitch IRC connected as ${this.options.nick} in #${channel}`);
+      socket.send(`JOIN #${this.channel}`);
+      log.info(`Twitch IRC connected as ${this.options.nick} in #${this.channel}`);
     });
 
     socket.on('message', (data) => {

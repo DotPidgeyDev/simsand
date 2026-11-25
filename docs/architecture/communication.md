@@ -261,7 +261,7 @@ A viewer may create one character. The world rejects a second create with `viewe
 |---|---|
 | `POST /viewers` | Stores a viewer with a server-issued id and the display name from the body. Returns that record. |
 | `POST /viewers/:id/commands` | Submits the body to `CommandGateway` as `{ source: 'viewer', id }`. Unknown viewers are 404. The response is the `CommandResult`. |
-| `POST /platform/chat` | Accepts a `NormalizedChatMessage`. Maps the platform user to a viewer when needed, parses `!join`, and submits through the gateway. Banned viewers get `{ status: 'banned' }`. |
+| `POST /platform/chat` | Accepts a `NormalizedChatMessage`. Maps the platform user to a viewer when needed, parses `!join`, and submits through the gateway. Returns the outcome plus a `feedback` string (or null when ignored). |
 | `POST /moderation/bans` | Bans a viewer or platform account. Writes an audit row. Does not remove the character. |
 | `POST /moderation/unbans` | Clears a ban for a viewer or platform account. |
 | `GET /moderation/actions` | Lists recent moderation audit rows. |
@@ -426,7 +426,7 @@ Adding a platform should primarily mean implementing an adapter and mapping its 
 
 Twitch is the intended initial integration, with YouTube and Kick potentially supported later.
 
-`NormalizedChatMessage` is defined in `packages/shared`. `POST /platform/chat` on the command API validates that shape and runs the shared chat-command parser. `TwitchIrcAdapter` (`apps/server/src/twitch/adapter.ts`) connects to Twitch IRC when `SIMSAND_TWITCH_CHANNEL`, `SIMSAND_TWITCH_NICK`, and `SIMSAND_TWITCH_TOKEN` are all set. IRC PRIVMSG lines are parsed in `apps/server/src/twitch/parse-irc.ts`. The adapter does not call the simulation; it only emits normalized messages. The first supported chat command is `!join <characterId> <x> <y>`.
+`NormalizedChatMessage` is defined in `packages/shared`. `POST /platform/chat` on the command API validates that shape and runs the shared chat-command parser. `TwitchIrcAdapter` (`apps/server/src/twitch/adapter.ts`) connects to Twitch IRC when `SIMSAND_TWITCH_CHANNEL`, `SIMSAND_TWITCH_NICK`, and `SIMSAND_TWITCH_TOKEN` are all set. IRC PRIVMSG lines are parsed in `apps/server/src/twitch/parse-irc.ts`. The adapter does not call the simulation; it only emits normalized messages and can send a channel reply. The first supported chat command is `!join <characterId> <x> <y>`. After processing, `viewerFeedback` builds a short `@username` reply for applied, rejected, banned, and invalid joins. Twitch posts that reply; the local chat route returns it as `feedback`.
 
 ---
 

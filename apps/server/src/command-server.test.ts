@@ -183,6 +183,7 @@ describe('command server', () => {
       status: 'applied',
       viewerId: 'viewer-platform-1',
       result: { status: 'applied', tick: 2 },
+      feedback: '@ada Welcome! Your character has entered the world.',
     });
   });
 
@@ -251,7 +252,10 @@ describe('command server', () => {
       },
     });
 
-    expect(bannedChat.json()).toMatchObject({ status: 'banned' });
+    expect(bannedChat.json()).toMatchObject({
+      status: 'banned',
+      feedback: '@ada You cannot join right now.',
+    });
 
     await app.inject({
       method: 'POST',
