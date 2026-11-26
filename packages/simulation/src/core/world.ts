@@ -43,6 +43,15 @@ export interface SimulationWorld {
   // Derived from the character record. One viewer owns at most one character.
   characterByViewer: Map<string, string>;
   viewerByCharacter: Map<string, string>;
+  director: DirectorState;
+}
+
+// The world director's memory. Saved with the world.
+export interface DirectorState {
+  lastActAt: number | null;
+  targeted: Map<string, number>;
+  hungrySince: Map<string, number>;
+  cursedHoldings: Map<string, number>;
 }
 
 export function createSimulationWorld(
@@ -72,5 +81,6 @@ export function createSimulationWorld(
     returning: new Map(),
     characterByViewer: new Map(),
     viewerByCharacter: new Map(),
+    director: { lastActAt: null, targeted: new Map(), hungrySince: new Map(), cursedHoldings: new Map() },
   };
 }

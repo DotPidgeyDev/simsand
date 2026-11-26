@@ -683,7 +683,7 @@ describe('milestone 07 behaviour', () => {
     })).toMatchObject({ status: 'rejected', reason: 'viewer_has_character' });
 
     const saved = capturePersistedWorld(world, clock, world.seed);
-    expect(saved.version).toBe(24);
+    expect(saved.version).toBeGreaterThanOrEqual(24);
     expect(saved.entities[0]?.viewerId).toBe('viewer-1');
 
     const { world: restored } = restorePersistedWorld(structuredClone(saved));

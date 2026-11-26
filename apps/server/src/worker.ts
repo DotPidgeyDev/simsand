@@ -21,6 +21,7 @@ import {
   inspectCharacterHistory,
   applyTuning,
   chronicleSince,
+  readDirectorSettings,
 } from '@simsand/simulation';
 
 import type {
@@ -34,6 +35,7 @@ if (!parentPort) {
 }
 
 applyTuning();
+const directorSettings = readDirectorSettings();
 
 let loop: ReturnType<typeof createSimulationLoop> | undefined;
 let snapshot: WorldSnapshot | undefined;
@@ -83,7 +85,7 @@ parentPort.on('message', (message: ServerToWorkerMessage) => {
           createPopulation(world, message.data?.population ?? 20, seed);
         }
 
-        const runner = createSimulationRunner(world, clock);
+        const runner = createSimulationRunner(world, clock, { director: directorSettings });
 
         loop = createSimulationLoop(runner);
 

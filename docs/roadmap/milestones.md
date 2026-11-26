@@ -632,9 +632,30 @@ a bounty and click a pile. The Vite dev server proxies
 `/streamer/commands` to the command server, which stays on localhost
 with no CORS.
 
+The world director runs inside the simulation every 5 simulated
+seconds and issues the same intervention commands as `system`
+(`world-director`), each with a reason that the log and the chronicle
+summary carry. It reacts to recorded state, in priority order:
+
+- Mercy: food for a character urgently hungry with no food for a
+  minute, with nobody within 8 tiles holding any.
+- Scarcity: when fewer than half the pile sites hold a pile, the site
+  that would wait longest comes back early.
+- Kindness: a blessing after 3 comforts, keeps, or gifts within 5
+  minutes.
+- Hubris: a fatigue curse for whoever holds at least 12 items and 3×
+  everyone else's average, and again only once their hoard grows.
+
+It acts at most once a minute, and on one character at most once in 5
+minutes. Its memory is saved (format version 25). `SIMSAND_DIRECTOR=off`
+disables it, `SIMSAND_DIRECTOR_RULES` keeps only the rules it lists,
+and every number above has a `SIMSAND_DIRECTOR_*` override read at
+startup (see the README). The settings are server config, not part of
+the save. A two-hour soak of 20 characters gave one blessing and one
+curse, with no economy violations.
+
 ### Remaining scope
 
-- World director. It will issue interventions as `system`.
 - World events beyond the four interventions.
 - Quests and special encounters.
 - A bounty only refills a natural pile site. New pile sites, or piles
@@ -702,6 +723,7 @@ Initial scope:
   - Mark the tiles where a bounty will work: piles that are there or waiting to return. This needs the waiting piles on the snapshot or a read-only route.
   - Show the cooldown remaining on each intervention.
   - Reach the command server outside the Vite dev proxy, with authentication, so the panel works in a production build.
+  - Director controls: switch rules and adjust the `DirectorSettings` thresholds while the server runs. A change should go through the command path so it is audited, and the startup environment stays the default.
 - Viewer-facing UI improvements.
 - YouTube and Kick adapters.
 - Deployment and operational documentation.

@@ -153,9 +153,14 @@ at the source `eventId`. Mundane `action.ended` rows stay out.
 
 The tiers in section 5 are a shared rule. Notable entries reach the
 browser's recent-events feed. Significant entries also pulse a ring
-around the characters involved. Dramatic entries will take camera
-focus. No event scores that high yet. The world director and streamer
-interventions are still ahead in the same milestone.
+around the characters involved. Dramatic entries take camera focus:
+blessings and curses are dramatic, bounties and gifts significant.
+
+Streamers and the world director use the same four interventions. The
+director lives in `packages/simulation/src/director` and only reacts to
+recorded hardship and conduct: mercy, scarcity, kindness, and hubris.
+Its reason is on the log event, so a summary says why ("…was blessed
+for their kindness") without inventing a motive.
 
 Do not invent a second event model for stream stories. Do not drive
 ordinary AI from Twitch chat text.

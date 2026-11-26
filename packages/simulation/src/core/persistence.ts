@@ -41,13 +41,17 @@ import { pairKey } from '../social/relationships.js';
 // Version 20 predates dine.
 // Version 21 predates buy.
 // Version 22 predates a depleted pile's return.
-// Version 23 predates viewer ownership.
+// Version 23 predates viewer ownership. Version 24 predates the world director.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV23 = Omit<PersistedWorld, 'version' | 'entities'> & {
+export type PersistedWorldV24 = Omit<PersistedWorld, 'version' | 'director'> & {
+  version: 24;
+};
+
+export type PersistedWorldV23 = Omit<PersistedWorldV24, 'version' | 'entities'> & {
   version: 23;
   entities: Array<Omit<PersistedEntity, 'viewerId'>>;
 };
@@ -191,6 +195,7 @@ export type UpgradeableWorld =
   | PersistedWorldV21
   | PersistedWorldV22
   | PersistedWorldV23
+  | PersistedWorldV24
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -263,6 +268,12 @@ export function capturePersistedWorld(
       y: Math.floor(key / world.map.width),
       renewsAt,
     })),
+    director: {
+      lastActAt: world.director.lastActAt,
+      targeted: [...world.director.targeted].map(([characterId, at]) => ({ characterId, at })),
+      hungrySince: [...world.director.hungrySince].map(([characterId, since]) => ({ characterId, since })),
+      cursedHoldings: [...world.director.cursedHoldings].map(([characterId, total]) => ({ characterId, total })),
+    },
   };
 }
 
@@ -564,13 +575,21 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 23) {
-    return {
+    return upgradePersistedWorld({
       ...persisted,
-      version: PERSISTED_WORLD_VERSION,
+      version: 24,
       entities: persisted.entities.map((entity) => ({
         ...entity,
         viewerId: null,
       })),
+    });
+  }
+
+  if (persisted.version === 24) {
+    return {
+      ...persisted,
+      version: PERSISTED_WORLD_VERSION,
+      director: { lastActAt: null, targeted: [], hungrySince: [], cursedHoldings: [] },
     };
   }
 
@@ -643,6 +662,12 @@ export function restorePersistedWorld(persisted: PersistedWorld): {
       },
     ]),
   );
+  world.director = {
+    lastActAt: persisted.director.lastActAt,
+    targeted: new Map(persisted.director.targeted.map((entry) => [entry.characterId, entry.at])),
+    hungrySince: new Map(persisted.director.hungrySince.map((entry) => [entry.characterId, entry.since])),
+    cursedHoldings: new Map(persisted.director.cursedHoldings.map((entry) => [entry.characterId, entry.total])),
+  };
   rebuildHistoryIndexes(world);
 
   return { world, clock };

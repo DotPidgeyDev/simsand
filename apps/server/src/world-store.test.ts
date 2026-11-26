@@ -8,13 +8,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { PersistedWorld, SimulationLogEvent } from '@simsand/shared';
 import { generateCharacterProfile, generateResourceNodes, generateWorldMap, spriteIdFor, startingAgeSeconds, toWorldMapData } from '@simsand/simulation';
 
-import { WorldStore } from './world-store.js';
+import { WorldStore, parsePersistedWorld } from './world-store.js';
 
 function world(tick: number): PersistedWorld {
   const profile = generateCharacterProfile(12345, 'character-0001');
 
   return {
-    version: 24,
+    version: 25,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -49,6 +49,7 @@ function world(tick: number): PersistedWorld {
     inventories: [],
     nodes: [],
     returning: [],
+    director: { lastActAt: null, targeted: [], hungrySince: [], cursedHoldings: [] },
   };
 }
 
@@ -163,7 +164,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(24);
+    expect(loaded?.version).toBe(25);
     expect(loaded?.entities).toEqual(saved.entities);
     expect(loaded?.map.tiles[1]).toBe(1);
     expect(loaded?.map.tiles[2]).toBe(2);
@@ -183,7 +184,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(24);
+    expect(loaded?.version).toBe(25);
     expect(loaded?.entities[0].eating).toBe(false);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].resting).toBe(true);
@@ -205,7 +206,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(24);
+    expect(loaded?.version).toBe(25);
     expect(loaded?.entities[0].eating).toBe(true);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].needs.hunger).toBe(0.9);
@@ -224,7 +225,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(24);
+    expect(loaded?.version).toBe(25);
     expect(loaded?.entities[0].ageSeconds).toBe(saved.entities[0].ageSeconds);
   });
 
@@ -350,6 +351,20 @@ describe('WorldStore', () => {
 
     expect(store.eventsForParticipant('left')).toEqual([blessed]);
     expect(db.prepare('SELECT COUNT(*) AS count FROM simulation_events').get()).toEqual({ count: 2 });
+  });
+
+  it('refuses a saved world whose director memory is malformed', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+    const broken = {
+      ...world(1),
+      director: { lastActAt: null, targeted: [{ characterId: 'a', at: -1 }], hungrySince: [], cursedHoldings: [] },
+    };
+
+    expect(() => parsePersistedWorld(JSON.stringify(broken))).toThrow('targeted has an invalid entry');
+
+    store.save(world(2));
+
+    expect(store.loadLatest()?.director).toEqual({ lastActAt: null, targeted: [], hungrySince: [], cursedHoldings: [] });
   });
 
   it('rejects an intervention event whose payload does not fit its type', () => {

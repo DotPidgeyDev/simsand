@@ -227,6 +227,18 @@ curl 127.0.0.1:8767/entities/character-0001/history  # events that involved that
 | `SIMSAND_THIRST_RECOVERY_PER_SECOND` | `0.02` | Thirst removed each second while drinking |
 | `SIMSAND_FATIGUE_GAIN_PER_SECOND` | `0.015` | Fatigue added each second at constitution 1. Higher constitution tires more slowly |
 | `SIMSAND_FATIGUE_RECOVERY_PER_SECOND` | `0.025` | Fatigue removed each second while resting |
+| `SIMSAND_DIRECTOR` | on | `off` stops the world director |
+| `SIMSAND_DIRECTOR_RULES` | `mercy,scarcity,kindness,hubris` | Comma-separated rules the director may use |
+| `SIMSAND_DIRECTOR_CHECK_SECONDS` | `5` | Simulated seconds between director checks |
+| `SIMSAND_DIRECTOR_ACT_SECONDS` | `60` | Shortest gap between any two director acts |
+| `SIMSAND_DIRECTOR_TARGET_SECONDS` | `300` | Shortest gap between director acts on the same character |
+| `SIMSAND_DIRECTOR_MERCY_AFTER_SECONDS` | `60` | How long a character goes hungry without food before mercy |
+| `SIMSAND_DIRECTOR_MERCY_RADIUS` | `8` | Tiles within which a neighbour holding food rules out mercy |
+| `SIMSAND_DIRECTOR_KINDNESS_WINDOW_SECONDS` | `300` | Window in which kind acts are counted |
+| `SIMSAND_DIRECTOR_KINDNESS_ACTS` | `3` | Kind acts within the window that earn a blessing |
+| `SIMSAND_DIRECTOR_HOARD_MIN_ITEMS` | `12` | Fewest items held before hubris applies |
+| `SIMSAND_DIRECTOR_HOARD_FACTOR` | `3` | How many times everyone else's average a hoard must be |
+| `SIMSAND_DIRECTOR_SCARCITY_BOUNTY` | `3` | Material in a pile the scarcity rule brings back |
 
 ---
 

@@ -3,6 +3,7 @@ import type {
   ActionLogEvent,
   ChronicleEntry,
   ChronicleTier,
+  DirectorReason,
   InterventionLogEvent,
   SimulationLogEvent,
   SimulationLogType,
@@ -41,7 +42,21 @@ function summaryFor(event: SimulationLogEvent): string | undefined {
   return actionSummary(event);
 }
 
+// Why the world director acted, appended to what it did.
+const BECAUSE: Record<DirectorReason, string> = {
+  mercy: ' in their hunger',
+  scarcity: ' as piles ran low',
+  kindness: ' for their kindness',
+  hubris: ' for hoarding',
+};
+
 function interventionSummary(event: InterventionLogEvent): string {
+  const reason = event.payload.reason;
+
+  return interventionAct(event) + (reason ? BECAUSE[reason] : '');
+}
+
+function interventionAct(event: InterventionLogEvent): string {
   switch (event.type) {
     case 'intervention.blessed':
       return `${event.payload.target} was blessed`;

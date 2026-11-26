@@ -14,7 +14,7 @@ import { blessCharacter } from '../interventions/bless.js';
 import { placeBounty } from '../interventions/bounty.js';
 import { curseCharacter } from '../interventions/curse.js';
 import { giftCharacter } from '../interventions/gift.js';
-import type { InterventionOutcome } from '../interventions/outcome.js';
+import type { InterventionCause, InterventionOutcome } from '../interventions/outcome.js';
 
 const DEFAULT_COLOR = 0xffffff;
 
@@ -51,6 +51,14 @@ function rejected(
   message: string,
 ): CommandResult {
   return { commandId: command.commandId, status: 'rejected', reason, message };
+}
+
+function causeOf(command: SimulationCommand): InterventionCause {
+  const cause: InterventionCause = { commandId: command.commandId, issuer: command.issuer };
+
+  if (command.reason) cause.reason = command.reason;
+
+  return cause;
 }
 
 function interventionResult(
@@ -138,30 +146,25 @@ export function executeCommand(
     }
 
     case 'intervention.bless': {
-      const cause = { commandId: command.commandId, issuer: command.issuer };
-
-      return interventionResult(command, clock, blessCharacter(world, command.params.characterId, cause));
+      return interventionResult(command, clock, blessCharacter(world, command.params.characterId, causeOf(command)));
     }
 
     case 'intervention.curse': {
-      const cause = { commandId: command.commandId, issuer: command.issuer };
       const { characterId, need } = command.params;
 
-      return interventionResult(command, clock, curseCharacter(world, characterId, need, cause));
+      return interventionResult(command, clock, curseCharacter(world, characterId, need, causeOf(command)));
     }
 
     case 'intervention.bounty': {
-      const cause = { commandId: command.commandId, issuer: command.issuer };
       const { x, y, quantity } = command.params;
 
-      return interventionResult(command, clock, placeBounty(world, x, y, quantity, cause));
+      return interventionResult(command, clock, placeBounty(world, x, y, quantity, causeOf(command)));
     }
 
     case 'intervention.gift': {
-      const cause = { commandId: command.commandId, issuer: command.issuer };
       const { characterId, item, quantity } = command.params;
 
-      return interventionResult(command, clock, giftCharacter(world, characterId, item, quantity, cause));
+      return interventionResult(command, clock, giftCharacter(world, characterId, item, quantity, causeOf(command)));
     }
   }
 }

@@ -1,5 +1,5 @@
 import { LIFECYCLE_STATES } from '@simsand/shared';
-import type { CommandIssuer, CommandRejectionReason, InterventionLogEvent } from '@simsand/shared';
+import type { CommandIssuer, CommandRejectionReason, DirectorReason, InterventionLogEvent } from '@simsand/shared';
 
 import { Lifecycle } from '../components/lifecycle.js';
 import type { SimulationWorld } from '../core/world.js';
@@ -11,6 +11,7 @@ export type InterventionOutcome =
 export interface InterventionCause {
   commandId: string;
   issuer: CommandIssuer;
+  reason?: DirectorReason;
 }
 
 export function refuse(reason: CommandRejectionReason, message: string): InterventionOutcome {

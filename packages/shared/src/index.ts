@@ -51,7 +51,7 @@ export interface WorldDelta {
   nodes?: ResourceNode[];
 }
 
-export const PERSISTED_WORLD_VERSION = 24;
+export const PERSISTED_WORLD_VERSION = 25;
 
 // Server-issued viewer ids. A platform user id is not one of these.
 export const VIEWER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -211,10 +211,17 @@ export interface ActionLogPayload {
   price?: number;
 }
 
-// Who asked for an intervention. The command receipt holds the rest.
+// Why the world director stepped in. Each is one director rule.
+export const DIRECTOR_REASONS = ['mercy', 'scarcity', 'kindness', 'hubris'] as const;
+
+export type DirectorReason = (typeof DIRECTOR_REASONS)[number];
+
+// Who asked for an intervention, and the director's reason when it was
+// the director. The command receipt holds the rest.
 interface InterventionCause {
   commandId: string;
   issuer: CommandIssuer;
+  reason?: DirectorReason;
 }
 
 export interface InterventionLogPayloads {
@@ -379,6 +386,20 @@ export interface PersistedWorld {
   inventories: InventoryRecord[];
   nodes: ResourceNode[];
   returning: PileReturn[];
+  director: PersistedDirector;
+}
+
+// What the world director remembers between checks. Times are elapsed
+// simulation seconds.
+export interface PersistedDirector {
+  // When it last acted at all. Null before its first act.
+  lastActAt: number | null;
+  // When it last acted on each character.
+  targeted: Array<{ characterId: string; at: number }>;
+  // When each character became urgently hungry with no food to hand.
+  hungrySince: Array<{ characterId: string; since: number }>;
+  // How many items each character held when last cursed for hoarding.
+  cursedHoldings: Array<{ characterId: string; total: number }>;
 }
 
 export const COMMAND_PROTOCOL_VERSION = 1;
@@ -441,6 +462,9 @@ export type SimulationCommand = CommandRequest & {
   commandId: string;
   issuer: CommandIssuer;
   submittedAt: number;
+  // Set only by the world director inside the simulation. The gateway's
+  // schema has no such field, so an outside caller cannot claim one.
+  reason?: DirectorReason;
 };
 
 export const DOMAIN_EVENT_VERSION = 1;

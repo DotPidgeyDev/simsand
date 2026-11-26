@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, backup } from 'node:sqlite';
 
-import { ACCOUNT_STATUSES, ACTION_IDS, ACTION_OUTCOMES, BASIC_NEEDS, COMMAND_SOURCES, INTERVENTION_LOG_TYPES, ITEM_IDS, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
+import { ACCOUNT_STATUSES, ACTION_IDS, ACTION_OUTCOMES, BASIC_NEEDS, COMMAND_SOURCES, DIRECTOR_REASONS, INTERVENTION_LOG_TYPES, ITEM_IDS, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
 import type { AccountStatus, CommandIssuer, CommandResult, PileReturn, PlatformId, PlatformIdentityRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
@@ -850,6 +850,10 @@ function assertInterventionPayload(event: SimulationLogEvent): void {
 
   if (typeof payload.commandId !== 'string' || payload.commandId.length === 0) fail('has no command id');
 
+  if (payload.reason !== undefined && !(DIRECTOR_REASONS as readonly unknown[]).includes(payload.reason)) {
+    fail('names an unknown director reason');
+  }
+
   if (
     typeof issuer !== 'object'
     || issuer === null
@@ -918,6 +922,39 @@ function isPersistedEntity(value: unknown, version: number): value is PersistedE
     entity.id.length > 0 &&
     numeric.every((key) => isFiniteNumber(entity[key]))
   );
+}
+
+function assertDirector(value: unknown): void {
+  if (typeof value !== 'object' || value === null) {
+    throw new Error('World director state is missing');
+  }
+
+  const director = value as Record<string, unknown>;
+
+  if (director.lastActAt !== null && (!isFiniteNumber(director.lastActAt) || director.lastActAt < 0)) {
+    throw new Error('World director last act time is invalid');
+  }
+
+  for (const [field, timeKey] of [['targeted', 'at'], ['hungrySince', 'since'], ['cursedHoldings', 'total']] as const) {
+    const entries = director[field];
+
+    if (!Array.isArray(entries)) {
+      throw new Error(`World director ${field} is missing`);
+    }
+
+    const seen = new Set<string>();
+
+    for (const entry of entries as Record<string, unknown>[]) {
+      const id = entry?.characterId;
+      const time = entry?.[timeKey];
+
+      if (typeof id !== 'string' || id.length === 0 || seen.has(id) || !isFiniteNumber(time) || time < 0) {
+        throw new Error(`World director ${field} has an invalid entry`);
+      }
+
+      seen.add(id);
+    }
+  }
 }
 
 export function parsePersistedWorld(payload: string): PersistedWorld {
@@ -1211,6 +1248,10 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
       viewers.add(entity.viewerId);
     }
+  }
+
+  if (Number(world.version) >= 25) {
+    assertDirector(world.director);
   }
 
   const ids = new Set(world.entities.map((entity) => entity.id));

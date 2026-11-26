@@ -262,7 +262,7 @@ The command types are:
 | `intervention.bounty` | `x`, `y` (integer tile), optional `quantity` 1–5 (default 3) | admin, streamer, system |
 | `intervention.gift` | `characterId`, `item`, `quantity` 1–5 | admin, streamer, system |
 
-The world director will issue interventions as `system`.
+The world director issues interventions as `{ source: 'system', id: 'world-director' }` from inside the simulation, through `executeCommand` rather than the gateway. Only it sets the command's `reason`; the gateway schema has no such field.
 
 A viewer may create one character. The world rejects a second create with `viewer_has_character`, including when the first character is dead. Viewers cannot remove a character.
 

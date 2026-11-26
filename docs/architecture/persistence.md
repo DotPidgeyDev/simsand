@@ -228,7 +228,11 @@ model incrementally as simulation systems become real.
     a craft cooldown of zero. Version 21 gains a dine cooldown of zero.
     Version 22 gains a buy cooldown of zero. Version 23 gains an empty
     list of piles waiting to return. Version 24 gains `viewerId` on
-    each character, null for an NPC. The next save writes version 24.
+    each character, null for an NPC. Version 25 gains `director`: when
+    the world director last acted, when it last acted on each
+    character, who has been urgently hungry with no food since when, and
+    how much each character held when last cursed for hoarding. An older
+    save starts with an empty director. The next save writes version 25.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot reshuffle an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker
