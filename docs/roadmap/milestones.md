@@ -731,7 +731,7 @@ A route that seeks a person or a stack. Milestone 03's shared field seeks water,
 
 A dead holder's stacks. **Decided: they stay on the body.** `character.died` does not move or delete them, and they survive a save. The living cannot buy from or give to the body, and the director does not count it. A buy already underway fails when the seller dies. Removing the character still deletes the stacks. Taking from the body waits for a route to a stack. Inheritance, when families arrive, is a rule that moves them from the body.
 
-A declared preference when two jobs share a score. The earlier definition wins a tie, and a bias of 0.05 can flip it. Craft wins by suppressing work while material is in hand. Dine wins by a bonus wider than that bias. A profession says which job wins without another one-off bonus.
+A declared preference when two jobs share a score. **Done.** `ACTION_PREFERENCES` in `packages/simulation/src/systems/actions.ts` lists the jobs that share a score in the order they win: dine before eat, and craft before work before gather. When more than one in a group can start, the earlier one runs whatever the bias, and the group competes with other actions at that job's biased score. Work no longer refuses to start while material is in hand, and dine no longer carries a bonus. Without the bonus, a held meal no longer outranks a slightly higher thirst or fatigue. A profession will give a character its own order for a group.
 
 A depleted pile returns to stock 3 on the same tile after 90 seconds. Wildlife, weather, and farming here renew or replace that input. They start from that return, not from a pile that is gone for good.
 

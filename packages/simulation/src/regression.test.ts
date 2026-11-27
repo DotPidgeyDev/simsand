@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { ACTION_IDS, ACTION_OUTCOMES, CHRONICLE_PRESENTATION, DIRECTOR_REASONS, ITEM_IDS, LIFECYCLE_STATES, MEMORY_KINDS, PERSONALITY_TRAITS, SIMULATION_LOG_TYPES, TERRAIN_TYPES } from '@simsand/shared';
+import type { ActionId } from '@simsand/shared';
 
 import { generateCharacterProfile, spriteIdFor, startingAgeSeconds } from './characters/profile.js';
 import { Action } from './components/action.js';
@@ -28,7 +29,7 @@ import { PILE_RETURN_SECONDS, nodeAt, nodeKey, renewPiles, takeResource } from '
 import { acknowledgePendingLog } from './history/records.js';
 import { inspectCharacter, inspectCharacterHistory } from './inspection/inspect-character.js';
 import { LOG_LIMIT, recordActionEnding } from './log/events.js';
-import { ACTION_COOLDOWN_SECONDS, MIN_ACTION_SECONDS, actionBias, readActionOutcome, updateActions } from './systems/actions.js';
+import { ACTION_BIAS, ACTION_COOLDOWN_SECONDS, ACTION_PREFERENCES, MIN_ACTION_SECONDS, actionBias, actionUtilities, chooseAction, readActionOutcome, updateActions } from './systems/actions.js';
 import { HUNGER_GAIN_PER_SECOND, HUNGER_RESUME_AT } from './systems/needs.js';
 import { lifespanSeconds, updateLifecycle } from './systems/lifecycle.js';
 import { rememberMeeting } from './social/relationships.js';
@@ -933,6 +934,48 @@ describe('milestone 09 behaviour', () => {
 
     expect(['buy', 'give']).not.toContain(ACTION_IDS[Action.kind[left]]);
     expect(heldQuantity(world, 'left', 'goods')).toBe(FOOD_PRICE);
+  });
+
+  it('declares which job wins when two share a score, whatever the bias', () => {
+    expect(ACTION_PREFERENCES).toEqual([['dine', 'eat'], ['craft', 'work', 'gather']]);
+
+    const utilities = { ...actionUtilities({ hunger: 0.5, thirst: 0.1, fatigue: 0.1, curiosity: 0 }) };
+    const available = Object.fromEntries(ACTION_IDS.map((id) => [id, false])) as Record<ActionId, boolean>;
+
+    utilities.eat += ACTION_BIAS;
+    utilities.dine -= ACTION_BIAS;
+    expect(chooseAction(utilities, { ...available, eat: true, dine: true })).toBe('dine');
+
+    utilities.work = 0.6 + ACTION_BIAS;
+    utilities.craft = 0.6 - ACTION_BIAS;
+    expect(chooseAction(utilities, { ...available, work: true, craft: true })).toBe('craft');
+    expect(chooseAction(utilities, { ...available, work: true, craft: true, eat: true, dine: true })).toBe('craft');
+  });
+
+  it('crafts at a camp when holding material, and works there without it', () => {
+    const world = createSimulationWorld(createWorldMap(8, 8, 'camp'));
+    const eid = createCharacter(world, {
+      id: 'maker',
+      x: 2.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.1;
+    Needs.fatigue[eid] = 0.1;
+    Personality.industriousness[eid] = 1;
+    Lifecycle.ageSeconds[eid] = 0;
+
+    updateActions(world, 0.1);
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('work');
+
+    grantItem(world, 'maker', 'material', 1);
+    Action.elapsed[eid] = 0;
+    updateActions(world, 0.1);
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('craft');
   });
 
   it('does not count food on the body as food nearby for mercy', () => {

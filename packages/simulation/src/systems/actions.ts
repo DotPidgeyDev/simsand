@@ -43,9 +43,15 @@ export const ACTION_COOLDOWN_SECONDS = 20;
 // between two characters who otherwise want the same thing. Stable per
 // character, from its own salt, so it never shifts the profile.
 export const ACTION_BIAS = 0.05;
-// Wider than the bias on both sides, so a held meal beats the free one.
-const HELD_MEAL_SCORE = ACTION_BIAS * 4;
 const ACTION_BIAS_SALT = 0x27d4eb2f;
+
+// Jobs that share a score. When more than one can start, the earlier one
+// runs, whatever the bias. The group still competes with other actions
+// at the score and bias of the job it picked.
+export const ACTION_PREFERENCES: readonly (readonly ActionId[])[] = [
+  ['dine', 'eat'],
+  ['craft', 'work', 'gather'],
+];
 
 export function emptyCooldowns(): ActionCooldowns {
   const cooldowns = {} as ActionCooldowns;
@@ -175,9 +181,10 @@ interface ActionDefinition {
   losesTarget: boolean;
 }
 
-// Order is the tie break: eat, then dine, then drink, then rest, then work,
-// then gather, then craft, then comfort, then keep, then confide, then bluff,
-// then greet, then give, then buy, then move, then idle.
+// Order is the tie break between different jobs: eat, then dine, then drink,
+// then rest, then work, then gather, then craft, then comfort, then keep,
+// then confide, then bluff, then greet, then give, then buy, then move, then
+// idle. Jobs that share a score follow ACTION_PREFERENCES instead.
 export const actionDefinitions: readonly ActionDefinition[] = [
   {
     id: 'eat',
@@ -196,9 +203,8 @@ export const actionDefinitions: readonly ActionDefinition[] = [
   },
   {
     id: 'dine',
-    // One food, then hunger is quiet. Scored above the free meal only while
-    // it can start, so a swimmer with nothing to eat still walks ashore.
-    score: (state) => state.heldFood >= 1 && !state.onWater ? state.hunger + HELD_MEAL_SCORE : 0,
+    // One food, then hunger is quiet. Preferred over the free meal.
+    score: (state) => state.hunger,
     requiresLife: true,
     ready: (state) => !state.onWater && state.hunger > HUNGER_RESUME_AT && state.heldFood >= 1,
     holds: (state) => !state.onWater && state.heldFood >= 1,
@@ -244,8 +250,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     score: (state) => state.industriousness * comfort(state),
     requiresLife: true,
     // A camp is the only workplace. The visit happens while every need is quiet.
-    // Holding material is the craft visit, so this one stays the visit with no input.
-    ready: (state) => state.onCamp && comfortable(state) && state.heldMaterial < 1,
+    ready: (state) => state.onCamp && comfortable(state),
     holds: (state) => state.onCamp && comfortable(state),
     sustain: (state) => state.onCamp && comfortable(state),
     urgent: () => false,
@@ -619,13 +624,28 @@ export function chooseAction(
     fatigue: 1,
   }),
 ): ActionId {
-  const candidates = actionDefinitions.filter((definition) => available[definition.id]);
+  const candidates = actionDefinitions.filter((definition) => (
+    available[definition.id] && !outranked(definition.id, available)
+  ));
 
   if (candidates.length === 0) return 'idle';
 
   return candidates.reduce((best, definition) => (
     utilities[definition.id] > utilities[best.id] ? definition : best
   )).id;
+}
+
+function preferenceGroup(id: ActionId): readonly ActionId[] | undefined {
+  return ACTION_PREFERENCES.find((members) => members.includes(id));
+}
+
+// An earlier job in the same group can also run.
+function outranked(id: ActionId, available: Record<ActionId, boolean>): boolean {
+  const group = preferenceGroup(id);
+
+  if (!group) return false;
+
+  return group.slice(0, group.indexOf(id)).some((member) => available[member]);
 }
 
 export function assertActionId(value: unknown): ActionId {
@@ -650,16 +670,21 @@ function isOpen(
 
 // Highest scoring action whose cooldown has elapsed, including ones that
 // cannot start here. Those are a failure when there is also no route to a
-// place where they could.
+// place where they could. A group that cannot start here is represented by
+// its last job, so a swimmer holding food is judged as wanting the free meal.
 function preferredAction(
   utilities: Record<ActionId, number>,
   alive: boolean,
   cooldowns: ActionCooldowns,
+  state: NeedState,
 ): ActionId {
   const open = emptyAvailability();
 
   for (const definition of actionDefinitions) {
-    open[definition.id] = isOpen(definition, alive, cooldowns);
+    const group = preferenceGroup(definition.id);
+    const fallback = !group || group[group.length - 1] === definition.id;
+
+    open[definition.id] = isOpen(definition, alive, cooldowns) && (fallback || definition.ready(state));
   }
 
   return chooseAction(utilities, open);
@@ -888,7 +913,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       targetDistress: state.targetDistress,
       cooldowns,
     });
-    const preferred = preferredAction(utilities, state.alive, cooldowns);
+    const preferred = preferredAction(utilities, state.alive, cooldowns, state);
 
     if (selectionFailed(preferred, available, state)) {
       noteEnding(world, eid, preferred, 'failed');
