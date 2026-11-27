@@ -1,10 +1,12 @@
-import { isInterventionLogEvent } from '@simsand/shared';
+import { isInterventionLogEvent, isLifecycleLogEvent } from '@simsand/shared';
 import type {
   ActionLogEvent,
   ChronicleEntry,
   ChronicleTier,
+  DeathCause,
   DirectorReason,
   InterventionLogEvent,
+  LifecycleLogEvent,
   SimulationLogEvent,
   SimulationLogType,
 } from '@simsand/shared';
@@ -25,6 +27,7 @@ const SIGNIFICANCE: Partial<Record<SimulationLogType, { score: number; tier: Chr
   'intervention.cursed': { score: 0.85, tier: 'dramatic' },
   'intervention.bounty': { score: 0.6, tier: 'significant' },
   'intervention.gifted': { score: 0.6, tier: 'significant' },
+  'character.died': { score: 0.9, tier: 'dramatic' },
 };
 
 function pairIds(event: ActionLogEvent): { initiator: string; other: string } | undefined {
@@ -38,8 +41,17 @@ function pairIds(event: ActionLogEvent): { initiator: string; other: string } | 
 
 function summaryFor(event: SimulationLogEvent): string | undefined {
   if (isInterventionLogEvent(event)) return interventionSummary(event);
+  if (isLifecycleLogEvent(event)) return lifecycleSummary(event);
 
   return actionSummary(event);
+}
+
+const DIED_OF: Record<DeathCause, string> = {
+  old_age: 'old age',
+};
+
+function lifecycleSummary(event: LifecycleLogEvent): string {
+  return `${event.participants[0]} died of ${DIED_OF[event.payload.cause]}`;
 }
 
 // Why the world director acted, appended to what it did.

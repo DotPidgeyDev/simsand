@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, backup } from 'node:sqlite';
 
-import { ACCOUNT_STATUSES, ACTION_IDS, ACTION_OUTCOMES, BASIC_NEEDS, COMMAND_SOURCES, DIRECTOR_REASONS, INTERVENTION_LOG_TYPES, ITEM_IDS, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
+import { ACCOUNT_STATUSES, ACTION_IDS, ACTION_OUTCOMES, BASIC_NEEDS, COMMAND_SOURCES, DEATH_CAUSES, DIRECTOR_REASONS, INTERVENTION_LOG_TYPES, ITEM_IDS, LIFECYCLE_LOG_TYPES, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
 import type { AccountStatus, CommandIssuer, CommandResult, PileReturn, PlatformId, PlatformIdentityRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
 import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
@@ -830,6 +830,11 @@ function assertLogEvent(value: unknown): asserts value is SimulationLogEvent {
     return;
   }
 
+  if ((LIFECYCLE_LOG_TYPES as readonly string[]).includes(event.type)) {
+    assertLifecyclePayload(event);
+    return;
+  }
+
   const payload = event.payload as { action?: unknown; result?: unknown };
 
   if (!(ACTION_IDS as readonly unknown[]).includes(payload.action)) {
@@ -878,6 +883,22 @@ function assertInterventionPayload(event: SimulationLogEvent): void {
   if (event.type === 'intervention.bounty' || event.type === 'intervention.gifted') {
     if (!(ITEM_IDS as readonly unknown[]).includes(payload.item)) fail('names an unknown item');
     if (!Number.isInteger(payload.quantity) || (payload.quantity as number) < 1) fail('quantity is not a positive integer');
+  }
+}
+
+function assertLifecyclePayload(event: SimulationLogEvent): void {
+  const payload = event.payload as unknown as Record<string, unknown>;
+
+  if (event.participants.length !== 1) {
+    throw new Error(`Log event ${event.eventId} must name exactly one character`);
+  }
+
+  if (!(DEATH_CAUSES as readonly unknown[]).includes(payload.cause)) {
+    throw new Error(`Log event ${event.eventId} names an unknown cause of death`);
+  }
+
+  if (!isFiniteNumber(payload.ageSeconds) || payload.ageSeconds < 0) {
+    throw new Error(`Log event ${event.eventId} age is invalid`);
   }
 }
 

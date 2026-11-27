@@ -353,6 +353,29 @@ describe('WorldStore', () => {
     expect(db.prepare('SELECT COUNT(*) AS count FROM simulation_events').get()).toEqual({ count: 2 });
   });
 
+  it('stores a death and refuses one that names no single character or cause', () => {
+    const store = new WorldStore(new DatabaseSync(':memory:'));
+    const died: SimulationLogEvent = {
+      eventId: 'log-1',
+      type: 'character.died',
+      tick: 1,
+      elapsedSeconds: 0.1,
+      participants: ['left'],
+      location: { x: 1, y: 1 },
+      payload: { cause: 'old_age', ageSeconds: 21_600 },
+    };
+
+    store.save({ ...world(1), log: [died] });
+
+    expect(store.eventsForParticipant('left')).toEqual([died]);
+    expect(() => store.save({ ...world(2), log: [{ ...died, eventId: 'log-2', participants: ['left', 'right'] }] }))
+      .toThrow('must name exactly one character');
+    expect(() => store.save({
+      ...world(2),
+      log: [{ ...died, eventId: 'log-3', payload: { cause: 'boredom' as 'old_age', ageSeconds: 1 } }],
+    })).toThrow('unknown cause of death');
+  });
+
   it('refuses a saved world whose director memory is malformed', () => {
     const store = new WorldStore(new DatabaseSync(':memory:'));
     const broken = {

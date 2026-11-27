@@ -1,6 +1,6 @@
 import { query } from 'bitecs';
 
-import { LIFECYCLE_STATES, isInterventionLogEvent } from '@simsand/shared';
+import { LIFECYCLE_STATES, isActionLogEvent } from '@simsand/shared';
 import type { CommandIssuer, CommandRequest, DirectorReason, SimulationLogType } from '@simsand/shared';
 
 import { executeCommand } from '../commands/execute-command.js';
@@ -192,7 +192,7 @@ function kindness(
     const event = world.log[i];
 
     if (now - event.elapsedSeconds > settings.kindnessWindowSeconds) break;
-    if (isInterventionLogEvent(event) || !KIND_ACTS.includes(event.type)) continue;
+    if (!isActionLogEvent(event) || !KIND_ACTS.includes(event.type)) continue;
     if (event.payload.result !== 'completed') continue;
 
     const initiator = event.payload.initiator ?? event.participants[0];

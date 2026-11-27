@@ -164,6 +164,7 @@ The current simulation includes:
 - Ages each living character by the tick length.
 - Sets a character to dead when their age reaches the lifespan constitution gives them.
 - Clears resting, eating and drinking at that moment, and does not age the dead.
+- Writes one `character.died` log event naming the character, the cause (`old_age`) and their age.
 
 **Movement system**
 
@@ -399,10 +400,10 @@ The current gameplay checks are:
 | `character.remove` | No character has the ID (`character_not_found`) | `character.removed` |
 | `intervention.bless` | No such character (`character_not_found`) or it is dead (`character_dead`) | Hunger, thirst and fatigue go to 0. Logs `intervention.blessed` |
 | `intervention.curse` | As for bless | The named need rises to its urgent line (0.8) if it is below it. Logs `intervention.cursed` |
-| `intervention.bounty` | The tile is off the map (`out_of_bounds`) or is not a pile site (`tile_unavailable`) | Adds material to the pile there, or brings a depleted pile back early with that quantity. Logs `intervention.bounty` |
+| `intervention.bounty` | The tile is off the map (`out_of_bounds`), or holds no pile, is not waiting for one, and is not grass (`tile_unavailable`) | Adds material to the pile there, brings a depleted pile back early with that quantity, or starts a new pile on bare grass. Logs `intervention.bounty` |
 | `intervention.gift` | As for bless | Adds the items to the character's inventory. Logs `intervention.gifted` |
 
-Interventions live in `packages/simulation/src/interventions`. Each writes one log event whose payload names the command id and issuer; the applied result carries `intervention.applied` pointing at it. A curse does not choose an action. The ordinary interruption rule reacts to the raised need on the next tick. A bounty only works on a pile site because every depleted pile returns as material on its own tile. The bounty event has no participants.
+Interventions live in `packages/simulation/src/interventions`. Each writes one log event whose payload names the command id and issuer; the applied result carries `intervention.applied` pointing at it. A curse does not choose an action. The ordinary interruption rule reacts to the raised need on the next tick. A bounty on bare grass makes a new pile site: when that pile runs out it waits to return on its tile like a generated one. The site is saved as that pile or that return entry, so it needs no separate marker. Other terrain is refused because generated piles only sit on grass. The bounty event has no participants.
 
 A viewer create records that viewer's id on the character. An admin, streamer, or system create leaves it empty. The character is otherwise the same as any other.
 

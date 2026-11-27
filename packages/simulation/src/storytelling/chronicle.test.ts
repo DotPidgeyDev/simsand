@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ActionLogEvent, InterventionLogEvent } from '@simsand/shared';
+import type { ActionLogEvent, InterventionLogEvent, LifecycleLogEvent } from '@simsand/shared';
 
 import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
@@ -174,6 +174,25 @@ describe('chronicle', () => {
       { tier: 'significant', summary: 'left received 2 food' },
     ]);
     expect(chronicleEntryFromEvent(events[2]!)?.location).toEqual({ x: 6.5, y: 3.5 });
+  });
+
+  it('makes a death dramatic and names the cause', () => {
+    const died: LifecycleLogEvent = {
+      eventId: 'log-1',
+      type: 'character.died',
+      tick: 4,
+      elapsedSeconds: 0.4,
+      participants: ['left'],
+      location: { x: 2.5, y: 2.5 },
+      payload: { cause: 'old_age', ageSeconds: 21_600 },
+    };
+
+    expect(chronicleEntryFromEvent(died)).toMatchObject({
+      tier: 'dramatic',
+      score: 0.9,
+      summary: 'left died of old age',
+      location: { x: 2.5, y: 2.5 },
+    });
   });
 
   it('exposes a character chronicle from the live log without changing actions', () => {

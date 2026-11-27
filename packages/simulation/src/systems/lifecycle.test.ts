@@ -9,6 +9,7 @@ import { Needs } from '../components/needs.js';
 import { Position } from '../components/position.js';
 import { createSimulationWorld } from '../core/world.js';
 import { createCharacter } from '../entities/create-character.js';
+import { historyFor } from '../log/events.js';
 import { lifespanSeconds, updateLifecycle } from './lifecycle.js';
 import { updateMovement } from './movement.js';
 import { updateNeeds } from './needs.js';
@@ -64,6 +65,26 @@ describe('updateLifecycle', () => {
     expect(Needs.hunger[eid]).toBe(0.4);
     expect(Position.x[eid]).toBe(10);
     expect(Lifecycle.ageSeconds[eid]).toBeCloseTo(lifespanSeconds(1) + 0.05);
+  });
+
+  it('records one death in the log, where the character fell', () => {
+    const { world, eid } = character(1);
+    Lifecycle.ageSeconds[eid] = lifespanSeconds(1) - 0.05;
+
+    updateLifecycle(world, 0.1);
+    updateLifecycle(world, 0.1);
+
+    expect(historyFor(world, 'elder')).toEqual([
+      {
+        eventId: 'log-1',
+        type: 'character.died',
+        tick: 0,
+        elapsedSeconds: 0,
+        participants: ['elder'],
+        location: { x: 10, y: 10 },
+        payload: { cause: 'old_age', ageSeconds: Lifecycle.ageSeconds[eid] },
+      },
+    ]);
   });
 
   it('does not keep aging a character who is already dead', () => {

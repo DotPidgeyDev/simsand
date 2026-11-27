@@ -184,6 +184,7 @@ export const SIMULATION_LOG_TYPES = [
   'action.ended', 'character.greeted', 'character.comforted', 'character.kept', 'character.confided', 'character.bluffed',
   'item.transferred', 'item.traded',
   'intervention.blessed', 'intervention.cursed', 'intervention.bounty', 'intervention.gifted',
+  'character.died',
 ] as const;
 
 export type SimulationLogType = (typeof SIMULATION_LOG_TYPES)[number];
@@ -194,7 +195,17 @@ export const INTERVENTION_LOG_TYPES = [
 
 export type InterventionLogType = (typeof INTERVENTION_LOG_TYPES)[number];
 
-export type ActionLogType = Exclude<SimulationLogType, InterventionLogType>;
+// Facts the world records about a character outside any action or command.
+export const LIFECYCLE_LOG_TYPES = ['character.died'] as const satisfies readonly SimulationLogType[];
+
+export type LifecycleLogType = (typeof LIFECYCLE_LOG_TYPES)[number];
+
+export type ActionLogType = Exclude<SimulationLogType, InterventionLogType | LifecycleLogType>;
+
+// Append only. Saved events keep the name.
+export const DEATH_CAUSES = ['old_age'] as const;
+
+export type DeathCause = (typeof DEATH_CAUSES)[number];
 
 // How an action ended, and what it moved or claimed.
 export interface ActionLogPayload {
@@ -231,6 +242,10 @@ export interface InterventionLogPayloads {
   'intervention.gifted': InterventionCause & { target: string; item: ItemId; quantity: number };
 }
 
+export interface LifecycleLogPayloads {
+  'character.died': { cause: DeathCause; ageSeconds: number };
+}
+
 interface LogEventBase<TType extends SimulationLogType, TPayload> {
   eventId: string;
   type: TType;
@@ -249,13 +264,25 @@ export type InterventionLogEvent = {
   [TType in InterventionLogType]: LogEventBase<TType, InterventionLogPayloads[TType]>;
 }[InterventionLogType];
 
+export type LifecycleLogEvent = {
+  [TType in LifecycleLogType]: LogEventBase<TType, LifecycleLogPayloads[TType]>;
+}[LifecycleLogType];
+
 // One world fact, many participants. Character history is a query over
 // this list, not a copy stored on each participant. The payload shape
 // follows the type.
-export type SimulationLogEvent = ActionLogEvent | InterventionLogEvent;
+export type SimulationLogEvent = ActionLogEvent | InterventionLogEvent | LifecycleLogEvent;
 
 export function isInterventionLogEvent(event: SimulationLogEvent): event is InterventionLogEvent {
   return (INTERVENTION_LOG_TYPES as readonly string[]).includes(event.type);
+}
+
+export function isLifecycleLogEvent(event: SimulationLogEvent): event is LifecycleLogEvent {
+  return (LIFECYCLE_LOG_TYPES as readonly string[]).includes(event.type);
+}
+
+export function isActionLogEvent(event: SimulationLogEvent): event is ActionLogEvent {
+  return !isInterventionLogEvent(event) && !isLifecycleLogEvent(event);
 }
 
 // Presentation priority for a chronicle entry. Scoring chooses a tier; it

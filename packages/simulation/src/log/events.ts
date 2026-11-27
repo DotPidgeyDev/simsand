@@ -4,6 +4,7 @@ import type {
   ActionLogType,
   ActionResult,
   CharacterNeeds,
+  DeathCause,
   InterventionLogEvent,
   InterventionLogPayloads,
   InterventionLogType,
@@ -380,6 +381,24 @@ export function recordIntervention<TType extends InterventionLogType>(
 
   append(world, event);
   return event;
+}
+
+export function recordDeath(
+  world: SimulationWorld,
+  eid: number,
+  characterId: string,
+  cause: DeathCause,
+  ageSeconds: number,
+): SimulationLogEvent {
+  return append(world, {
+    eventId: nextEventId(world),
+    type: 'character.died',
+    tick: world.tick,
+    elapsedSeconds: world.elapsedSeconds,
+    participants: [characterId],
+    location: { x: Position.x[eid], y: Position.y[eid] },
+    payload: { cause, ageSeconds },
+  });
 }
 
 export function historyFor(world: SimulationWorld, id: string): SimulationLogEvent[] {

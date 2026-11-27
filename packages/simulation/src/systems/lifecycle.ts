@@ -7,7 +7,9 @@ import { tuning } from '../tuning.js';
 
 import { Attributes } from '../components/attributes.js';
 import { Condition } from '../components/condition.js';
+import { Identity } from '../components/identity.js';
 import { Lifecycle } from '../components/lifecycle.js';
+import { recordDeath } from '../log/events.js';
 
 const DEAD = LIFECYCLE_STATES.indexOf('dead');
 
@@ -34,5 +36,6 @@ export function updateLifecycle(world: SimulationWorld, deltaSeconds: number): v
     Condition.eating[eid] = 0;
     Condition.drinking[eid] = 0;
     Condition.working[eid] = 0;
+    recordDeath(world, eid, Identity.id[eid], 'old_age', Lifecycle.ageSeconds[eid]);
   }
 }

@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_IDS, ACTION_OUTCOMES, ITEM_IDS, LIFECYCLE_STATES, MEMORY_KINDS, PERSONALITY_TRAITS, SIMULATION_LOG_TYPES, TERRAIN_TYPES } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, CHRONICLE_PRESENTATION, DIRECTOR_REASONS, ITEM_IDS, LIFECYCLE_STATES, MEMORY_KINDS, PERSONALITY_TRAITS, SIMULATION_LOG_TYPES, TERRAIN_TYPES } from '@simsand/shared';
 
 import { generateCharacterProfile, spriteIdFor, startingAgeSeconds } from './characters/profile.js';
 import { Action } from './components/action.js';
+import { Attributes } from './components/attributes.js';
 import { Condition } from './components/condition.js';
 import { Lifecycle } from './components/lifecycle.js';
 import { Needs } from './components/needs.js';
@@ -15,7 +16,10 @@ import { RESOURCE_NODE_STOCK, createWorldMap } from './core/map.js';
 import { capturePersistedWorld, restorePersistedWorld, upgradePersistedWorld } from './core/persistence.js';
 import { createSimulationRunner, tickSimulation } from './core/runner.js';
 import { createSimulationWorld } from './core/world.js';
+import type { SimulationWorld } from './core/world.js';
 import { executeCommand } from './commands/execute-command.js';
+import { updateDirector } from './director/director.js';
+import { directorDefaults } from './director/settings.js';
 import { createCharacter } from './entities/create-character.js';
 import { removeCharacter } from './entities/remove-character.js';
 import { FOOD_PRICE } from './economy/inventory.js';
@@ -25,6 +29,8 @@ import { inspectCharacter, inspectCharacterHistory } from './inspection/inspect-
 import { LOG_LIMIT, recordActionEnding } from './log/events.js';
 import { ACTION_COOLDOWN_SECONDS, MIN_ACTION_SECONDS, actionBias, readActionOutcome, updateActions } from './systems/actions.js';
 import { HUNGER_GAIN_PER_SECOND, HUNGER_RESUME_AT } from './systems/needs.js';
+import { lifespanSeconds, updateLifecycle } from './systems/lifecycle.js';
+import { chronicleSince } from './storytelling/chronicle.js';
 
 // The live world is seed 12345. The name, sprite, attributes, needs and bias
 // are what its saves already stored. The age is what a new character of that
@@ -727,5 +733,148 @@ describe('milestone 07 behaviour', () => {
       type: 'character.create',
       params: { characterId: 'spoof', x: 2, y: 2 },
     })).toMatchObject({ status: 'rejected', reason: 'invalid_issuer' });
+  });
+});
+
+// Milestone 08 close-out. The chronicle is a scored window over the one
+// log, never a second store. Streamers and the director change the world
+// only through intervention commands, and each applied one is one log fact
+// naming who asked and, for the director, why. Death is recorded once.
+describe('milestone 08 behaviour', () => {
+  const streamer = { source: 'streamer', id: 'local-streamer' } as const;
+
+  function alone(id = 'solo') {
+    const world = createSimulationWorld(createWorldMap(8, 8, 'grass'), 1);
+    const clock = createSimulationClock();
+    const eid = createCharacter(world, {
+      id,
+      x: 2.5,
+      y: 2.5,
+      velocityX: 0,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+
+    Needs.hunger[eid] = 0.1;
+    Needs.thirst[eid] = 0.1;
+    Needs.fatigue[eid] = 0.1;
+    Lifecycle.ageSeconds[eid] = 0;
+
+    return { world, clock, eid };
+  }
+
+  it('appends the intervention and lifecycle log types and keeps the presentation tiers', () => {
+    expect(SIMULATION_LOG_TYPES.slice(8)).toEqual([
+      'intervention.blessed', 'intervention.cursed', 'intervention.bounty', 'intervention.gifted',
+      'character.died',
+    ]);
+    expect(DIRECTOR_REASONS).toEqual(['mercy', 'scarcity', 'kindness', 'hubris']);
+    expect(CHRONICLE_PRESENTATION).toEqual({ feed: 'notable', notify: 'significant', focus: 'dramatic' });
+  });
+
+  it('scores a social fact and a death from the log without writing to it', () => {
+    const { world, left, right } = beside();
+    Personality.sociability[left] = 1;
+    const cursor = world.nextLogId;
+
+    updateActions(world, 0.1);
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+    recordActionEnding(world, left, 'left', 'eat', 'interrupted');
+
+    Lifecycle.ageSeconds[right] = lifespanSeconds(Attributes.constitution[right]);
+    updateLifecycle(world, 0.1);
+    updateLifecycle(world, 0.1);
+
+    const logged = world.log.length;
+    const { entries } = chronicleSince(world, cursor);
+
+    expect(world.log.length).toBe(logged);
+    expect(world.log.filter((event) => event.type === 'character.died')).toHaveLength(1);
+    expect(entries.map(({ type, tier }) => ({ type, tier }))).toEqual([
+      { type: 'character.greeted', tier: 'notable' },
+      { type: 'character.died', tier: 'dramatic' },
+    ]);
+    expect(entries.every((entry) => world.log.some((event) => event.eventId === entry.eventId))).toBe(true);
+  });
+
+  it('applies a streamer intervention as one log fact and refuses a dead target', () => {
+    const { world, clock, eid } = alone();
+    Needs.fatigue[eid] = 0.9;
+
+    executeCommand(world, clock, {
+      commandId: 'cmd-bless',
+      issuer: streamer,
+      submittedAt: 0,
+      type: 'intervention.bless',
+      params: { characterId: 'solo' },
+    });
+
+    expect(Needs.fatigue[eid]).toBe(0);
+    expect(world.log).toMatchObject([
+      { type: 'intervention.blessed', participants: ['solo'], payload: { commandId: 'cmd-bless', issuer: streamer } },
+    ]);
+
+    Lifecycle.state[eid] = LIFECYCLE_STATES.indexOf('dead');
+
+    expect(executeCommand(world, clock, {
+      commandId: 'cmd-curse',
+      issuer: streamer,
+      submittedAt: 1,
+      type: 'intervention.curse',
+      params: { characterId: 'solo', need: 'hunger' },
+    })).toMatchObject({ status: 'rejected', reason: 'character_dead' });
+    expect(world.log).toHaveLength(1);
+  });
+
+  it('lets a bounty start a pile site on grass that returns like any other', () => {
+    const { world, clock } = alone();
+    world.map.tiles[nodeKey(8, 6, 6)] = TERRAIN_TYPES.indexOf('water');
+    const bounty = (x: number, y: number) => executeCommand(world, clock, {
+      commandId: `cmd-${x}-${y}`,
+      issuer: streamer,
+      submittedAt: 0,
+      type: 'intervention.bounty',
+      params: { x, y, quantity: 1 },
+    });
+
+    expect(bounty(6, 6)).toMatchObject({ status: 'rejected', reason: 'tile_unavailable' });
+    expect(bounty(5, 5).status).toBe('applied');
+
+    takeResource(world, 5, 5);
+    const { world: restored } = restorePersistedWorld(capturePersistedWorld(world, clock, world.seed));
+    restored.elapsedSeconds = PILE_RETURN_SECONDS;
+    renewPiles(restored);
+
+    expect(nodeAt(restored, 5, 5)).toEqual({ x: 5, y: 5, item: 'material', quantity: RESOURCE_NODE_STOCK });
+  });
+
+  it('has the director act as system with a reason, and keeps its memory across a save', () => {
+    const { world, clock, eid } = alone('hungry');
+    Needs.hunger[eid] = 0.9;
+
+    const checkAt = (target: SimulationWorld, seconds: number) => {
+      clock.tick = Math.round(seconds / clock.fixedDeltaSeconds);
+      clock.elapsedSeconds = seconds;
+      target.tick = clock.tick;
+      target.elapsedSeconds = seconds;
+      updateDirector(target, clock);
+    };
+
+    checkAt(world, 0);
+    checkAt(world, directorDefaults.mercyAfterSeconds);
+
+    expect(world.log).toMatchObject([{
+      type: 'intervention.gifted',
+      payload: { issuer: { source: 'system', id: 'world-director' }, reason: 'mercy', target: 'hungry' },
+    }]);
+
+    const { world: restored } = restorePersistedWorld(capturePersistedWorld(world, clock, world.seed));
+    restored.inventories.delete('hungry');
+    checkAt(restored, directorDefaults.mercyAfterSeconds * 2 + 5);
+
+    expect(restored.director.lastActAt).toBe(directorDefaults.mercyAfterSeconds);
+    expect(restored.log).toHaveLength(1);
   });
 });

@@ -1,6 +1,6 @@
 # World Director and Storytelling Design
 
-**Status:** In progress — chronicle over the character log (Milestone 08)
+**Status:** Initial implementation complete (Milestone 08)
 
 ## 1. Purpose
 
@@ -161,6 +161,10 @@ director lives in `packages/simulation/src/director` and only reacts to
 recorded hardship and conduct: mercy, scarcity, kindness, and hubris.
 Its reason is on the log event, so a summary says why ("…was blessed
 for their kindness") without inventing a motive.
+
+Death is the first dramatic event the simulation produces on its own.
+The lifecycle system writes `character.died` with the cause, and the
+summary names only that cause ("…died of old age").
 
 Do not invent a second event model for stream stories. Do not drive
 ordinary AI from Twitch chat text.

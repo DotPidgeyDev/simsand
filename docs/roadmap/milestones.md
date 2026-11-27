@@ -1,8 +1,8 @@
 # Implementation Roadmap
 
-**Status:** Active — Milestone 08  
-**Version:** 1.14  
-**Last updated:** 2026-11-25
+**Status:** Active — Milestone 09  
+**Version:** 1.16  
+**Last updated:** 2026-11-27
 
 ## Guiding approach
 
@@ -592,7 +592,7 @@ authenticated command API, and YouTube or Kick adapters are Milestone
 
 ## Milestone 08 — World director and storytelling
 
-**Status: Active**
+**Status: Complete**
 
 Start from `docs/roadmap/notes/08-from-07.md`.
 
@@ -628,7 +628,7 @@ significant. Save format is unchanged.
 
 The browser has a first streamer panel beside the feed: pick a character
 from the list or by clicking near them, then bless, curse, or gift; arm
-a bounty and click a pile. The Vite dev server proxies
+a bounty and click a pile or a grass tile. The Vite dev server proxies
 `/streamer/commands` to the command server, which stays on localhost
 with no CORS.
 
@@ -654,12 +654,24 @@ startup (see the README). The settings are server config, not part of
 the save. A two-hour soak of 20 characters gave one blessing and one
 curse, with no economy violations.
 
-### Remaining scope
+Death is the first world event the simulation records on its own. When
+a character reaches their lifespan, the lifecycle system writes one
+`character.died` fact naming them, the cause (`old_age`), and their
+age. It is a third kind of log event, beside action endings and
+interventions. The chronicle scores it dramatic, so the feed says
+"…died of old age" and the camera turns to where they fell.
 
-- World events beyond the four interventions.
-- Quests and special encounters.
-- A bounty only refills a natural pile site. New pile sites, or piles
-  that do not deplete, need a saved marker and a save format bump.
+A bounty on bare grass now starts a new pile site. When that pile runs
+out it returns on its tile like a generated one. The site is saved as
+that pile or its return entry, so the save format stays at version 25.
+Other terrain is still refused.
+
+Quests and special encounters moved to Milestone 09.
+
+Regression for this cycle is in
+`packages/simulation/src/regression.test.ts`. Notes for Milestone 09
+are in `docs/roadmap/notes/09-from-08.md`. How to close a milestone is
+in `docs/roadmap/closeout.md`.
 
 Ensure presentation is grounded in recorded simulation events. The director should react to the world rather than dictate ordinary character behaviour.
 
@@ -667,11 +679,32 @@ Chronicle entries, recaps and a viewer's character history are a small
 window over the Milestone 04 log: scored, abbreviated, and safe to show
 on stream. Debugging still uses the full participant-indexed history.
 
+### Definition of done
+
+- [x] Completed social and economy log events score into chronicle entries that point at the source event. Ordinary action endings stay out.
+- [x] Presentation tiers are one shared rule: notable feeds, significant notifies, dramatic takes camera focus.
+- [x] New chronicle entries reach the browser live, and a browser that connects receives the newest 50.
+- [x] Inventories and piles are on the render snapshot without a save format change.
+- [x] Streamers bless, curse, place a bounty, or gift through the command gateway, with a cooldown per issuer. Each applied intervention is one log fact naming the command and issuer.
+- [x] The world director reacts to recorded state, issues the same interventions as `system` with a reason, and its memory survives save and restore.
+- [x] At least one world event beyond the four interventions comes from the simulation itself and reaches the chronicle.
+- [x] Quests and special encounters exist, or that scope has moved to the milestone that will use it.
+- [x] A bounty can create a pile site.
+
+### Later, outside this milestone
+
+Quests and special encounters, and what happens to a dead holder's
+stacks on `character.died`, are Milestone 09. Streamer panel
+refinements and director controls while the server runs are
+Milestone 10. Piles that never deplete are not part of this cycle.
+
 ---
 
 ## Milestone 09 — Society and world depth
 
-**Status: Planned**
+**Status: Active**
+
+Start from `docs/roadmap/notes/09-from-08.md`.
 
 Expand settlements, professions, factions, families, combat, wildlife, weather and long-term economy as separate systems.
 
@@ -688,6 +721,7 @@ Potential areas:
 - Territorial development.
 - Long-term social and economic simulation.
 - A belonging need, deferred from Milestone 04 until the existing social actions are not enough.
+- Quests and special encounters, deferred from Milestone 08. Like interventions, each should be a recorded fact the chronicle can score.
 
 Introduce these systems incrementally. Each should have clear ownership, inputs, outputs and interactions with existing simulation systems.
 

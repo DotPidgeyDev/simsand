@@ -98,7 +98,7 @@ export function createStreamerPanel(
   function setBountyArmed(armed: boolean): void {
     bountyArmed = armed;
     bountyButton.setAttribute('aria-pressed', String(armed));
-    if (armed) show('Click a pile on the map', false);
+    if (armed) show('Click a pile or a grass tile on the map', false);
   }
 
   async function send(command: CommandRequest): Promise<void> {

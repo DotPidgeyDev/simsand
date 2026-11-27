@@ -1,18 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { LIFECYCLE_STATES } from '@simsand/shared';
+import { LIFECYCLE_STATES, TERRAIN_TYPES } from '@simsand/shared';
 import type { SimulationCommand } from '@simsand/shared';
 
 import { executeCommand } from '../commands/execute-command.js';
 import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { createSimulationClock } from '../core/clock.js';
-import { createWorldMap } from '../core/map.js';
+import { RESOURCE_NODE_STOCK, createWorldMap } from '../core/map.js';
 import { capturePersistedWorld, restorePersistedWorld } from '../core/persistence.js';
 import { createSimulationWorld } from '../core/world.js';
 import { heldQuantity } from '../economy/inventory.js';
 import { economyViolations } from '../economy/invariants.js';
-import { nodeKey } from '../economy/nodes.js';
+import { PILE_RETURN_SECONDS, nodeKey, renewPiles, takeResource } from '../economy/nodes.js';
 import { createCharacter } from '../entities/create-character.js';
 import { historyFor } from '../log/events.js';
 
@@ -135,10 +135,35 @@ describe('interventions', () => {
     expect(economyViolations(world)).toEqual([]);
   });
 
-  it('refuses a bounty on a tile that is not a pile site or is off the map', () => {
+  it('makes bare grass a new pile site that returns after it runs out', () => {
     const { world, clock } = setup();
+    const key = nodeKey(8, 1, 1);
+
+    executeCommand(world, clock, command({ type: 'intervention.bounty', params: { x: 1, y: 1, quantity: 1 } }));
+
+    expect(world.nodes.get(key)).toEqual({ x: 1, y: 1, item: 'material', quantity: 1 });
+
+    takeResource(world, 1.5, 1.5);
+
+    expect(world.nodes.has(key)).toBe(false);
+    expect(world.returning.get(key)).toBe(PILE_RETURN_SECONDS);
+
+    const restored = restorePersistedWorld(capturePersistedWorld(world, clock, 1)).world;
+    restored.elapsedSeconds = PILE_RETURN_SECONDS;
+    renewPiles(restored);
+
+    expect(restored.nodes.get(key)).toEqual({ x: 1, y: 1, item: 'material', quantity: RESOURCE_NODE_STOCK });
+    expect(economyViolations(restored)).toEqual([]);
+  });
+
+  it('refuses a bounty off grass or off the map', () => {
+    const { world, clock } = setup();
+    world.map.tiles[nodeKey(8, 1, 1)] = TERRAIN_TYPES.indexOf('water');
+    world.map.tiles[nodeKey(8, 2, 1)] = TERRAIN_TYPES.indexOf('camp');
 
     expect(executeCommand(world, clock, command({ type: 'intervention.bounty', params: { x: 1, y: 1, quantity: 3 } })))
+      .toMatchObject({ status: 'rejected', reason: 'tile_unavailable' });
+    expect(executeCommand(world, clock, command({ type: 'intervention.bounty', params: { x: 2, y: 1, quantity: 3 } })))
       .toMatchObject({ status: 'rejected', reason: 'tile_unavailable' });
     expect(executeCommand(world, clock, command({ type: 'intervention.bounty', params: { x: 8, y: 0, quantity: 3 } })))
       .toMatchObject({ status: 'rejected', reason: 'out_of_bounds' });

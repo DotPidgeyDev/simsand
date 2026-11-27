@@ -1,6 +1,6 @@
 # Simsand — Persistent Fantasy World
 
-**Status:** Early development — Milestone 01  
+**Status:** Early development — Milestone 09  
 **Version:** 0.2.0  
 **Last updated:** 2026-11-12
 
@@ -311,19 +311,19 @@ Terrain is drawn as flat colours. Characters can cross grass, dirt and water. Ro
 
 ## Development roadmap
 
-The first milestone is focused on establishing a reliable simulation foundation.
-
 | Milestone | Description | Status |
 |---|---|---|
-| 01 | Simulation foundation and browser rendering | Complete |
-| 02 | World maps, terrain and navigation | Planned |
-| 03 | Character attributes, needs and behaviours | Planned |
-| 04 | Actions, skills, inventory and items | Planned |
-| 05 | Relationships, social systems and settlements | Planned |
-| 06 | Economy, resources and trading | Planned |
-| 07 | Persistence and world recovery | Planned |
-| 08 | Viewer identities and livestream integration | Planned |
-| 09 | World director and storytelling systems | Planned |
+| 01 | Simulation foundation | Complete |
+| 02 | Character foundation | Complete |
+| 03 | Autonomous behaviour | Complete |
+| 04 | Interaction and social behaviour | Complete |
+| 05 | Inventory and basic economy | Complete |
+| 06 | Durable world | Complete |
+| 07 | Viewer participation | Complete |
+| 08 | World director and storytelling | Complete |
+| 09 | Society and world depth | Active |
+| 10 | Production readiness and expanded presentation | Planned |
+| 11 | Review | Planned |
 
 These milestones are an evolving implementation plan, not a fixed feature commitment.
 
