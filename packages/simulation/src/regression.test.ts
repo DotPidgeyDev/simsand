@@ -22,7 +22,8 @@ import { updateDirector } from './director/director.js';
 import { directorDefaults } from './director/settings.js';
 import { createCharacter } from './entities/create-character.js';
 import { removeCharacter } from './entities/remove-character.js';
-import { FOOD_PRICE } from './economy/inventory.js';
+import { FOOD_PRICE, grantItem, heldQuantity } from './economy/inventory.js';
+import { economyViolations } from './economy/invariants.js';
 import { PILE_RETURN_SECONDS, nodeAt, nodeKey, renewPiles, takeResource } from './economy/nodes.js';
 import { acknowledgePendingLog } from './history/records.js';
 import { inspectCharacter, inspectCharacterHistory } from './inspection/inspect-character.js';
@@ -30,6 +31,7 @@ import { LOG_LIMIT, recordActionEnding } from './log/events.js';
 import { ACTION_COOLDOWN_SECONDS, MIN_ACTION_SECONDS, actionBias, readActionOutcome, updateActions } from './systems/actions.js';
 import { HUNGER_GAIN_PER_SECOND, HUNGER_RESUME_AT } from './systems/needs.js';
 import { lifespanSeconds, updateLifecycle } from './systems/lifecycle.js';
+import { rememberMeeting } from './social/relationships.js';
 import { chronicleSince } from './storytelling/chronicle.js';
 
 // The live world is seed 12345. The name, sprite, attributes, needs and bias
@@ -876,5 +878,83 @@ describe('milestone 08 behaviour', () => {
 
     expect(restored.director.lastActAt).toBe(directorDefaults.mercyAfterSeconds);
     expect(restored.log).toHaveLength(1);
+  });
+});
+
+// Milestone 09. A dead holder's stacks stay on the body. Nothing moves or
+// deletes them on `character.died`. The living cannot trade with the body,
+// and the director does not count it. Removing the character still deletes
+// the stacks.
+describe('milestone 09 behaviour', () => {
+  function sellerDies() {
+    const { world, left, right } = beside();
+    Personality.greed[left] = 1;
+    grantItem(world, 'left', 'goods', FOOD_PRICE);
+    grantItem(world, 'right', 'food', 1);
+    rememberMeeting(world, 'left', 'right', 'met', 0);
+    Lifecycle.ageSeconds[right] = lifespanSeconds(Attributes.constitution[right]);
+
+    return { world, left, right };
+  }
+
+  it('leaves a dead holder their stacks through death and a save', () => {
+    const { world } = sellerDies();
+    const clock = createSimulationClock();
+
+    updateLifecycle(world, 0.1);
+
+    expect(world.log.filter((event) => event.type === 'character.died')).toHaveLength(1);
+    expect(inspectCharacter(world, 'right')?.inventory).toEqual([{ item: 'food', quantity: 1 }]);
+    expect(economyViolations(world)).toEqual([]);
+
+    const { world: restored } = restorePersistedWorld(structuredClone(capturePersistedWorld(world, clock, world.seed)));
+
+    expect(restored.inventories.get('right')?.stacks).toEqual([{ item: 'food', quantity: 1 }]);
+
+    removeCharacter(restored, 'right');
+
+    expect(restored.inventories.has('right')).toBe(false);
+  });
+
+  it('does not let the living buy from or give to the body', () => {
+    const { world, left } = sellerDies();
+    Action.kind[left] = ACTION_IDS.indexOf('buy');
+    Action.target[left] = 'right';
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+
+    updateLifecycle(world, 0.1);
+    updateActions(world, 0.1);
+
+    expect(readActionOutcome(left)).toEqual({ action: 'buy', result: 'failed' });
+    expect(heldQuantity(world, 'right', 'food')).toBe(1);
+
+    Action.elapsed[left] = MIN_ACTION_SECONDS;
+    updateActions(world, 0.1);
+
+    expect(['buy', 'give']).not.toContain(ACTION_IDS[Action.kind[left]]);
+    expect(heldQuantity(world, 'left', 'goods')).toBe(FOOD_PRICE);
+  });
+
+  it('does not count food on the body as food nearby for mercy', () => {
+    const { world, left, right } = sellerDies();
+    const clock = createSimulationClock();
+    updateLifecycle(world, 0.1);
+    Needs.hunger[left] = 0.9;
+
+    const checkAt = (seconds: number) => {
+      clock.tick = Math.round(seconds / clock.fixedDeltaSeconds);
+      clock.elapsedSeconds = seconds;
+      world.tick = clock.tick;
+      world.elapsedSeconds = seconds;
+      updateDirector(world, clock);
+    };
+
+    checkAt(0);
+    checkAt(directorDefaults.mercyAfterSeconds);
+
+    expect(Lifecycle.state[right]).toBe(LIFECYCLE_STATES.indexOf('dead'));
+    expect(world.log.filter((event) => event.type !== 'character.died')).toMatchObject([
+      { type: 'intervention.gifted', payload: { reason: 'mercy', target: 'left' } },
+    ]);
   });
 });

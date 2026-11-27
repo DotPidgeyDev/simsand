@@ -1,7 +1,7 @@
 # Implementation Roadmap
 
 **Status:** Active — Milestone 09  
-**Version:** 1.16  
+**Version:** 1.17  
 **Last updated:** 2026-11-27
 
 ## Guiding approach
@@ -729,7 +729,7 @@ Three rules the earlier milestones leave open have to exist before combat, trade
 
 A route that seeks a person or a stack. Milestone 03's shared field seeks water, land, camps, and piles. Give, comfort, and the other social actions start only when someone is already beside the actor. Following a target that moves was left under that closed milestone. Bringing food to someone, taking it, and meeting them across the map all use this route.
 
-A dead holder's stacks. Death already leaves them on the corpse. Removing the character deletes them. Families need a rule for the day someone dies: the stacks move, they stay on the body, or they are gone.
+A dead holder's stacks. **Decided: they stay on the body.** `character.died` does not move or delete them, and they survive a save. The living cannot buy from or give to the body, and the director does not count it. A buy already underway fails when the seller dies. Removing the character still deletes the stacks. Taking from the body waits for a route to a stack. Inheritance, when families arrive, is a rule that moves them from the body.
 
 A declared preference when two jobs share a score. The earlier definition wins a tie, and a bias of 0.05 can flip it. Craft wins by suppressing work while material is in hand. Dine wins by a bonus wider than that bias. A profession says which job wins without another one-off bonus.
 
