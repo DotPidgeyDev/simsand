@@ -123,7 +123,7 @@ describe('gather', () => {
     Needs.hunger[eid] = 0.2;
     Needs.thirst[eid] = 0.2;
     Needs.fatigue[eid] = 0.2;
-    Personality.curiosity[eid] = 0;
+    Personality.curiosity[eid] = 0.2;
     Personality.industriousness[eid] = 1;
     Action.elapsed[eid] = 0;
 
@@ -153,7 +153,7 @@ describe('gather', () => {
     Needs.hunger[eid] = 0.2;
     Needs.thirst[eid] = 0.2;
     Needs.fatigue[eid] = 0.2;
-    Personality.curiosity[eid] = 0;
+    Personality.curiosity[eid] = 0.2;
     Personality.industriousness[eid] = 1;
     Action.elapsed[eid] = 0;
 

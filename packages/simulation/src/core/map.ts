@@ -223,6 +223,111 @@ function routeField(map: WorldMap): RouteField {
   return field;
 }
 
+function tileIndex(map: WorldMap, x: number, y: number): number {
+  const tileX = Math.min(map.width - 1, Math.max(0, Math.floor(x)));
+  const tileY = Math.min(map.height - 1, Math.max(0, Math.floor(y)));
+
+  return tileY * map.width + tileX;
+}
+
+// Scratch for single-goal searches. A tile counts as visited when its stamp
+// matches the current search, so nothing is cleared or allocated per walk.
+let searchStamp = new Uint32Array(0);
+let searchQueue = new Int32Array(0);
+let searchDistance = new Int32Array(0);
+let searchId = 0;
+
+// Steps already found, by start and goal tile. The map is static, so a step
+// stays valid. A walker and their goal each change tile about once a second,
+// so most ticks repeat the last search. Cleared when full.
+const STEP_MEMO_LIMIT = 8192;
+const stepMemos = new WeakMap<WorldMap, Map<number, TerrainRoute | undefined>>();
+
+// The next step from this point toward the tile containing the goal point,
+// for a goal that moves, such as a person. Spreads from the goal the way
+// `routesToward` does and stops on reaching the walker, so the step is the
+// one a full field would give. Missing when rock, or no way through,
+// separates them.
+export function routeToTile(
+  map: WorldMap,
+  x: number,
+  y: number,
+  goalX: number,
+  goalY: number,
+): TerrainRoute | undefined {
+  const start = tileIndex(map, x, y);
+  const goal = tileIndex(map, goalX, goalY);
+
+  if (start === goal) return { x: goal % map.width, y: Math.floor(goal / map.width), distance: 0 };
+
+  const count = map.width * map.height;
+  const key = start * count + goal;
+  let memo = stepMemos.get(map);
+
+  if (!memo) {
+    memo = new Map();
+    stepMemos.set(map, memo);
+  }
+
+  if (memo.has(key)) return memo.get(key);
+  if (memo.size >= STEP_MEMO_LIMIT) memo.clear();
+
+  const step = searchStep(map, start, goal);
+  memo.set(key, step);
+
+  return step;
+}
+
+function searchStep(map: WorldMap, start: number, goal: number): TerrainRoute | undefined {
+  if (map.tiles[start] === ROCK) return undefined;
+
+  const count = map.width * map.height;
+
+  if (searchStamp.length < count) {
+    searchStamp = new Uint32Array(count);
+    searchQueue = new Int32Array(count);
+    searchDistance = new Int32Array(count);
+    searchId = 0;
+  }
+
+  searchId = (searchId + 1) >>> 0;
+
+  if (searchId === 0) {
+    searchStamp.fill(0);
+    searchId = 1;
+  }
+
+  searchStamp[goal] = searchId;
+  searchDistance[goal] = 0;
+  searchQueue[0] = goal;
+  let head = 0;
+  let tail = 1;
+
+  while (head < tail) {
+    const index = searchQueue[head++];
+    const tileX = index % map.width;
+    const tileY = Math.floor(index / map.width);
+
+    for (const [dx, dy] of NEIGHBORS) {
+      const nextX = tileX + dx;
+      const nextY = tileY + dy;
+
+      if (nextX < 0 || nextY < 0 || nextX >= map.width || nextY >= map.height) continue;
+
+      const next = nextY * map.width + nextX;
+
+      if (searchStamp[next] === searchId || map.tiles[next] === ROCK) continue;
+      if (next === start) return { x: tileX, y: tileY, distance: searchDistance[index] + 1 };
+
+      searchStamp[next] = searchId;
+      searchDistance[next] = searchDistance[index] + 1;
+      searchQueue[tail++] = next;
+    }
+  }
+
+  return undefined;
+}
+
 // The next step for the tile containing this point. An all-grass map has no
 // water route. Rock has neither.
 export function nearestTerrainTile(

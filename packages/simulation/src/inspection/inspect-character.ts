@@ -15,6 +15,7 @@ import { CAMP_YIELD, CRAFT_INPUT, FOOD_PRICE, MEAL_ITEM, heldQuantity, inventory
 import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
 import { historyFor } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
+import { companionRoute } from '../social/companion.js';
 import { memoriesFor } from '../social/memories.js';
 import { knownNeighborId, relationshipsFor } from '../social/relationships.js';
 import { chronicleFromEvents } from '../storytelling/chronicle.js';
@@ -118,6 +119,7 @@ export function inspectCharacter(
       campDistance: campRoute?.distance ?? Number.POSITIVE_INFINITY,
       canReachNode: nodeRoute !== undefined && nodeRoute.distance > 0,
       nodeDistance: nodeRoute?.distance ?? Number.POSITIVE_INFINITY,
+      canReachCompanion: companionRoute(world, eid, id) !== undefined,
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
       canGive: heldQuantity(world, id, CAMP_YIELD) >= 1,
@@ -127,6 +129,7 @@ export function inspectCharacter(
       heldFood: heldQuantity(world, id, MEAL_ITEM),
       nodeStock: pile?.quantity ?? 0,
       neighborDistress: distressed?.distress ?? 0,
+      bias: actionBias(world.seed, id),
       cooldowns,
     }),
     outcome: readActionOutcome(eid),

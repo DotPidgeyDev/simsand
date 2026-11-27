@@ -13,7 +13,7 @@ import { Personality } from './components/personality.js';
 import { Position } from './components/position.js';
 import { Velocity } from './components/velocity.js';
 import { createSimulationClock } from './core/clock.js';
-import { RESOURCE_NODE_STOCK, createWorldMap } from './core/map.js';
+import { RESOURCE_NODE_STOCK, createWorldMap, generateWorldMap, routeToTile, routesToward } from './core/map.js';
 import { capturePersistedWorld, restorePersistedWorld, upgradePersistedWorld } from './core/persistence.js';
 import { createSimulationRunner, tickSimulation } from './core/runner.js';
 import { createSimulationWorld } from './core/world.js';
@@ -32,7 +32,9 @@ import { LOG_LIMIT, recordActionEnding } from './log/events.js';
 import { ACTION_BIAS, ACTION_COOLDOWN_SECONDS, ACTION_PREFERENCES, MIN_ACTION_SECONDS, actionBias, actionUtilities, chooseAction, readActionOutcome, updateActions } from './systems/actions.js';
 import { HUNGER_GAIN_PER_SECOND, HUNGER_RESUME_AT } from './systems/needs.js';
 import { lifespanSeconds, updateLifecycle } from './systems/lifecycle.js';
+import { companionRoute } from './social/companion.js';
 import { rememberMeeting } from './social/relationships.js';
+import { updateMovement } from './systems/movement.js';
 import { chronicleSince } from './storytelling/chronicle.js';
 
 // The live world is seed 12345. The name, sprite, attributes, needs and bias
@@ -976,6 +978,135 @@ describe('milestone 09 behaviour', () => {
     Action.elapsed[eid] = 0;
     updateActions(world, 0.1);
     expect(ACTION_IDS[Action.kind[eid]]).toBe('craft');
+  });
+
+  function apart(map = createWorldMap(16, 4, 'grass'), walker = 'ada') {
+    const world = createSimulationWorld(map);
+    const place = (id: string, x: number) => {
+      const eid = createCharacter(world, {
+        id,
+        x,
+        y: 1.5,
+        velocityX: 0,
+        velocityY: 0,
+        color: 0xffffff,
+        sprite: 'wanderer',
+      });
+
+      Needs.hunger[eid] = 0.1;
+      Needs.thirst[eid] = 0.1;
+      Needs.fatigue[eid] = 0.1;
+      for (const trait of PERSONALITY_TRAITS) Personality[trait][eid] = 0;
+      Personality.honesty[eid] = 0.5;
+      Personality.curiosity[eid] = 0.2;
+      Action.elapsed[eid] = 0;
+
+      return eid;
+    };
+    const ada = place(walker, 1.5);
+    const bea = place('bea', 13.5);
+    Personality.loyalty[ada] = 1;
+    rememberMeeting(world, walker, 'bea', 'met', 0);
+
+    return { world, ada, bea };
+  }
+
+  it('walks only when what they would do on arrival beats wandering', () => {
+    const outcomes = new Set<string>();
+
+    for (const walker of ['ada', 'cal', 'dot', 'eve', 'fay', 'gus', 'hal', 'ivy']) {
+      const { world, ada } = apart(undefined, walker);
+      Personality.loyalty[ada] = 1 - Personality.curiosity[ada];
+      const bias = actionBias(world.seed, walker);
+      const walks = bias.keep >= bias.idle;
+
+      for (let i = 0; i < 300 && ACTION_IDS[Action.kind[ada]] !== 'keep'; i++) {
+        updateActions(world, 0.1);
+        updateMovement(world, 0.1);
+      }
+
+      expect(ACTION_IDS[Action.kind[ada]]).toBe(walks ? 'keep' : 'idle');
+      if (!walks) expect(Position.x[ada]).toBe(1.5);
+      outcomes.add(ACTION_IDS[Action.kind[ada]]);
+    }
+
+    expect(outcomes).toEqual(new Set(['keep', 'idle']));
+  });
+
+  it('gives the same next step toward a tile as a full route field', () => {
+    const map = generateWorldMap(12345);
+    const count = map.width * map.height;
+
+    for (let i = 0; i < 40; i++) {
+      const start = (i * 1543) % count;
+      const goal = (i * 2971 + 17) % count;
+      const field = routesToward(map, (index) => index === goal);
+
+      expect(routeToTile(map, start % map.width, Math.floor(start / map.width), goal % map.width, Math.floor(goal / map.width)))
+        .toEqual(field[start]);
+    }
+  });
+
+  it('walks across the map to someone they know, then keeps them', () => {
+    const { world, ada } = apart();
+
+    for (let i = 0; i < 300 && ACTION_IDS[Action.kind[ada]] !== 'keep'; i++) {
+      updateActions(world, 0.1);
+      updateMovement(world, 0.1);
+    }
+
+    expect(ACTION_IDS[Action.kind[ada]]).toBe('keep');
+    expect(Action.target[ada]).toBe('bea');
+  });
+
+  it('follows the person they are walking to when that person moves', () => {
+    const { world, ada, bea } = apart();
+
+    for (let i = 0; i < 10; i++) {
+      updateActions(world, 0.1);
+      updateMovement(world, 0.1);
+    }
+
+    expect(Velocity.x[ada]).toBeGreaterThan(0);
+
+    Position.x[bea] = Math.floor(Position.x[ada]) + 0.5;
+    Position.y[bea] = 3.5;
+    updateActions(world, 0.1);
+
+    expect(ACTION_IDS[Action.kind[ada]]).toBe('move');
+    expect(Velocity.y[ada]).toBeGreaterThan(Math.abs(Velocity.x[ada]));
+  });
+
+  it('does not walk to someone they know when rock leaves no way through', () => {
+    const map = createWorldMap(16, 4, 'grass');
+    for (let y = 0; y < 4; y++) map.tiles[nodeKey(16, 8, y)] = TERRAIN_TYPES.indexOf('rock');
+    const { world, ada } = apart(map);
+
+    updateActions(world, 0.1);
+
+    expect(companionRoute(world, ada, 'ada')).toBeUndefined();
+    expect(ACTION_IDS[Action.kind[ada]]).toBe('idle');
+  });
+
+  it('walks to whoever they have met most, passing over the dead', () => {
+    const { world, ada } = apart();
+    const cy = createCharacter(world, {
+      id: 'cy',
+      x: 8.5,
+      y: 3.5,
+      velocityX: 0,
+      velocityY: 0,
+      color: 0xffffff,
+      sprite: 'wanderer',
+    });
+    rememberMeeting(world, 'ada', 'cy', 'met', 0);
+    rememberMeeting(world, 'ada', 'cy', 'met', 1);
+
+    expect(companionRoute(world, ada, 'ada')?.id).toBe('cy');
+
+    Lifecycle.state[cy] = LIFECYCLE_STATES.indexOf('dead');
+
+    expect(companionRoute(world, ada, 'ada')?.id).toBe('bea');
   });
 
   it('does not count food on the body as food nearby for mercy', () => {

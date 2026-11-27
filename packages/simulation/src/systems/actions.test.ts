@@ -613,7 +613,7 @@ describe('updateActions', () => {
     Needs.hunger[eid] = 0.2;
     Needs.thirst[eid] = 0.2;
     Needs.fatigue[eid] = 0.2;
-    Personality.curiosity[eid] = 1;
+    Personality.curiosity[eid] = 0.8;
     Action.elapsed[eid] = 0;
 
     updateActions(world, 0.1);

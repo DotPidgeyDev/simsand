@@ -17,6 +17,8 @@ import { CAMP_YIELD, CRAFT_INPUT, FOOD_PRICE, MEAL_ITEM, heldQuantity } from '..
 import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
 import { recordActionEnding } from '../log/events.js';
 import { adjacentLivingId, buildOccupancy, distressOf, isAdjacentLiving, livingNeighbors, mostDistressedNeighbor } from '../social/presence.js';
+import { companionRoute } from '../social/companion.js';
+import type { CompanionRoute } from '../social/companion.js';
 import { knownNeighborId } from '../social/relationships.js';
 import { steerAlong, steerToward } from './movement.js';
 import { createRandom } from '../core/random.js';
@@ -95,6 +97,8 @@ interface NeedState {
   campDistance: number;
   canReachNode: boolean;
   nodeDistance: number;
+  // Someone they have met, alive and elsewhere, with a route to them.
+  canReachCompanion: boolean;
   hasNeighbor: boolean;
   hasKnownNeighbor: boolean;
   // True when they are holding something they can hand over.
@@ -110,6 +114,8 @@ interface NeedState {
   // Highest need of a living neighbour, or of the character already chosen.
   neighborDistress: number;
   targetDistress: number;
+  // The character's seeded bias, read when deciding a walk.
+  bias: Record<ActionId, number>;
 }
 
 function comfort(state: NeedState): number {
@@ -126,31 +132,70 @@ function stands(state: NeedState): boolean {
   if (state.onWater) return !state.canReachLand && state.thirst <= THIRST_RESUME_AT;
   if (state.thirst > THIRST_RESUME_AT && state.canReachWater) return false;
   if (labourTarget(state) !== undefined) return false;
+  if (seeksCompanion(state)) return false;
 
   return true;
 }
 
-function labouringHere(state: NeedState): boolean {
-  if (!comfortable(state) || !workOutranksWander(state)) return false;
-
-  return state.onCamp || state.nodeStock > 0;
+// A walk is decided with the seeded bias, the same way the choice on arrival
+// is, so a character only walks somewhere to do what they would then choose.
+function biasedScore(state: NeedState, action: ActionId, preference: number): number {
+  return preference * comfort(state) + state.bias[action];
 }
 
-function workOutranksWander(state: NeedState): boolean {
-  const work = state.industriousness * comfort(state);
-  const move = state.curiosity * comfort(state);
-  const idle = (1 - state.curiosity) * comfort(state);
+function outranksWander(state: NeedState, action: ActionId, preference: number): boolean {
+  const score = biasedScore(state, action, preference);
 
-  return work >= move && work >= idle;
+  return score >= biasedScore(state, 'move', state.curiosity)
+    && score >= biasedScore(state, 'idle', 1 - state.curiosity);
+}
+
+// What a camp visit would be: craft with material in hand, otherwise work.
+function campJob(state: NeedState): ActionId {
+  return state.heldMaterial >= 1 ? 'craft' : 'work';
+}
+
+function labourJob(state: NeedState, place: 'camp' | 'node'): ActionId {
+  return place === 'camp' ? campJob(state) : 'gather';
+}
+
+function labourOutranksWander(state: NeedState, place: 'camp' | 'node'): boolean {
+  return outranksWander(state, labourJob(state, place), state.industriousness);
+}
+
+function labouringHere(state: NeedState): boolean {
+  if (!comfortable(state)) return false;
+
+  return (state.onCamp && labourOutranksWander(state, 'camp'))
+    || (state.nodeStock > 0 && labourOutranksWander(state, 'node'));
+}
+
+// Beside someone they know, with company preferred to wandering. The walk
+// that brought them here ends.
+function keepingHere(state: NeedState): boolean {
+  return comfortable(state) && state.hasKnownNeighbor && outranksWander(state, 'keep', state.loyalty);
+}
+
+// Nobody they know is beside them, and company outranks wandering. Labour
+// that scores at least as high takes the walk instead.
+function seeksCompanion(state: NeedState): boolean {
+  if (!comfortable(state) || state.hasKnownNeighbor || !state.canReachCompanion) return false;
+  if (!outranksWander(state, 'keep', state.loyalty)) return false;
+
+  const labour = labourTarget(state);
+
+  if (labour === undefined) return true;
+
+  return biasedScore(state, 'keep', state.loyalty) > biasedScore(state, labourJob(state, labour), state.industriousness);
 }
 
 // Work and gather share a score. A camp and a pile are both places to labour.
 // The nearer one wins. A tie keeps the camp, which is the older walk.
 function labourTarget(state: NeedState): 'camp' | 'node' | undefined {
-  if (!comfortable(state) || !workOutranksWander(state)) return undefined;
+  if (!comfortable(state)) return undefined;
 
-  const camp = state.canReachCamp && !state.onCamp;
-  const node = state.canReachNode && state.nodeStock <= 0;
+  const camp = state.canReachCamp && !state.onCamp && labourOutranksWander(state, 'camp');
+  const node = state.canReachNode && state.nodeStock <= 0 && labourOutranksWander(state, 'node');
 
   if (camp && node) return state.nodeDistance < state.campDistance ? 'node' : 'camp';
   if (camp) return 'camp';
@@ -399,8 +444,8 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     requiresLife: true,
     // In the water with a thirst to deal with, walking would carry them off
     // the only place they can drink.
-    ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !labouringHere(state),
-    holds: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !labouringHere(state),
+    ready: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !labouringHere(state) && !keepingHere(state),
+    holds: (state) => !(state.onWater && state.thirst > THIRST_RESUME_AT) && !labouringHere(state) && !keepingHere(state),
     sustain: () => false,
     urgent: () => false,
     resting: false,
@@ -455,6 +500,7 @@ function needState(input: {
   campDistance?: number;
   canReachNode?: boolean;
   nodeDistance?: number;
+  canReachCompanion?: boolean;
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
@@ -466,6 +512,7 @@ function needState(input: {
   targetAdjacent?: boolean;
   neighborDistress?: number;
   targetDistress?: number;
+  bias?: Record<ActionId, number>;
 }): NeedState {
   return {
     hunger: input.hunger,
@@ -487,6 +534,7 @@ function needState(input: {
     campDistance: input.campDistance ?? Number.POSITIVE_INFINITY,
     canReachNode: input.canReachNode ?? false,
     nodeDistance: input.nodeDistance ?? Number.POSITIVE_INFINITY,
+    canReachCompanion: input.canReachCompanion ?? false,
     hasNeighbor: input.hasNeighbor ?? false,
     hasKnownNeighbor: input.hasKnownNeighbor ?? false,
     canGive: input.canGive ?? false,
@@ -498,6 +546,7 @@ function needState(input: {
     targetAdjacent: input.targetAdjacent ?? false,
     neighborDistress: Math.min(1, Math.max(0, input.neighborDistress ?? 0)),
     targetDistress: Math.min(1, Math.max(0, input.targetDistress ?? 0)),
+    bias: input.bias ?? emptyCooldowns(),
   };
 }
 
@@ -591,6 +640,7 @@ export function actionAvailability(input: {
   campDistance?: number;
   canReachNode?: boolean;
   nodeDistance?: number;
+  canReachCompanion?: boolean;
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
   canGive?: boolean;
@@ -602,6 +652,7 @@ export function actionAvailability(input: {
   targetAdjacent?: boolean;
   neighborDistress?: number;
   targetDistress?: number;
+  bias?: Record<ActionId, number>;
   cooldowns?: ActionCooldowns;
 }): Record<ActionId, boolean> {
   const cooldowns = input.cooldowns ?? emptyCooldowns();
@@ -824,6 +875,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
     const landRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'land');
     const campRoute = nearestTerrainTile(world.map, Position.x[eid], Position.y[eid], 'camp');
     const nodeRoute = nearestNodeTile(world, Position.x[eid], Position.y[eid]);
+    const bias = actionBias(world.seed, Identity.id[eid]);
     const state = needState({
       hunger: Needs.hunger[eid],
       thirst: Needs.thirst[eid],
@@ -855,17 +907,21 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       targetAdjacent: Boolean(targetId) && isAdjacentLiving(world, eid, targetId),
       neighborDistress: distressed?.distress ?? 0,
       targetDistress: targetId ? distressOf(world, targetId) : 0,
+      bias,
     });
-    const utilities = biasedUtilities(
-      actionUtilities(state),
-      actionBias(world.seed, Identity.id[eid]),
-    );
+    // Searched only when it could set the walk, so a crowd of the restless
+    // or the busy builds no routes.
+    const companion = seeksCompanion({ ...state, canReachCompanion: true })
+      ? companionRoute(world, eid, Identity.id[eid])
+      : undefined;
+    state.canReachCompanion = companion !== undefined;
+    const utilities = biasedUtilities(actionUtilities(state), bias);
     const current = ACTION_IDS[Action.kind[eid]] ?? 'move';
 
     if (Action.elapsed[eid] > 0 && continueAction(current, Action.elapsed[eid], state)) {
       Action.elapsed[eid] += deltaSeconds;
       applyAction(eid, current);
-      directMove(world, eid, current, state);
+      directMove(world, eid, current, state, companion);
       continue;
     }
 
@@ -900,6 +956,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       campDistance: state.campDistance,
       canReachNode: state.canReachNode,
       nodeDistance: state.nodeDistance,
+      canReachCompanion: state.canReachCompanion,
       hasNeighbor: state.hasNeighbor,
       hasKnownNeighbor: state.hasKnownNeighbor,
       canGive: state.canGive,
@@ -911,6 +968,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       targetAdjacent: state.targetAdjacent,
       neighborDistress: state.neighborDistress,
       targetDistress: state.targetDistress,
+      bias,
       cooldowns,
     });
     const preferred = preferredAction(utilities, state.alive, cooldowns, state);
@@ -924,7 +982,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
     Action.elapsed[eid] = deltaSeconds;
     Action.target[eid] = socialTarget(next, neighborId, distressed?.id, knownId);
     applyAction(eid, next);
-    directMove(world, eid, next, state);
+    directMove(world, eid, next, state, companion);
   }
 }
 
@@ -958,17 +1016,26 @@ function noteEnding(
   );
 }
 
-function directMove(world: SimulationWorld, eid: number, action: ActionId, state: NeedState): void {
+function directMove(
+  world: SimulationWorld,
+  eid: number,
+  action: ActionId,
+  state: NeedState,
+  companion: CompanionRoute | undefined,
+): void {
   if (action !== 'move') return;
 
   // Thirst aims at water. Leaving the water aims at land. A quiet need aims
-  // at the nearer of a camp and a pile. Any other walk keeps its direction.
+  // at someone they know, or the nearer of a camp and a pile, whichever they
+  // prefer. Any other walk keeps its direction.
   if (state.thirst > THIRST_RESUME_AT && !state.onWater) {
     if (!state.canReachWater) return;
 
     steerToward(world, eid, 'water');
   } else if (state.onWater && state.canReachLand) {
     steerToward(world, eid, 'land');
+  } else if (seeksCompanion(state)) {
+    steerAlong(world, eid, companion?.route);
   } else if (labourTarget(state) === 'camp') {
     steerToward(world, eid, 'camp');
   } else if (labourTarget(state) === 'node') {
