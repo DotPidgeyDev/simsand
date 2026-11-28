@@ -1,7 +1,7 @@
 import { query } from 'bitecs';
 
 import { ACTION_IDS, ACTION_OUTCOMES, LIFECYCLE_STATES } from '@simsand/shared';
-import type { ActionCooldowns, ActionEnding, ActionId, ActionResult } from '@simsand/shared';
+import type { ActionCooldowns, ActionEnding, ActionId, ActionResult, ProfessionId } from '@simsand/shared';
 
 import type { SimulationWorld } from '../core/world.js';
 
@@ -12,6 +12,7 @@ import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
+import { Profession } from '../components/profession.js';
 import { getTile, nearestTerrainTile } from '../core/map.js';
 import { CAMP_YIELD, CRAFT_INPUT, FOOD_PRICE, MEAL_ITEM, heldQuantity } from '../economy/inventory.js';
 import { nearestNodeTile, nodeAt } from '../economy/nodes.js';
@@ -49,11 +50,20 @@ const ACTION_BIAS_SALT = 0x27d4eb2f;
 
 // Jobs that share a score. When more than one can start, the earlier one
 // runs, whatever the bias. The group still competes with other actions
-// at the score and bias of the job it picked.
+// at the score and bias of the job it picked. Work, gather and craft also
+// share a score; a profession orders those.
 export const ACTION_PREFERENCES: readonly (readonly ActionId[])[] = [
   ['dine', 'eat'],
-  ['craft', 'work', 'gather'],
 ];
+
+// The order in which each profession takes up labour. A worker stays at a
+// camp. A gatherer stays with the piles. A crafter gathers material and
+// carries it to a camp.
+export const PROFESSION_LABOUR: Readonly<Record<ProfessionId, readonly ActionId[]>> = {
+  worker: ['work', 'craft', 'gather'],
+  gatherer: ['gather', 'craft', 'work'],
+  crafter: ['craft', 'gather', 'work'],
+};
 
 export function emptyCooldowns(): ActionCooldowns {
   const cooldowns = {} as ActionCooldowns;
@@ -93,10 +103,7 @@ interface NeedState {
   canReachWater: boolean;
   canReachLand: boolean;
   canReachCamp: boolean;
-  // Steps along the shared route. Infinity when that route does not exist.
-  campDistance: number;
   canReachNode: boolean;
-  nodeDistance: number;
   // Someone they have met, alive and elsewhere, with a route to them.
   canReachCompanion: boolean;
   hasNeighbor: boolean;
@@ -116,6 +123,8 @@ interface NeedState {
   targetDistress: number;
   // The character's seeded bias, read when deciding a walk.
   bias: Record<ActionId, number>;
+  // Their profession's order for work, gather and craft.
+  labour: readonly ActionId[];
 }
 
 function comfort(state: NeedState): number {
@@ -150,24 +159,44 @@ function outranksWander(state: NeedState, action: ActionId, preference: number):
     && score >= biasedScore(state, 'idle', 1 - state.curiosity);
 }
 
-// What a camp visit would be: craft with material in hand, otherwise work.
-function campJob(state: NeedState): ActionId {
-  return state.heldMaterial >= 1 ? 'craft' : 'work';
+interface LabourPlan {
+  job: ActionId;
+  here: boolean;
 }
 
-function labourJob(state: NeedState, place: 'camp' | 'node'): ActionId {
-  return place === 'camp' ? campJob(state) : 'gather';
+// The first job in their profession's order that can happen where they
+// stand, or at a camp or pile they can reach. Distance does not decide it.
+// Craft needs material in hand. Missing when no job can happen anywhere.
+function labourPlan(state: NeedState): LabourPlan | undefined {
+  for (const job of state.labour) {
+    if (job === 'gather') {
+      if (state.nodeStock > 0) return { job, here: true };
+      if (state.canReachNode) return { job, here: false };
+      continue;
+    }
+
+    if (job === 'craft' && state.heldMaterial < 1) continue;
+    if (state.onCamp) return { job, here: true };
+    if (state.canReachCamp) return { job, here: false };
+  }
+
+  return undefined;
 }
 
-function labourOutranksWander(state: NeedState, place: 'camp' | 'node'): boolean {
-  return outranksWander(state, labourJob(state, place), state.industriousness);
+// Only the planned job can start, so a gatherer passing a camp keeps
+// walking to the pile.
+function plannedHere(state: NeedState, job: ActionId): boolean {
+  const plan = labourPlan(state);
+
+  return plan !== undefined && plan.here && plan.job === job;
 }
 
 function labouringHere(state: NeedState): boolean {
   if (!comfortable(state)) return false;
 
-  return (state.onCamp && labourOutranksWander(state, 'camp'))
-    || (state.nodeStock > 0 && labourOutranksWander(state, 'node'));
+  const plan = labourPlan(state);
+
+  return plan !== undefined && plan.here && outranksWander(state, plan.job, state.industriousness);
 }
 
 // Beside someone they know, with company preferred to wandering. The walk
@@ -182,26 +211,20 @@ function seeksCompanion(state: NeedState): boolean {
   if (!comfortable(state) || state.hasKnownNeighbor || !state.canReachCompanion) return false;
   if (!outranksWander(state, 'keep', state.loyalty)) return false;
 
-  const labour = labourTarget(state);
+  if (labourTarget(state) === undefined) return true;
 
-  if (labour === undefined) return true;
-
-  return biasedScore(state, 'keep', state.loyalty) > biasedScore(state, labourJob(state, labour), state.industriousness);
+  return biasedScore(state, 'keep', state.loyalty) > biasedScore(state, labourPlan(state)!.job, state.industriousness);
 }
 
-// Work and gather share a score. A camp and a pile are both places to labour.
-// The nearer one wins. A tie keeps the camp, which is the older walk.
+// Where the planned job happens, when it is elsewhere and outranks wandering.
 function labourTarget(state: NeedState): 'camp' | 'node' | undefined {
   if (!comfortable(state)) return undefined;
 
-  const camp = state.canReachCamp && !state.onCamp && labourOutranksWander(state, 'camp');
-  const node = state.canReachNode && state.nodeStock <= 0 && labourOutranksWander(state, 'node');
+  const plan = labourPlan(state);
 
-  if (camp && node) return state.nodeDistance < state.campDistance ? 'node' : 'camp';
-  if (camp) return 'camp';
-  if (node) return 'node';
+  if (!plan || plan.here || !outranksWander(state, plan.job, state.industriousness)) return undefined;
 
-  return undefined;
+  return plan.job === 'gather' ? 'node' : 'camp';
 }
 
 interface ActionDefinition {
@@ -295,7 +318,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     score: (state) => state.industriousness * comfort(state),
     requiresLife: true,
     // A camp is the only workplace. The visit happens while every need is quiet.
-    ready: (state) => state.onCamp && comfortable(state),
+    ready: (state) => state.onCamp && comfortable(state) && plannedHere(state, 'work'),
     holds: (state) => state.onCamp && comfortable(state),
     sustain: (state) => state.onCamp && comfortable(state),
     urgent: () => false,
@@ -310,7 +333,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     // Same preference as work. The pile has to be underfoot.
     score: (state) => state.industriousness * comfort(state),
     requiresLife: true,
-    ready: (state) => state.nodeStock > 0 && comfortable(state),
+    ready: (state) => state.nodeStock > 0 && comfortable(state) && plannedHere(state, 'gather'),
     holds: (state) => state.nodeStock > 0 && comfortable(state),
     sustain: (state) => state.nodeStock > 0 && comfortable(state),
     urgent: () => false,
@@ -325,7 +348,7 @@ export const actionDefinitions: readonly ActionDefinition[] = [
     // Same preference as work. The input has to already be in hand, at a camp.
     score: (state) => state.industriousness * comfort(state),
     requiresLife: true,
-    ready: (state) => state.onCamp && comfortable(state) && state.heldMaterial >= 1,
+    ready: (state) => state.onCamp && comfortable(state) && state.heldMaterial >= 1 && plannedHere(state, 'craft'),
     holds: (state) => state.onCamp && comfortable(state) && state.heldMaterial >= 1,
     sustain: (state) => state.onCamp && comfortable(state) && state.heldMaterial >= 1,
     urgent: () => false,
@@ -497,9 +520,7 @@ function needState(input: {
   canReachWater?: boolean;
   canReachLand?: boolean;
   canReachCamp?: boolean;
-  campDistance?: number;
   canReachNode?: boolean;
-  nodeDistance?: number;
   canReachCompanion?: boolean;
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
@@ -513,6 +534,7 @@ function needState(input: {
   neighborDistress?: number;
   targetDistress?: number;
   bias?: Record<ActionId, number>;
+  profession?: ProfessionId;
 }): NeedState {
   return {
     hunger: input.hunger,
@@ -531,9 +553,7 @@ function needState(input: {
     canReachWater: input.canReachWater ?? true,
     canReachLand: input.canReachLand ?? true,
     canReachCamp: input.canReachCamp ?? false,
-    campDistance: input.campDistance ?? Number.POSITIVE_INFINITY,
     canReachNode: input.canReachNode ?? false,
-    nodeDistance: input.nodeDistance ?? Number.POSITIVE_INFINITY,
     canReachCompanion: input.canReachCompanion ?? false,
     hasNeighbor: input.hasNeighbor ?? false,
     hasKnownNeighbor: input.hasKnownNeighbor ?? false,
@@ -547,6 +567,7 @@ function needState(input: {
     neighborDistress: Math.min(1, Math.max(0, input.neighborDistress ?? 0)),
     targetDistress: Math.min(1, Math.max(0, input.targetDistress ?? 0)),
     bias: input.bias ?? emptyCooldowns(),
+    labour: PROFESSION_LABOUR[input.profession ?? 'crafter'],
   };
 }
 
@@ -637,9 +658,7 @@ export function actionAvailability(input: {
   canReachWater?: boolean;
   canReachLand?: boolean;
   canReachCamp?: boolean;
-  campDistance?: number;
   canReachNode?: boolean;
-  nodeDistance?: number;
   canReachCompanion?: boolean;
   hasNeighbor?: boolean;
   hasKnownNeighbor?: boolean;
@@ -653,6 +672,7 @@ export function actionAvailability(input: {
   neighborDistress?: number;
   targetDistress?: number;
   bias?: Record<ActionId, number>;
+  profession?: ProfessionId;
   cooldowns?: ActionCooldowns;
 }): Record<ActionId, boolean> {
   const cooldowns = input.cooldowns ?? emptyCooldowns();
@@ -893,9 +913,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       canReachWater: waterRoute !== undefined,
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
-      campDistance: campRoute?.distance ?? Number.POSITIVE_INFINITY,
       canReachNode: nodeRoute !== undefined && nodeRoute.distance > 0,
-      nodeDistance: nodeRoute?.distance ?? Number.POSITIVE_INFINITY,
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
       canGive: heldQuantity(world, Identity.id[eid], CAMP_YIELD) >= 1,
@@ -908,6 +926,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       neighborDistress: distressed?.distress ?? 0,
       targetDistress: targetId ? distressOf(world, targetId) : 0,
       bias,
+      profession: Profession.id[eid],
     });
     // Searched only when it could set the walk, so a crowd of the restless
     // or the busy builds no routes.
@@ -953,9 +972,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       canReachLand: state.canReachLand,
       onCamp: state.onCamp,
       canReachCamp: state.canReachCamp,
-      campDistance: state.campDistance,
       canReachNode: state.canReachNode,
-      nodeDistance: state.nodeDistance,
       canReachCompanion: state.canReachCompanion,
       hasNeighbor: state.hasNeighbor,
       hasKnownNeighbor: state.hasKnownNeighbor,
@@ -969,6 +986,7 @@ export function updateActions(world: SimulationWorld, deltaSeconds: number): voi
       neighborDistress: state.neighborDistress,
       targetDistress: state.targetDistress,
       bias,
+      profession: Profession.id[eid],
       cooldowns,
     });
     const preferred = preferredAction(utilities, state.alive, cooldowns, state);

@@ -23,6 +23,7 @@ import type { SimulationWorld } from '../core/world.js';
 
 import { Appearance } from '../components/appearance.js';
 import { Position } from '../components/position.js';
+import { Profession } from '../components/profession.js';
 import { Velocity } from '../components/velocity.js';
 
 export function inspectCharacter(
@@ -76,6 +77,7 @@ export function inspectCharacter(
     velocityY: Velocity.y[eid],
     color: Appearance.color[eid],
     sprite: Appearance.sprite[eid],
+    profession: Profession.id[eid],
     ...readCharacterProfile(eid),
     resting: Condition.resting[eid] === 1,
     eating: Condition.eating[eid] === 1,
@@ -116,9 +118,7 @@ export function inspectCharacter(
       canReachLand: landRoute !== undefined && landRoute.distance > 0,
       onCamp: standingOnCamp(world, x, y),
       canReachCamp: campRoute !== undefined && campRoute.distance > 0,
-      campDistance: campRoute?.distance ?? Number.POSITIVE_INFINITY,
       canReachNode: nodeRoute !== undefined && nodeRoute.distance > 0,
-      nodeDistance: nodeRoute?.distance ?? Number.POSITIVE_INFINITY,
       canReachCompanion: companionRoute(world, eid, id) !== undefined,
       hasNeighbor: neighborId !== undefined,
       hasKnownNeighbor: knownId !== undefined,
@@ -130,6 +130,7 @@ export function inspectCharacter(
       nodeStock: pile?.quantity ?? 0,
       neighborDistress: distressed?.distress ?? 0,
       bias: actionBias(world.seed, id),
+      profession: Profession.id[eid],
       cooldowns,
     }),
     outcome: readActionOutcome(eid),

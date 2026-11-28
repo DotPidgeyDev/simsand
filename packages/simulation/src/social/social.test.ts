@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_IDS } from '@simsand/shared';
+import { ACTION_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
 
 import { Action } from '../components/action.js';
 import { Lifecycle } from '../components/lifecycle.js';
@@ -695,7 +695,7 @@ describe('confide and bluff', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(), 0);
     const { world: restored } = restorePersistedWorld(structuredClone(persisted));
 
-    expect(persisted.version).toBe(25);
+    expect(persisted.version).toBe(PERSISTED_WORLD_VERSION);
     expect(restored.log.filter((event) => event.type === 'character.bluffed')).toEqual(
       world.log.filter((event) => event.type === 'character.bluffed'),
     );

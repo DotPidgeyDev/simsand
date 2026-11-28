@@ -3,7 +3,7 @@ import { query } from 'bitecs';
 import { ACTION_IDS, PERSISTED_WORLD_VERSION } from '@simsand/shared';
 import type { ActionId, CharacterProfile, InventoryRecord, MemoryRecord, PersistedEntity, PersistedWorld, RelationshipRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 
-import { generateCharacterProfile, readCharacterProfile, spriteIdFor, startingAgeSeconds } from '../characters/profile.js';
+import { generateCharacterProfile, professionFor, readCharacterProfile, spriteIdFor, startingAgeSeconds } from '../characters/profile.js';
 import { Action } from '../components/action.js';
 import { emptyCooldowns, readActionOutcome } from '../systems/actions.js';
 import { Condition } from '../components/condition.js';
@@ -19,6 +19,7 @@ import { Identity } from '../components/identity.js';
 import { Position } from '../components/position.js';
 import { Velocity } from '../components/velocity.js';
 import { Appearance } from '../components/appearance.js';
+import { Profession } from '../components/profession.js';
 import { createCharacter } from '../entities/create-character.js';
 import { nodeKey } from '../economy/nodes.js';
 import { rebuildHistoryIndexes } from '../history/records.js';
@@ -42,18 +43,24 @@ import { pairKey } from '../social/relationships.js';
 // Version 21 predates buy.
 // Version 22 predates a depleted pile's return.
 // Version 23 predates viewer ownership. Version 24 predates the world director.
+// Version 25 predates professions.
 type PersistedEntityV2 = Omit<
   PersistedEntity,
   keyof CharacterProfile | 'resting' | 'eating' | 'drinking' | 'ageSeconds' | 'action' | 'actionSeconds' | 'cooldowns' | 'outcome'
 >;
 
-export type PersistedWorldV24 = Omit<PersistedWorld, 'version' | 'director'> & {
+export type PersistedWorldV25 = Omit<PersistedWorld, 'version' | 'entities'> & {
+  version: 25;
+  entities: Array<Omit<PersistedEntity, 'profession'>>;
+};
+
+export type PersistedWorldV24 = Omit<PersistedWorldV25, 'version' | 'director'> & {
   version: 24;
 };
 
 export type PersistedWorldV23 = Omit<PersistedWorldV24, 'version' | 'entities'> & {
   version: 23;
-  entities: Array<Omit<PersistedEntity, 'viewerId'>>;
+  entities: Array<Omit<PersistedEntity, 'viewerId' | 'profession'>>;
 };
 
 export type PersistedWorldV22 = Omit<PersistedWorldV23, 'version' | 'returning'> & {
@@ -196,6 +203,7 @@ export type UpgradeableWorld =
   | PersistedWorldV22
   | PersistedWorldV23
   | PersistedWorldV24
+  | PersistedWorldV25
   | PersistedWorld;
 
 // Must be called between ticks so the captured state is one coherent point.
@@ -216,6 +224,7 @@ export function capturePersistedWorld(
       ...readCharacterProfile(eid),
       color: Appearance.color[eid],
       sprite: Appearance.sprite[eid],
+      profession: Profession.id[eid],
       resting: Condition.resting[eid] === 1,
       eating: Condition.eating[eid] === 1,
       drinking: Condition.drinking[eid] === 1,
@@ -586,10 +595,21 @@ export function upgradePersistedWorld(persisted: UpgradeableWorld): PersistedWor
   }
 
   if (persisted.version === 24) {
+    return upgradePersistedWorld({
+      ...persisted,
+      version: 25,
+      director: { lastActAt: null, targeted: [], hungrySince: [], cursedHoldings: [] },
+    });
+  }
+
+  if (persisted.version === 25) {
     return {
       ...persisted,
       version: PERSISTED_WORLD_VERSION,
-      director: { lastActAt: null, targeted: [], hungrySince: [], cursedHoldings: [] },
+      entities: persisted.entities.map((entity) => ({
+        ...entity,
+        profession: professionFor(persisted.seed, entity.id),
+      })),
     };
   }
 

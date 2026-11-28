@@ -232,7 +232,9 @@ model incrementally as simulation systems become real.
     the world director last acted, when it last acted on each
     character, who has been urgently hungry with no food since when, and
     how much each character held when last cursed for hoarding. An older
-    save starts with an empty director. The next save writes version 25.
+    save starts with an empty director. Version 26 gains `profession` on
+    each character, seeded from the world seed and the character's ID.
+    The next save writes version 26.
     The map and the profile are stored rather than regenerated, so a
     later change to either generator cannot reshuffle an existing world.
 -   **Capture:** the server sends `world.persist.request`; the worker

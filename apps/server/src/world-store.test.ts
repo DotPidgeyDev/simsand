@@ -5,8 +5,9 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { PERSISTED_WORLD_VERSION } from '@simsand/shared';
 import type { PersistedWorld, SimulationLogEvent } from '@simsand/shared';
-import { generateCharacterProfile, generateResourceNodes, generateWorldMap, spriteIdFor, startingAgeSeconds, toWorldMapData } from '@simsand/simulation';
+import { generateCharacterProfile, generateResourceNodes, generateWorldMap, professionFor, spriteIdFor, startingAgeSeconds, toWorldMapData } from '@simsand/simulation';
 
 import { WorldStore, parsePersistedWorld } from './world-store.js';
 
@@ -14,7 +15,7 @@ function world(tick: number): PersistedWorld {
   const profile = generateCharacterProfile(12345, 'character-0001');
 
   return {
-    version: 25,
+    version: PERSISTED_WORLD_VERSION,
     seed: 12345,
     tick,
     elapsedSeconds: tick / 10,
@@ -29,6 +30,7 @@ function world(tick: number): PersistedWorld {
         velocityY: -0.5,
         color: 3,
         sprite: spriteIdFor(12345, 'character-0001'),
+        profession: professionFor(12345, 'character-0001'),
         resting: false,
         eating: false,
         drinking: false,
@@ -164,7 +166,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(25);
+    expect(loaded?.version).toBe(PERSISTED_WORLD_VERSION);
     expect(loaded?.entities).toEqual(saved.entities);
     expect(loaded?.map.tiles[1]).toBe(1);
     expect(loaded?.map.tiles[2]).toBe(2);
@@ -184,7 +186,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(25);
+    expect(loaded?.version).toBe(PERSISTED_WORLD_VERSION);
     expect(loaded?.entities[0].eating).toBe(false);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].resting).toBe(true);
@@ -206,7 +208,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(25);
+    expect(loaded?.version).toBe(PERSISTED_WORLD_VERSION);
     expect(loaded?.entities[0].eating).toBe(true);
     expect(loaded?.entities[0].drinking).toBe(false);
     expect(loaded?.entities[0].needs.hunger).toBe(0.9);
@@ -225,7 +227,7 @@ describe('WorldStore', () => {
 
     const loaded = store.loadLatest();
 
-    expect(loaded?.version).toBe(25);
+    expect(loaded?.version).toBe(PERSISTED_WORLD_VERSION);
     expect(loaded?.entities[0].ageSeconds).toBe(saved.entities[0].ageSeconds);
   });
 
@@ -279,6 +281,21 @@ describe('WorldStore', () => {
 
     expect(() => store.loadLatest()).toThrow('No valid world snapshot');
     expect(console.error).toHaveBeenCalledWith(expect.stringContaining('attributes are missing or out of range'));
+  });
+
+  it('rejects a snapshot with an unknown profession, and seeds one for a version 25 snapshot', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const db = new DatabaseSync(':memory:');
+    const store = new WorldStore(db);
+    const saved = world(10);
+    const { profession: _profession, ...legacy } = saved.entities[0];
+
+    insertRaw(db, 10, JSON.stringify({ ...saved, version: 25, entities: [legacy] }));
+    expect(store.loadLatest()?.entities[0].profession).toBe(professionFor(12345, 'character-0001'));
+
+    insertRaw(db, 20, JSON.stringify({ ...saved, entities: [{ ...saved.entities[0], profession: 'baker' }] }));
+    expect(store.loadLatest()?.tick).toBe(10);
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining('Unknown profession: baker'));
   });
 
   it('rejects a snapshot whose map does not match its dimensions', () => {

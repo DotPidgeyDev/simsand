@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { LIFECYCLE_STATES, TERRAIN_TYPES } from '@simsand/shared';
 
-import { generateCharacterProfile, startingAgeSeconds } from '../characters/profile.js';
+import { generateCharacterProfile, professionFor, startingAgeSeconds } from '../characters/profile.js';
 import { actionAvailability, actionBias, actionUtilities, biasedUtilities, emptyCooldowns } from '../systems/actions.js';
 import { derivedStats } from '../systems/needs.js';
 import { createWorldMap } from '../core/map.js';
@@ -36,6 +36,7 @@ describe('inspectCharacter', () => {
       velocityY: -0.5,
       color: 0x123456,
       sprite: 'scout',
+      profession: professionFor(0, 'swimmer'),
       ...generateCharacterProfile(0, 'swimmer'),
       resting: false,
       eating: false,

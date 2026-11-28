@@ -210,11 +210,16 @@ already underway in the water ends as a failure. While every need is quiet and
 work outranks idle and move they walk to the nearest camp and work there until
 a need rises past 0.3. A completed visit adds one goods to that character's inventory. An interrupted visit does not.
 A character who is holding goods can give one to a neighbour they have
-already met. Greed scores against that gift. An industrious character walks to the nearer of a camp and a pile of
-material. Standing on the pile, they can gather one unit when that visit
-ends. A pile that runs out returns to stock 3 on that tile after 90
-seconds, and until then it is not a place to walk. A tie keeps the walk to the camp. Holding material at a camp,
-they craft one food from it instead of the visit that needs no input.
+already met. Greed scores against that gift. Each character has a
+profession that orders work, gather and craft: a worker works, then
+crafts, then gathers; a gatherer gathers, then crafts, then works; a
+crafter crafts, then gathers, then works. Craft needs material in hand.
+They take the first of those that can happen where they stand or at a
+camp or pile they can reach, and walk there whatever is nearer. Standing
+on a pile, they can gather one unit when that visit ends. A pile that
+runs out returns to stock 3 on that tile after 90 seconds, and until
+then it is not a place to walk. Crafting at a camp turns one material
+into one food.
 Holding that food while hungry spends one and brings hunger down to the
 quiet line. A meal with no food is unchanged. A greedy character pays
 two goods for one food from someone they have already met. A generous

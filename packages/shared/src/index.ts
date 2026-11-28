@@ -6,6 +6,12 @@ export const SPRITE_IDS = ['wanderer', 'scout', 'elder'] as const;
 
 export type SpriteId = (typeof SPRITE_IDS)[number];
 
+// Append only. Saved worlds store the name. A profession is the order in
+// which a character takes up labour.
+export const PROFESSION_IDS = ['worker', 'gatherer', 'crafter'] as const;
+
+export type ProfessionId = (typeof PROFESSION_IDS)[number];
+
 export interface EntitySnapshot {
   id: string;
   x: number;
@@ -51,7 +57,7 @@ export interface WorldDelta {
   nodes?: ResourceNode[];
 }
 
-export const PERSISTED_WORLD_VERSION = 25;
+export const PERSISTED_WORLD_VERSION = 26;
 
 // Server-issued viewer ids. A platform user id is not one of these.
 export const VIEWER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -376,6 +382,8 @@ export interface PersistedEntity extends CharacterProfile {
   velocityY: number;
   color: number;
   sprite: SpriteId;
+  // Seeded for a new character, then stored, so it can change later.
+  profession: ProfessionId;
   // Remembered so a save during the gap resumes the same recovery. The need
   // alone cannot say, because the same value occurs on the way up and down.
   resting: boolean;
@@ -556,6 +564,7 @@ export interface EntityInspection extends CharacterProfile {
   velocityY: number;
   color: number;
   sprite: SpriteId;
+  profession: ProfessionId;
   resting: boolean;
   eating: boolean;
   drinking: boolean;

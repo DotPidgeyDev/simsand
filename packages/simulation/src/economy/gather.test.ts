@@ -135,11 +135,11 @@ describe('gather', () => {
     expect(world.nodes.get(nodeKey(8, 6, 2))?.quantity).toBe(3);
   });
 
-  it('walks to a nearer camp instead of a farther pile', () => {
+  it('walks a worker to a camp instead of a nearer pile', () => {
     const map = createWorldMap(8, 8, 'grass');
-    map.tiles[2 * 8 + 2] = TERRAIN_TYPES.indexOf('camp');
+    map.tiles[2 * 8 + 0] = TERRAIN_TYPES.indexOf('camp');
     const world = createSimulationWorld(map, 1);
-    world.nodes.set(nodeKey(map.width, 7, 2), { x: 7, y: 2, item: 'material', quantity: 3 });
+    world.nodes.set(nodeKey(map.width, 6, 2), { x: 6, y: 2, item: 'material', quantity: 3 });
     const eid = createCharacter(world, {
       id: 'chooser',
       x: 4.5,
@@ -148,6 +148,7 @@ describe('gather', () => {
       velocityY: 1,
       color: 0xffffff,
       sprite: 'wanderer',
+      profession: 'worker',
     });
 
     Needs.hunger[eid] = 0.2;

@@ -28,6 +28,7 @@ function camp(material = 0): { world: SimulationWorld; eid: number } {
     velocityY: 0,
     color: 0xffffff,
     sprite: 'wanderer',
+    profession: 'crafter',
   });
 
   Needs.hunger[eid] = 0.2;

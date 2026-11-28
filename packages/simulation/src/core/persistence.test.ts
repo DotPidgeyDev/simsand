@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { TERRAIN_TYPES } from '@simsand/shared';
+import { PERSISTED_WORLD_VERSION, PROFESSION_IDS, TERRAIN_TYPES } from '@simsand/shared';
 
-import { startingAgeSeconds } from '../characters/profile.js';
+import { professionFor, startingAgeSeconds } from '../characters/profile.js';
 import { createCharacter } from '../entities/create-character.js';
 import { createPopulation } from '../entities/create-population.js';
 import { removeCharacter } from '../entities/remove-character.js';
@@ -52,7 +52,7 @@ describe('world persistence', () => {
     const persisted = capturePersistedWorld(world, createSimulationClock(0.05), 99);
 
     expect(persisted).toMatchObject({
-      version: 25,
+      version: PERSISTED_WORLD_VERSION,
       seed: 99,
       tick: 0,
       fixedDeltaSeconds: 0.05,
@@ -76,7 +76,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(legacy);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities[0]?.cooldowns.comfort).toBe(0);
     expect(upgraded.memories).toEqual(saved.memories);
   });
@@ -97,7 +97,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(legacy);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities[0]?.cooldowns.keep).toBe(0);
     expect(upgraded.entities[0]?.cooldowns.confide).toBe(0);
     expect(upgraded.entities[0]?.cooldowns.bluff).toBe(0);
@@ -113,7 +113,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld({ ...legacy, version: 16 });
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.inventories).toEqual([]);
     expect(upgraded.entities).toEqual(saved.entities);
   });
@@ -136,7 +136,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(legacy);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities[0]?.cooldowns.give).toBe(0);
     expect(upgraded.inventories).toEqual(saved.inventories);
   });
@@ -158,7 +158,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(legacy);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities[0]?.cooldowns.gather).toBe(0);
     expect(upgraded.entities[0]?.cooldowns.craft).toBe(0);
     expect(upgraded.entities[0]?.cooldowns.give).toBe(saved.entities[0]?.cooldowns.give);
@@ -181,7 +181,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(legacy);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities[0]?.cooldowns.craft).toBe(0);
     expect(upgraded.entities[0]?.cooldowns.dine).toBe(0);
     expect(upgraded.entities[0]?.cooldowns.gather).toBe(saved.entities[0]?.cooldowns.gather);
@@ -204,7 +204,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(legacy);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities[0]?.cooldowns.dine).toBe(0);
     expect(upgraded.entities[0]?.cooldowns.buy).toBe(0);
     expect(upgraded.entities[0]?.cooldowns.craft).toBe(saved.entities[0]?.cooldowns.craft);
@@ -227,7 +227,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(legacy);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities[0]?.cooldowns.buy).toBe(0);
     expect(upgraded.entities[0]?.cooldowns.dine).toBe(saved.entities[0]?.cooldowns.dine);
     expect(upgraded.nodes).toEqual(saved.nodes);
@@ -242,7 +242,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(legacy);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.returning).toEqual([]);
     expect(upgraded.nodes).toEqual(saved.nodes);
     expect(upgraded.entities[0]?.cooldowns.buy).toBe(saved.entities[0]?.cooldowns.buy);
@@ -283,7 +283,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld({ ...current, version: 1 });
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.map).toEqual(toWorldMapData(generateWorldMap(42)));
     expect(() => restorePersistedWorld(upgraded)).not.toThrow();
   });
@@ -303,7 +303,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutProfiles);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities.map((entity) => entity.name)).toEqual(
       persisted.entities.map((entity) => entity.name),
     );
@@ -348,7 +348,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutSustenance);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities[0].eating).toBe(true);
     expect(upgraded.entities[0].drinking).toBe(false);
     expect(upgraded.entities[0].needs.hunger).toBe(0.9);
@@ -372,7 +372,7 @@ describe('world persistence', () => {
 
     const upgraded = upgradePersistedWorld(withoutAge);
 
-    expect(upgraded.version).toBe(25);
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
     expect(upgraded.entities[0].ageSeconds).toBe(persisted.entities[0].ageSeconds);
     expect(upgraded.entities[0].action).toBe('move');
   });
@@ -411,9 +411,34 @@ describe('world persistence', () => {
     const world = createSimulationWorld();
     const persisted = capturePersistedWorld(world, createSimulationClock(), 1);
 
-    expect(() => restorePersistedWorld({ ...persisted, version: 26 })).toThrow(
-      'Unsupported persisted world version: 26',
+    expect(() => restorePersistedWorld({ ...persisted, version: 27 })).toThrow(
+      'Unsupported persisted world version: 27',
     );
+  });
+
+  it('gives a version 25 save each character its seeded profession, then keeps the stored one', () => {
+    const world = createSimulationWorld();
+    createPopulation(world, 3, 99);
+    const saved = capturePersistedWorld(world, createSimulationClock(), 99);
+    const legacy = {
+      ...saved,
+      version: 25 as const,
+      entities: saved.entities.map(({ profession: _profession, ...entity }) => entity),
+    };
+
+    const upgraded = upgradePersistedWorld(legacy);
+
+    expect(upgraded.version).toBe(PERSISTED_WORLD_VERSION);
+    expect(upgraded.entities.map((entity) => entity.profession))
+      .toEqual(saved.entities.map((entity) => professionFor(99, entity.id)));
+
+    const changed = PROFESSION_IDS.find((id) => id !== saved.entities[0]!.profession)!;
+    const restored = restorePersistedWorld({
+      ...saved,
+      entities: saved.entities.map((entity, index) => (index === 0 ? { ...entity, profession: changed } : entity)),
+    }).world;
+
+    expect(capturePersistedWorld(restored, createSimulationClock(), 99).entities[0]?.profession).toBe(changed);
   });
 
   it('gives a version 24 save an empty director and keeps director memory across a save', () => {
@@ -423,7 +448,7 @@ describe('world persistence', () => {
     const { director: _director, ...rest } = saved;
 
     expect(upgradePersistedWorld({ ...rest, version: 24 })).toMatchObject({
-      version: 25,
+      version: PERSISTED_WORLD_VERSION,
       director: { lastActAt: null, targeted: [], hungrySince: [], cursedHoldings: [] },
     });
 

@@ -1,7 +1,7 @@
 # Implementation Roadmap
 
 **Status:** Active — Milestone 09  
-**Version:** 1.17  
+**Version:** 1.18  
 **Last updated:** 2026-11-27
 
 ## Guiding approach
@@ -731,7 +731,9 @@ A route that seeks a person or a stack. Milestone 03's shared field seeks water,
 
 A dead holder's stacks. **Decided: they stay on the body.** `character.died` does not move or delete them, and they survive a save. The living cannot buy from or give to the body, and the director does not count it. A buy already underway fails when the seller dies. Removing the character still deletes the stacks. Taking from the body waits for a route to a stack. Inheritance, when families arrive, is a rule that moves them from the body.
 
-A declared preference when two jobs share a score. **Done.** `ACTION_PREFERENCES` in `packages/simulation/src/systems/actions.ts` lists the jobs that share a score in the order they win: dine before eat, and craft before work before gather. When more than one in a group can start, the earlier one runs whatever the bias, and the group competes with other actions at that job's biased score. Work no longer refuses to start while material is in hand, and dine no longer carries a bonus. Without the bonus, a held meal no longer outranks a slightly higher thirst or fatigue. A profession will give a character its own order for a group.
+A declared preference when two jobs share a score. **Done.** `ACTION_PREFERENCES` in `packages/simulation/src/systems/actions.ts` lists the jobs that share a score in the order they win: dine before eat, and craft before work before gather. When more than one in a group can start, the earlier one runs whatever the bias, and the group competes with other actions at that job's biased score. Work no longer refuses to start while material is in hand, and dine no longer carries a bonus. Without the bonus, a held meal no longer outranks a slightly higher thirst or fatigue. Craft, work and gather left the shared list when professions arrived.
+
+Professions. **First step done: each character's labour order.** `PROFESSION_IDS` in `packages/shared` lists worker, gatherer and crafter. A new character gets one from the world seed and its ID on its own salt. It is stored on the character, so it can change later; a version 25 save is given the seeded one (format version 26). `PROFESSION_LABOUR` in `actions.ts` gives each its order: a worker works, then crafts, then gathers; a gatherer gathers, then crafts, then works; a crafter crafts, then gathers, then works. Craft needs material in hand. The character takes the first job in that order that can happen where they stand or at a camp or pile they can reach. Only that job can start, and only its place is walked to, whatever is nearer, so a gatherer walks past a camp to a pile and a crafter with material walks past a pile to a camp. The nearer-of-camp-and-pile rule is gone. A profession adds no score: the job still competes with other actions at industriousness times comfort, plus the seeded bias. Inspection reports the profession. Changing a profession, and specializations that make a job better rather than preferred, are still to come. In seeded 200-character worlds, labour of any kind was already rare before this change.
 
 A depleted pile returns to stock 3 on the same tile after 90 seconds. Wildlife, weather, and farming here renew or replace that input. They start from that return, not from a pile that is gone for good.
 

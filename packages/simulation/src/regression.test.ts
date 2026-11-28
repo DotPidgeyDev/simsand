@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_IDS, ACTION_OUTCOMES, CHRONICLE_PRESENTATION, DIRECTOR_REASONS, ITEM_IDS, LIFECYCLE_STATES, MEMORY_KINDS, PERSONALITY_TRAITS, SIMULATION_LOG_TYPES, TERRAIN_TYPES } from '@simsand/shared';
-import type { ActionId } from '@simsand/shared';
+import { ACTION_IDS, ACTION_OUTCOMES, CHRONICLE_PRESENTATION, DIRECTOR_REASONS, ITEM_IDS, LIFECYCLE_STATES, MEMORY_KINDS, PERSONALITY_TRAITS, PROFESSION_IDS, SIMULATION_LOG_TYPES, TERRAIN_TYPES } from '@simsand/shared';
+import type { ActionId, ProfessionId } from '@simsand/shared';
 
 import { generateCharacterProfile, spriteIdFor, startingAgeSeconds } from './characters/profile.js';
 import { Action } from './components/action.js';
@@ -14,6 +14,7 @@ import { Position } from './components/position.js';
 import { Velocity } from './components/velocity.js';
 import { createSimulationClock } from './core/clock.js';
 import { RESOURCE_NODE_STOCK, createWorldMap, generateWorldMap, routeToTile, routesToward } from './core/map.js';
+import type { WorldMap } from './core/map.js';
 import { capturePersistedWorld, restorePersistedWorld, upgradePersistedWorld } from './core/persistence.js';
 import { createSimulationRunner, tickSimulation } from './core/runner.js';
 import { createSimulationWorld } from './core/world.js';
@@ -29,7 +30,7 @@ import { PILE_RETURN_SECONDS, nodeAt, nodeKey, renewPiles, takeResource } from '
 import { acknowledgePendingLog } from './history/records.js';
 import { inspectCharacter, inspectCharacterHistory } from './inspection/inspect-character.js';
 import { LOG_LIMIT, recordActionEnding } from './log/events.js';
-import { ACTION_BIAS, ACTION_COOLDOWN_SECONDS, ACTION_PREFERENCES, MIN_ACTION_SECONDS, actionBias, actionUtilities, chooseAction, readActionOutcome, updateActions } from './systems/actions.js';
+import { ACTION_BIAS, ACTION_COOLDOWN_SECONDS, ACTION_PREFERENCES, MIN_ACTION_SECONDS, PROFESSION_LABOUR, actionBias, actionUtilities, chooseAction, readActionOutcome, updateActions } from './systems/actions.js';
 import { HUNGER_GAIN_PER_SECOND, HUNGER_RESUME_AT } from './systems/needs.js';
 import { lifespanSeconds, updateLifecycle } from './systems/lifecycle.js';
 import { companionRoute } from './social/companion.js';
@@ -939,7 +940,13 @@ describe('milestone 09 behaviour', () => {
   });
 
   it('declares which job wins when two share a score, whatever the bias', () => {
-    expect(ACTION_PREFERENCES).toEqual([['dine', 'eat'], ['craft', 'work', 'gather']]);
+    expect(ACTION_PREFERENCES).toEqual([['dine', 'eat']]);
+    expect(PROFESSION_IDS).toEqual(['worker', 'gatherer', 'crafter']);
+    expect(PROFESSION_LABOUR).toEqual({
+      worker: ['work', 'craft', 'gather'],
+      gatherer: ['gather', 'craft', 'work'],
+      crafter: ['craft', 'gather', 'work'],
+    });
 
     const utilities = { ...actionUtilities({ hunger: 0.5, thirst: 0.1, fatigue: 0.1, curiosity: 0 }) };
     const available = Object.fromEntries(ACTION_IDS.map((id) => [id, false])) as Record<ActionId, boolean>;
@@ -947,37 +954,76 @@ describe('milestone 09 behaviour', () => {
     utilities.eat += ACTION_BIAS;
     utilities.dine -= ACTION_BIAS;
     expect(chooseAction(utilities, { ...available, eat: true, dine: true })).toBe('dine');
-
-    utilities.work = 0.6 + ACTION_BIAS;
-    utilities.craft = 0.6 - ACTION_BIAS;
-    expect(chooseAction(utilities, { ...available, work: true, craft: true })).toBe('craft');
-    expect(chooseAction(utilities, { ...available, work: true, craft: true, eat: true, dine: true })).toBe('craft');
   });
 
-  it('crafts at a camp when holding material, and works there without it', () => {
-    const world = createSimulationWorld(createWorldMap(8, 8, 'camp'));
+  function labourer(map: WorldMap, profession: ProfessionId, x = 2.5) {
+    const world = createSimulationWorld(map);
     const eid = createCharacter(world, {
       id: 'maker',
-      x: 2.5,
+      x,
       y: 2.5,
       velocityX: 0,
-      velocityY: 0,
+      velocityY: 1,
       color: 0xffffff,
       sprite: 'wanderer',
+      profession,
     });
     Needs.hunger[eid] = 0.1;
     Needs.thirst[eid] = 0.1;
     Needs.fatigue[eid] = 0.1;
+    for (const trait of PERSONALITY_TRAITS) Personality[trait][eid] = 0;
     Personality.industriousness[eid] = 1;
+    Personality.curiosity[eid] = 0.2;
     Lifecycle.ageSeconds[eid] = 0;
 
-    updateActions(world, 0.1);
-    expect(ACTION_IDS[Action.kind[eid]]).toBe('work');
+    return { world, eid };
+  }
 
-    grantItem(world, 'maker', 'material', 1);
-    Action.elapsed[eid] = 0;
+  it('lets a crafter craft at a camp with material in hand, and a worker work there instead', () => {
+    for (const [profession, withMaterial] of [['crafter', 'craft'], ['worker', 'work']] as const) {
+      const { world, eid } = labourer(createWorldMap(8, 8, 'camp'), profession);
+
+      updateActions(world, 0.1);
+      expect(ACTION_IDS[Action.kind[eid]]).toBe('work');
+
+      grantItem(world, 'maker', 'material', 1);
+      Action.elapsed[eid] = 0;
+      updateActions(world, 0.1);
+      expect(ACTION_IDS[Action.kind[eid]]).toBe(withMaterial);
+    }
+  });
+
+  it('sends each profession to its own place, whatever is nearer', () => {
+    const map = createWorldMap(12, 5, 'grass');
+    map.tiles[nodeKey(12, 3, 2)] = TERRAIN_TYPES.indexOf('camp');
+    const walk = (profession: ProfessionId, material = 0) => {
+      const { world, eid } = labourer(map, profession, 4.5);
+      world.nodes.set(nodeKey(12, 10, 2), { x: 10, y: 2, item: 'material', quantity: 3 });
+      if (material) grantItem(world, 'maker', 'material', material);
+
+      updateActions(world, 0.1);
+
+      return { action: ACTION_IDS[Action.kind[eid]], toward: Math.sign(Velocity.x[eid]) };
+    };
+
+    expect(walk('worker')).toEqual({ action: 'move', toward: -1 });
+    expect(walk('gatherer')).toEqual({ action: 'move', toward: 1 });
+    expect(walk('gatherer', 1)).toEqual({ action: 'move', toward: 1 });
+    expect(walk('crafter')).toEqual({ action: 'move', toward: 1 });
+    expect(walk('crafter', 1)).toEqual({ action: 'move', toward: -1 });
+  });
+
+  it('keeps a gatherer walking past a camp toward the pile', () => {
+    const map = createWorldMap(12, 5, 'grass');
+    map.tiles[nodeKey(12, 2, 2)] = TERRAIN_TYPES.indexOf('camp');
+    const { world, eid } = labourer(map, 'gatherer');
+    world.nodes.set(nodeKey(12, 10, 2), { x: 10, y: 2, item: 'material', quantity: 3 });
+
     updateActions(world, 0.1);
-    expect(ACTION_IDS[Action.kind[eid]]).toBe('craft');
+
+    expect(inspectCharacter(world, 'maker')?.available.work).toBe(false);
+    expect(ACTION_IDS[Action.kind[eid]]).toBe('move');
+    expect(Velocity.x[eid]).toBeGreaterThan(0);
   });
 
   function apart(map = createWorldMap(16, 4, 'grass'), walker = 'ada') {

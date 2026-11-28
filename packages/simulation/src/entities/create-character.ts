@@ -1,9 +1,9 @@
 import { addEntity, addComponents } from 'bitecs';
 
 import { ACTION_IDS, ACTION_OUTCOMES } from '@simsand/shared';
-import type { ActionCooldowns, ActionEnding, ActionId, CharacterProfile, SpriteId } from '@simsand/shared';
+import type { ActionCooldowns, ActionEnding, ActionId, CharacterProfile, ProfessionId, SpriteId } from '@simsand/shared';
 
-import { assertCharacterProfile, assertSpriteId, generateCharacterProfile, startingAgeSeconds, writeCharacterProfile } from '../characters/profile.js';
+import { assertCharacterProfile, assertProfessionId, assertSpriteId, generateCharacterProfile, professionFor, startingAgeSeconds, writeCharacterProfile } from '../characters/profile.js';
 import { emptyCooldowns } from '../systems/actions.js';
 import type { SimulationWorld } from '../core/world.js';
 
@@ -16,6 +16,7 @@ import { Lifecycle } from '../components/lifecycle.js';
 import { Needs } from '../components/needs.js';
 import { Personality } from '../components/personality.js';
 import { Position } from '../components/position.js';
+import { Profession } from '../components/profession.js';
 import { Velocity } from '../components/velocity.js';
 
 export interface CharacterDefinition extends Partial<CharacterProfile> {
@@ -26,6 +27,8 @@ export interface CharacterDefinition extends Partial<CharacterProfile> {
   velocityY: number;
   color: number;
   sprite: SpriteId;
+  // Seeded from the world seed and ID when missing.
+  profession?: ProfessionId;
   resting?: boolean;
   eating?: boolean;
   drinking?: boolean;
@@ -73,6 +76,7 @@ export function createCharacter(
     Lifecycle,
     Condition,
     Action,
+    Profession,
   );
 
   Identity.id[eid] = definition.id;
@@ -108,6 +112,7 @@ export function createCharacter(
 
   Appearance.color[eid] = definition.color;
   Appearance.sprite[eid] = assertSpriteId(definition.sprite);
+  Profession.id[eid] = assertProfessionId(definition.profession ?? professionFor(world.seed, definition.id));
 
   return eid;
 }

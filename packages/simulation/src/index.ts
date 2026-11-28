@@ -5,6 +5,7 @@ export { Identity } from './components/identity.js';
 export { Position } from './components/position.js';
 export { Velocity } from './components/velocity.js';
 export { Appearance } from './components/appearance.js';
+export { Profession } from './components/profession.js';
 
 export type { CharacterDefinition } from './entities/create-character.js';
 
@@ -51,8 +52,10 @@ export { acknowledgePendingLog } from './history/records.js';
 
 export {
   assertCharacterProfile,
+  assertProfessionId,
   assertSpriteId,
   generateCharacterProfile,
+  professionFor,
   readCharacterProfile,
   spriteIdFor,
   startingAgeSeconds,

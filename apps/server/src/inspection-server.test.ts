@@ -26,6 +26,7 @@ const entity: EntityInspection = {
   velocityY: -0.2,
   color: 0xff0000,
   sprite: 'wanderer',
+  profession: 'worker',
   ...generateCharacterProfile(1, 'character-0001'),
   resting: false, eating: false, drinking: false, working: false,
   ageSeconds: 12,

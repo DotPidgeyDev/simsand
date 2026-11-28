@@ -5,7 +5,7 @@ import { DatabaseSync, backup } from 'node:sqlite';
 import { ACCOUNT_STATUSES, ACTION_IDS, ACTION_OUTCOMES, BASIC_NEEDS, COMMAND_SOURCES, DEATH_CAUSES, DIRECTOR_REASONS, INTERVENTION_LOG_TYPES, ITEM_IDS, LIFECYCLE_LOG_TYPES, PERSISTED_WORLD_VERSION, PLATFORM_IDS, SIMULATION_LOG_TYPES, VIEWER_ID_PATTERN } from '@simsand/shared';
 import type { AccountStatus, CommandIssuer, CommandResult, PileReturn, PlatformId, PlatformIdentityRecord, ResourceNode, SimulationLogEvent } from '@simsand/shared';
 import type { PersistedEntity, PersistedWorld, WorldMapData } from '@simsand/shared';
-import { assertCharacterProfile, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
+import { assertCharacterProfile, assertProfessionId, assertSpriteId, fromWorldMapData, upgradePersistedWorld } from '@simsand/simulation';
 import type { UpgradeableWorld } from '@simsand/simulation';
 
 import { log } from './logger.js';
@@ -1273,6 +1273,12 @@ export function parsePersistedWorld(payload: string): PersistedWorld {
 
   if (Number(world.version) >= 25) {
     assertDirector(world.director);
+  }
+
+  if (Number(world.version) >= 26) {
+    for (const entity of world.entities as { profession?: unknown }[]) {
+      assertProfessionId(entity.profession);
+    }
   }
 
   const ids = new Set(world.entities.map((entity) => entity.id));

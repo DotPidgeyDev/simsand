@@ -5,9 +5,10 @@ import {
   BASIC_NEEDS,
   LIFECYCLE_STATES,
   PERSONALITY_TRAITS,
+  PROFESSION_IDS,
   SPRITE_IDS,
 } from '@simsand/shared';
-import type { SpriteId } from '@simsand/shared';
+import type { ProfessionId, SpriteId } from '@simsand/shared';
 import type {
   CharacterAttributes,
   CharacterNeeds,
@@ -26,6 +27,7 @@ import { Personality } from '../components/personality.js';
 const NAME_MAX_LENGTH = 64;
 const SPRITE_SEED_SALT = 0x85ebca6b;
 const AGE_SEED_SALT = 0xc2b2ae35;
+const PROFESSION_SEED_SALT = 0x1b873593;
 
 // New characters start comfortable rather than desperate. Needs rise and recover
 // on their own; age is tracked separately and can end the life.
@@ -69,6 +71,23 @@ export function startingAgeSeconds(worldSeed: number, id: string, constitution: 
   const random = createRandom(profileSeed(worldSeed ^ AGE_SEED_SALT, id));
 
   return random() * lifespanSeconds(constitution);
+}
+
+// Separate from the profile, sprite and age streams. Only a new character, or
+// one loaded from a save that predates professions, takes this; after that
+// the stored profession is kept.
+export function professionFor(worldSeed: number, id: string): ProfessionId {
+  const random = createRandom(profileSeed(worldSeed ^ PROFESSION_SEED_SALT, id));
+
+  return PROFESSION_IDS[Math.floor(random() * PROFESSION_IDS.length)];
+}
+
+export function assertProfessionId(value: unknown): ProfessionId {
+  if (!(PROFESSION_IDS as readonly string[]).includes(String(value))) {
+    throw new Error(`Unknown profession: ${String(value)}`);
+  }
+
+  return value as ProfessionId;
 }
 
 export function assertSpriteId(value: unknown): SpriteId {
